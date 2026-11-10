@@ -1,0 +1,48 @@
+<div class="app" id="app" data-view="list">
+  <header class="top">
+    <h1>Alpengipfel</h1>
+    <span class="sub" id="sub">Alle benannten Gipfel der Alpen aus OpenStreetMap</span>
+    <button class="bookbtn" id="openbook" type="button">Gipfelbuch</button>
+    <div class="tabs" role="group" aria-label="Ansicht">
+      <button id="tab-list" type="button" aria-pressed="true">Liste</button>
+      <button id="tab-map" type="button" aria-pressed="false">Karte</button>
+    </div>
+  </header>
+
+  <section class="side">
+    <div class="filters">
+      <div class="f wide"><label for="q">Name</label><input id="q" type="search" placeholder="z. B. Großglockner, Piz, Aiguille …" autocomplete="off"></div>
+      <div class="f wide">
+        <span class="lab">Höhe in Metern</span>
+        <div class="hrow"><input id="hmin" type="number" inputmode="numeric" min="0" max="4900" step="50" placeholder="von" aria-label="Mindesthöhe"><span>bis</span><input id="hmax" type="number" inputmode="numeric" min="0" max="4900" step="50" placeholder="bis" aria-label="Maximalhöhe"></div>
+        <div class="bands" id="bands"></div>
+      </div>
+      <div class="f"><label for="country">Land</label><select id="country"></select></div>
+      <div class="f"><label for="state">Bundesland / Region</label><select id="state"></select></div>
+      <div class="f wide"><label for="group">Gebirgsgruppe</label><select id="group"></select></div>
+      <div class="f"><label for="book">Gipfelbuch</label><select id="book"><option value="">Alle Gipfel</option><option value="done">Bestiegen</option><option value="todo">Noch nicht bestiegen</option><option value="wish">Wunschliste</option></select></div>
+      <div class="f"><span class="lab">In meiner Nähe</span><div class="hrow"><button class="nearbtn" id="near" type="button">Standort verwenden</button><select id="radius" aria-label="Umkreis" hidden><option value="">beliebig weit</option><option value="10">10 km</option><option value="25">25 km</option><option value="50">50 km</option><option value="100">100 km</option></select></div></div>
+      <div class="f wide note" id="nearmsg" hidden></div>
+    </div>
+    <div class="status">
+      <span><strong id="count">–</strong> Gipfel</span>
+      <button class="reset" id="reset" type="button" hidden>Filter zurücksetzen</button>
+      <select id="sort" aria-label="Sortierung">
+        <option value="hd">Höchste zuerst</option>
+        <option value="ha">Niedrigste zuerst</option>
+        <option value="na">Name A–Z</option>
+        <option value="near">Nächste zuerst</option>
+      </select>
+    </div>
+    <div class="list" id="list" tabindex="0"><div class="spacer" id="spacer"></div></div>
+    <div class="detail" id="detail" hidden></div>
+    <div class="detail" id="bookpanel" hidden></div>
+    <div class="loading" id="loading">Gipfeldaten werden geladen …</div>
+  </section>
+
+  <section class="mapwrap">
+    <div id="map"></div>
+    <div class="legend" id="legend"></div>
+    <div class="tip" id="tip" hidden></div>
+  </section>
+</div>
