@@ -49,9 +49,22 @@ run(f'''SELECT ?n ?rel WHERE {{ {PEAK}
   SERVICE qlss: {{ {JOIN} qlss:payload ?rel .
     {{ {ROUTE} ?rel geo:hasGeometry/geo:asWKT ?rg }} }} }}''', 'data/raw/q/routes.tsv')
 run(f'SELECT ?rel ?name ?ref WHERE {{ {ROUTE} OPTIONAL {{ ?rel osmkey:name ?name }} OPTIONAL {{ ?rel osmkey:ref ?ref }} }}', 'data/raw/q/route_names.tsv')
-run(f'''SELECT ?n ?w WHERE {{ {PEAK}
-  SERVICE qlss: {{ {JOIN} qlss:payload ?w .
-    {{ osmrel:{ALPS} ogc:sfIntersects ?w . ?w osmkey:highway ?h ; geo:hasGeometry/geo:asWKT ?rg . FILTER(?h = "path" || ?h = "footway" || ?h = "track" || ?h = "via_ferrata" || ?h = "steps") }} }} }}''', 'data/raw/q/ways.tsv')
+run(f'''SELECT ?n ?w ?h ?sac ?vf ?name WHERE {{ {PEAK}
+  SERVICE qlss: {{ {JOIN} qlss:payload ?w , ?h , ?sac , ?vf , ?name .
+    {{ osmrel:{ALPS} ogc:sfIntersects ?w . ?w osmkey:highway ?h ; geo:hasGeometry/geo:asWKT ?rg . FILTER(?h = "path" || ?h = "footway" || ?h = "track" || ?h = "via_ferrata" || ?h = "steps")
+      OPTIONAL {{ ?w osmkey:sac_scale ?sac }} OPTIONAL {{ ?w osmkey:via_ferrata_scale ?vf }} OPTIONAL {{ ?w osmkey:name ?name }} }} }} }}''', 'data/raw/q/ways.tsv')
+# which of those paths belong to which hiking route (gives each route its difficulty at the summit)
+if not os.path.exists('data/raw/q/route_ways.tsv'):
+    near = {l.split('\t')[1] for l in open('data/raw/q/ways.tsv').read().splitlines()[1:]}
+    rels = sorted({l.split('\t')[1] for l in open('data/raw/q/routes.tsv').read().splitlines()[1:]})
+    keep = ['?rel\t?w']
+    for k in range(0, len(rels), 400):
+        tmp = 'data/raw/q/_members.tsv'
+        if os.path.exists(tmp): os.remove(tmp)
+        run(f"SELECT ?rel ?w WHERE {{ VALUES ?rel {{ {' '.join(rels[k:k + 400])} }} ?rel osmrel:member ?m . ?m osmrel:member_id ?w }}", tmp)
+        keep += [l for l in open(tmp).read().splitlines()[1:] if l.split('\t')[1] in near]
+        os.remove(tmp)
+    open('data/raw/q/route_ways.tsv', 'w').write('\n'.join(keep) + '\n'); print('route_ways', len(keep) - 1)
 # Natural Earth: country borders and lakes for the overview map
 for name in ('ne_10m_admin_0_countries', 'ne_10m_lakes'):
     out = 'data/raw/' + {'ne_10m_admin_0_countries': 'ne_countries', 'ne_10m_lakes': 'ne_lakes'}[name] + '.geojson'

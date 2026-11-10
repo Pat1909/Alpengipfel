@@ -131,7 +131,18 @@ for row in tsv(f'{RAW}/q/route_names.tsv'):
     if label: rnames[nid(row['rel'])] = label
 peak_routes, peak_ways = {}, {}
 for row in tsv(f'{RAW}/q/routes.tsv'): peak_routes.setdefault(nid(row['n']), set()).add(nid(row['rel']))
-for row in tsv(f'{RAW}/q/ways.tsv'): peak_ways.setdefault(nid(row['n']), set()).add(nid(row['w']))
+# Each path near a summit is classed as 0 = Wandern (T1-T3 or untagged), 1 = Hochalpin (T4-T6), 2 = Klettersteig.
+SAC = {'strolling': 1, 'hiking': 1, 'mountain_hiking': 2, 'demanding_mountain_hiking': 3,
+       'alpine_hiking': 4, 'demanding_alpine_hiking': 5, 'difficult_alpine_hiking': 6}
+def classify(row):
+    grade = max([SAC.get(v.strip(), 0) for v in row['sac'].split(';')] or [0])
+    vf = row['vf'] if re.fullmatch(r'[0-6][+-]?', row['vf']) else ''
+    if row['h'] == 'via_ferrata' or vf: return (2, grade, vf, row['name'])
+    return (1 if grade >= 4 else 0, grade, '', row['name'])
+for row in tsv(f'{RAW}/q/ways.tsv'): peak_ways.setdefault(nid(row['n']), {})[nid(row['w'])] = classify(row)
+route_ways = {}
+for row in tsv(f'{RAW}/q/route_ways.tsv'): route_ways.setdefault(nid(row['rel']), set()).add(nid(row['w']))
+hardest = lambda infos: max(infos, key=lambda x: (x[0], x[1], x[2]))
 route_list, route_idx = [], {}
 def route_ref(rid):
     if rid not in route_idx:
@@ -139,7 +150,7 @@ def route_ref(rid):
     return route_idx[rid]
 
 country_keys = list(COUNTRIES); state_keys = list(STATES)
-cols = {k: [] for k in ['n', 'an', 'e', 'la', 'lo', 'c', 's', 'g', 'sg', 'p', 'wp', 'id', 'rt', 'w']}
+cols = {k: [] for k in ['n', 'an', 'e', 'la', 'lo', 'c', 's', 'g', 'sg', 'p', 'wp', 'id', 'rt', 'ap', 'k']}
 ccount = [0] * len(country_keys); scount = [0] * len(state_keys); gcount = [0] * len(groups); ungrouped = 0
 def compact(lst): return -1 if not lst else (lst[0] if len(lst) == 1 else lst)
 order = sorted(range(len(P)), key=lambda i: -(parse_num(P[i]['t'].get('ele'), 0, 4900) or -1))
@@ -165,9 +176,16 @@ for i in order:
     cols['p'].append(parse_num(t.get('prominence'), 0, 4900) or 0)
     cols['wp'].append(t.get('wikipedia') or 0)
     cols['id'].append(p['id'])
+    ways = peak_ways.get(p['id'], {})
     rts = sorted(peak_routes.get(p['id'], ()), key=lambda r: rnames.get(r, '~'))
-    cols['rt'].append([route_ref(r) for r in rts] if rts else 0)
-    cols['w'].append(len(peak_ways.get(p['id'], ())))
+    rt, used, kinds = [], set(), 0
+    for r in rts:                                   # a route is as hard as its hardest stretch at the summit
+        mine = route_ways.get(r, set()) & ways.keys(); used |= mine
+        cat, grade, vf, _ = hardest([ways[w] for w in mine]) if mine else (0, 0, '', '')
+        rt.append([route_ref(r), cat, grade, vf]); kinds |= 1 << cat
+    ap = sorted({ways[w] for w in ways.keys() - used})   # paths that belong to no signposted route
+    for cat, *_ in ap: kinds |= 1 << cat
+    cols['rt'].append(rt or 0); cols['ap'].append([list(x) for x in ap] or 0); cols['k'].append(kinds)
 
 data = {
     'meta': {'date': datetime.date.today().strftime('%d.%m.%Y'), 'source': 'OpenStreetMap contributors, ODbL', 'routeRadius': ROUTE_RADIUS},

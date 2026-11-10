@@ -102,6 +102,13 @@ dl.facts dd small { color: var(--muted); display: block; }
 .links a:hover, .links button:hover { background: var(--hover); }
 .rts { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
 .rts a { color: var(--glacier); }
+.rts small { display: block; color: var(--muted); font-size: 12.5px; }
+.ways { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
+.kind { display: flex; flex-direction: column; gap: 2px; }
+.kh { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.kh small { color: var(--muted); font-size: 12.5px; }
+.kb { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 1px 9px; border: 1px solid currentColor; white-space: nowrap; }
+.kb.k0 { color: var(--h0); } .kb.k1 { color: var(--h3); } .kb.k2 { color: var(--glacier); }
 .wx { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
 .wx h3, .h3 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; }
 .wx a { color: var(--glacier); }

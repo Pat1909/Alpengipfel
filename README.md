@@ -43,4 +43,4 @@ Für einen frischen Datenstand vorher `data/raw/q` löschen.
 
 - Höhe, Schartenhöhe und Namen stammen unverändert aus OpenStreetMap. Gipfel ohne eingetragene Höhe erscheinen mit „–“.
 - Gipfel, die höchstens 50 m von einer Grenze entfernt liegen, zählen für beide Länder bzw. Bundesländer.
-- „Routen“ zählt ausgeschilderte Wanderrouten (OSM-Routenrelationen `hiking`/`foot`), die höchstens 100 m am Gipfel vorbeiführen. Kletter- und Hochtourenrouten sind in OpenStreetMap nicht systematisch erfasst.
+- „Wege und Routen auf den Gipfel“ listet markierte Wanderrouten (OSM-Routenrelationen `hiking`/`foot`) und Wege, die höchstens 100 m am Gipfel vorbeiführen. Eingeteilt wird nach dem Abschnitt am Gipfel: Wandern (SAC-Skala T1–T3 oder ohne Angabe), Hochalpin (T4–T6), Klettersteig (`highway=via_ferrata` oder `via_ferrata_scale`). Kletterrouten und Gletschertouren sind in OpenStreetMap nicht systematisch erfasst.

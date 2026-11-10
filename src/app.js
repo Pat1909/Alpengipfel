@@ -71,6 +71,7 @@ function apply() {
   const s = $('state').value === '' ? null : +$('state').value;
   const gv = $('group').value;
   const g = gv === '' ? null : gv === 'none' ? -1 : +gv;
+  const kind = $('kind').value;
   const bk = $('book').value, rad = me && $('radius').value ? +$('radius').value : null;
   const out = [];
   for (let i = 0; i < N; i++) {
@@ -82,6 +83,7 @@ function apply() {
     if (c != null && !has(P.c[i], c)) continue;
     if (s != null && !has(P.s[i], s)) continue;
     if (g != null && !has(P.g[i], g)) continue;
+    if (kind !== '' && (kind === 'none' ? P.k[i] !== 0 : !(P.k[i] & (1 << +kind)))) continue;
     if (q && !P.nn[i].includes(q)) continue;
     out.push(i);
   }
@@ -92,7 +94,7 @@ function apply() {
   else { const col = new Intl.Collator('de'); out.sort((a, b) => col.compare(P.n[a], P.n[b])); }
   idx = out;
   $('count').textContent = fmt.format(out.length) + (out.length === N ? '' : ' von ' + fmt.format(N));
-  $('reset').hidden = !(q || hmin != null || hmax != null || c != null || s != null || g != null || bk || rad != null);
+  $('reset').hidden = !(q || hmin != null || hmax != null || c != null || s != null || g != null || kind !== '' || bk || rad != null);
   [...$('bands').children].forEach(btn => {
     const b = BANDS[+btn.dataset.i];
     btn.setAttribute('aria-pressed', String((hmin ?? 0) === b[0] && (hmax ?? 9999) === b[1]));
@@ -141,6 +143,29 @@ function dms(v, pos, neg) {
   const a = Math.abs(v), d = Math.floor(a), m = Math.floor((a - d) * 60), s = ((a - d) * 60 - m) * 60;
   return `${d}° ${String(m).padStart(2, '0')}′ ${s.toFixed(1).padStart(4, '0')}″ ${v >= 0 ? pos : neg}`;
 }
+/* ---------- ways and routes to the summit ---------- */
+const KINDS = ['Wandern', 'Hochalpin', 'Klettersteig'];
+const KIND_HINT = ['Wanderwege bis T3 oder ohne Schwierigkeitsangabe', 'Alpinwanderwege T4–T6: ausgesetzt, teils weglos, Hände nötig', 'Gesicherte Steige mit Drahtseil, Klettersteigset nötig'];
+const gradeLabel = (cat, grade, vf) => [grade ? 'T' + grade : '', vf ? 'Klettersteig-Skala ' + vf + ' von 6' : ''].filter(Boolean).join(' · ');
+function routesHtml(i) {
+  const P = D.peaks, groups = [[], [], []];
+  (P.rt[i] || []).forEach(([k, cat, grade, vf]) => {
+    const x = D.routes[k];
+    groups[cat].push(`<li><a href="https://hiking.waymarkedtrails.org/#route?id=${x[0]}" target="_blank" rel="noopener">${esc(x[1] || 'Markierte Route ohne Namen')}</a><small>markierte Route${gradeLabel(cat, grade, vf) ? ' · ' + gradeLabel(cat, grade, vf) : ''}</small></li>`);
+  });
+  (P.ap[i] || []).forEach(([cat, grade, vf, name]) => {
+    groups[cat].push(`<li>${esc(name || (cat === 2 ? 'Klettersteig ohne Namen' : 'Weg ohne Namen'))}<small>${gradeLabel(cat, grade, vf) || 'ohne Schwierigkeitsangabe'}</small></li>`);
+  });
+  const total = groups.reduce((s, g) => s + g.length, 0);
+  let out = `<section class="ways"><h3 class="h3">Wege und Routen auf den Gipfel</h3>`;
+  if (!total) out += `<p class="note">In OpenStreetMap ist kein Weg bis zum Gipfel erfasst. Das heißt meist: wegloser Anstieg, Kletterei oder Hochtour über Gletscher. Dafür brauchst du einen Führer oder Tourenbericht.</p>`;
+  groups.forEach((g, cat) => {
+    if (!g.length) return;
+    out += `<div class="kind"><div class="kh"><span class="kb k${cat}">${KINDS[cat]}</span><small>${KIND_HINT[cat]}</small></div><ul class="rts">${g.slice(0, 15).join('')}${g.length > 15 ? `<li>und ${g.length - 15} weitere</li>` : ''}</ul></div>`;
+  });
+  if (total) out += `<p class="note">Erfasst sind markierte Routen und Wege, die höchstens ${D.meta.routeRadius} m am Gipfel vorbeiführen, mit der Schwierigkeit des Abschnitts am Gipfel (SAC-Wanderskala T1–T6). Die Einstufung stammt aus OpenStreetMap und kann fehlen oder veraltet sein. Kletterrouten und Gletschertouren sind dort nicht erfasst.</p>`;
+  return out + '</section>';
+}
 function showDetail(i, fromMap, noPush) {
   selected = i;
   $('bookpanel').hidden = true;
@@ -156,9 +181,6 @@ function showDetail(i, fromMap, noPush) {
     const order = [...Array(N).keys()].filter(k => P.e[k] != null).sort((a, b) => P.e[b] - P.e[a]);
     rankByEle = new Int32Array(N).fill(0); order.forEach((k, r) => rankByEle[k] = r + 1);
   }
-  const rt = P.rt[i] || [], w = P.w[i], r = rt.length;
-  let routes = `${r} ${r === 1 ? 'markierte Wanderroute' : 'markierte Wanderrouten'}<small>${w} ${w === 1 ? 'Weg' : 'Wege'} im Umkreis von ${D.meta.routeRadius} m um den Gipfel</small>`;
-  if (r) routes += '<ul class="rts">' + rt.slice(0, 12).map(k => { const x = D.routes[k]; return `<li><a href="https://hiking.waymarkedtrails.org/#route?id=${x[0]}" target="_blank" rel="noopener">${esc(x[1] || 'Route ohne Namen')}</a></li>`; }).join('') + (r > 12 ? `<li>und ${r - 12} weitere</li>` : '') + '</ul>';
   const wp = P.wp[i];
   let wpLink = '';
   if (wp) { const k = wp.indexOf(':'); wpLink = `<a href="https://${esc(wp.slice(0, k))}.wikipedia.org/wiki/${encodeURIComponent(wp.slice(k + 1).replace(/ /g, '_'))}" target="_blank" rel="noopener">Wikipedia</a>`; }
@@ -176,13 +198,12 @@ function showDetail(i, fromMap, noPush) {
     `<dt>Bundesland / Region</dt><dd>${esc(pl.s || '–')}</dd>` +
     `<dt>Gebirgsgruppe</dt><dd>${esc(pl.g || 'Ohne Zuordnung')}${sub ? `<small>Untergruppe: ${esc(sub)}</small>` : ''}</dd>` +
     (P.p[i] ? `<dt>Schartenhöhe</dt><dd>${fmt.format(P.p[i])} m</dd>` : '') +
-    `<dt>Routen</dt><dd>${routes}</dd>` +
     `</dl>` +
     `<div class="links"><button type="button" id="zoomto">Auf Karte zeigen</button>${HOSTED ? '<button type="button" id="share">Link kopieren</button>' : ''}` +
     `<a href="https://www.openstreetmap.org/node/${P.id[i]}" target="_blank" rel="noopener">OpenStreetMap</a>${wpLink}` +
     `<a href="https://www.opentopomap.org/#marker=15/${la}/${lo}" target="_blank" rel="noopener">Topokarte</a></div>` +
-    `<section class="wx" id="wx"><h3>Wetter am Gipfel, nächste 7 Tage</h3><div id="wxbody" class="note">Vorhersage wird geladen …</div></section>` +
-    `<p class="note">Gezählt werden ausgeschilderte Wanderrouten aus OpenStreetMap, die höchstens ${D.meta.routeRadius} m am Gipfel vorbeiführen. Kletter- und Hochtourenrouten sind dort nicht systematisch erfasst und fehlen deshalb.</p>`;
+    routesHtml(i) +
+    `<section class="wx" id="wx"><h3>Wetter am Gipfel, nächste 7 Tage</h3><div id="wxbody" class="note">Vorhersage wird geladen …</div></section>`;
   el.hidden = false; el.scrollTop = 0;
   loadWeather(i);
   $('back').onclick = () => closeDetail();
@@ -532,13 +553,14 @@ async function boot() {
   $('country').addEventListener('change', () => { fillStates(); apply(); fitToFilter(); });
   $('state').addEventListener('change', () => { apply(); fitToFilter(); });
   $('group').addEventListener('change', () => { apply(); fitToFilter(); });
+  $('kind').addEventListener('change', () => { apply(); fitToFilter(); });
   $('sort').addEventListener('change', () => { if ($('sort').value === 'near' && !me) locate(); else apply(); });
   $('book').addEventListener('change', () => { apply(); fitToFilter(); });
   $('radius').addEventListener('change', () => { apply(); fitToFilter(); });
   $('near').addEventListener('click', locate);
   $('openbook').addEventListener('click', showBook);
   $('reset').addEventListener('click', () => {
-    ['q', 'hmin', 'hmax'].forEach(k => $(k).value = ''); $('country').value = ''; fillStates(); $('state').value = ''; $('group').value = ''; $('book').value = ''; $('radius').value = '';
+    ['q', 'hmin', 'hmax'].forEach(k => $(k).value = ''); $('country').value = ''; fillStates(); $('state').value = ''; $('group').value = ''; $('kind').value = ''; $('book').value = ''; $('radius').value = '';
     apply(); if (map) map.fitBounds([[43.4, 5.0], [48.4, 16.6]]);
   });
   let raf = 0;
