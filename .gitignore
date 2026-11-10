@@ -1,0 +1,5 @@
+data/raw/q/
+data/raw/ne_*.geojson
+data/raw/ranges_tags.json
+dist/
+__pycache__/

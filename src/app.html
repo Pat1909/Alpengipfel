@@ -1,0 +1,581 @@
+<title>Alpengipfel</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&display=swap">
+<style>
+/*__LEAFLET_CSS__*/
+/* Layout: one-screen tool. Left column = filters + list (or detail), right = map. Phone: tab switch Liste/Karte. */
+:root {
+  --paper: #f3f5f2;      /* map-sheet ground, cool */
+  --surface: #ffffff;
+  --ink: #1d2623;
+  --muted: #5d6a66;
+  --line: #d5dbd7;
+  --relief: #8a5a2b;     /* contour brown of topographic sheets */
+  --glacier: #2f7fa8;    /* glacier/water blue */
+  --accent: #b3261e;     /* trail-marker red */
+  --accent-ink: #ffffff;
+  --hover: #e9eeea;
+  --map-land: #e7ebe4;
+  --map-alps: #f6f3ea;
+  --map-water: #b9d6e6;
+  --map-border: #7d6f8c;
+  --map-group: #b08a5e;
+  --map-label: #6d5334;
+  --h0: #5f8f4e; --h1: #a6a042; --h2: #c98a3a; --h3: #a0522d; --h4: #6f6f78; --h5: #2f7fa8;
+  --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #151a19; --surface: #1d2423; --ink: #e6ebe8; --muted: #9aa7a2; --line: #333d3a;
+  --relief: #d2a070; --glacier: #6fb7dc; --accent: #ef6a5f; --accent-ink: #1a0f0e; --hover: #262f2d;
+  --map-land: #1b2120; --map-alps: #262b27; --map-water: #1f3b4a; --map-border: #a99bbb; --map-group: #7d6547; --map-label: #c9ab84;
+  --h0: #7fb56b; --h1: #c7c05a; --h2: #e3a455; --h3: #d07a4f; --h4: #b3b3bd; --h5: #7cc4ea;
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #151a19; --surface: #1d2423; --ink: #e6ebe8; --muted: #9aa7a2; --line: #333d3a;
+  --relief: #d2a070; --glacier: #6fb7dc; --accent: #ef6a5f; --accent-ink: #1a0f0e; --hover: #262f2d;
+  --map-land: #1b2120; --map-alps: #262b27; --map-water: #1f3b4a; --map-border: #a99bbb; --map-group: #7d6547; --map-label: #c9ab84;
+  --h0: #7fb56b; --h1: #c7c05a; --h2: #e3a455; --h3: #d07a4f; --h4: #b3b3bd; --h5: #7cc4ea;
+  color-scheme: dark }
+
+html, body { height: 100%; }
+body { background: var(--paper); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.4; }
+* { box-sizing: border-box; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--glacier); outline-offset: 1px; }
+
+.app { height: 100%; display: grid; grid-template-columns: minmax(320px, 420px) 1fr; grid-template-rows: auto 1fr; }
+.top { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  border-bottom: 1px solid var(--line); background: var(--surface); }
+.top h1 { font-family: var(--font-display); font-weight: 600; font-size: 26px; letter-spacing: .01em; margin: 0; line-height: 1; }
+.top .sub { color: var(--muted); font-size: 13px; }
+.tabs { margin-left: auto; display: none; gap: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.tabs button { border: 0; background: transparent; padding: 6px 14px; cursor: pointer; }
+.tabs button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+
+.side { min-width: 0; min-height: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); background: var(--surface); position: relative; }
+.filters { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 10px; padding-block: 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 16px; border-bottom: 1px solid var(--line); }
+.f { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.f.wide { grid-column: 1 / -1; }
+.f label, .f .lab { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; }
+.f input, .f select { width: 100%; min-width: 0; padding: 7px 8px; border: 1px solid var(--line); border-radius: 5px; background: var(--paper); }
+.hrow { display: flex; align-items: center; gap: 6px; }
+.hrow span { color: var(--muted); }
+.bands { display: flex; gap: 4px; flex-wrap: wrap; }
+.bands button { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 2px 9px; font-size: 12.5px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.bands button:hover { background: var(--hover); }
+.bands button[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+
+.status { display: flex; align-items: center; gap: 8px; padding-block: 7px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 16px;
+  border-bottom: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+.status strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.status select { margin-left: auto; border: 1px solid var(--line); border-radius: 5px; background: var(--paper); padding: 3px 6px; font-size: 13px; }
+.status .reset { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; text-decoration: underline; font-size: 13px; }
+
+.list { flex: 1; min-height: 0; overflow-y: auto; position: relative; }
+.list .spacer { position: relative; }
+.row { position: absolute; left: 0; right: 0; height: 52px; display: grid; grid-template-columns: 10px 1fr auto; gap: 10px; align-items: center;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 16px; border: 0; border-bottom: 1px solid var(--line); background: transparent; text-align: left; cursor: pointer; width: 100%; }
+.row:hover, .row.sel { background: var(--hover); }
+.row .dot { width: 10px; height: 10px; border-radius: 50%; }
+.row .nm { min-width: 0; }
+.row .nm b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .nm small { display: block; color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .el { font-family: var(--font-display); font-size: 20px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.row .el i { font-style: normal; font-size: 13px; color: var(--muted); margin-left: 2px; }
+.empty { padding: 28px 16px; color: var(--muted); text-align: center; }
+
+.detail { position: absolute; inset: 0; background: var(--surface); overflow-y: auto; z-index: 5;
+  padding-block: 14px 24px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 16px; display: flex; flex-direction: column; gap: 14px; }
+.detail .back { align-self: flex-start; border: 1px solid var(--line); background: transparent; border-radius: 5px; padding: 5px 10px; cursor: pointer; }
+.detail .back:hover { background: var(--hover); }
+.detail h2 { font-family: var(--font-display); font-weight: 600; font-size: 34px; line-height: 1.05; margin: 0; text-wrap: balance; overflow-wrap: anywhere; }
+.detail .alt { color: var(--muted); margin-top: 2px; }
+.summit { display: flex; align-items: baseline; gap: 8px; border-top: 2px solid var(--relief); border-bottom: 1px solid var(--line); padding-block: 8px; }
+.summit .big { font-family: var(--font-display); font-size: 46px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+.summit .unit { color: var(--muted); }
+.summit .rank { margin-left: auto; color: var(--muted); font-size: 13px; text-align: right; }
+dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 0; }
+dl.facts dt { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; padding-top: 3px; }
+dl.facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+dl.facts dd small { color: var(--muted); display: block; }
+.links { display: flex; flex-wrap: wrap; gap: 8px; }
+.links a, .links button { border: 1px solid var(--line); border-radius: 5px; padding: 6px 10px; color: var(--ink); text-decoration: none; background: transparent; cursor: pointer; }
+.links a:hover, .links button:hover { background: var(--hover); }
+.rts { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
+.rts a { color: var(--glacier); }
+.wx { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+.wx h3 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; }
+.wxt { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.wxt td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.wxt td:last-child { padding-right: 0; text-align: right; white-space: nowrap; }
+.wxt .day { white-space: nowrap; font-weight: 600; }
+.wxt .temp { white-space: nowrap; }
+.wxt small { display: block; color: var(--muted); font-size: 12.5px; }
+.wx a { color: var(--glacier); }
+.note { color: var(--muted); font-size: 12.5px; margin: 0; }
+
+.mapwrap { min-width: 0; min-height: 0; position: relative; }
+#map { position: absolute; inset: 0; background: var(--map-land); font-family: var(--font-body); }
+.legend { position: absolute; left: 10px; bottom: 22px; z-index: 500; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; font-size: 12px; display: flex; gap: 9px; flex-wrap: wrap; max-width: calc(100% - 20px); }
+.legend span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.leaflet-container { background: var(--map-land); }
+.leaflet-control-attribution { background: var(--surface) !important; color: var(--muted) !important; font-size: 10.5px; }
+.leaflet-control-attribution a { color: var(--muted) !important; }
+.leaflet-bar a { background: var(--surface) !important; color: var(--ink) !important; border-color: var(--line) !important; }
+.tip { position: absolute; z-index: 600; pointer-events: none; background: var(--ink); color: var(--surface); padding: 3px 8px; border-radius: 4px; font-size: 12.5px; white-space: nowrap; transform: translate(-50%, -140%); }
+.loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); background: var(--surface); z-index: 20; text-align: center; padding: 16px; }
+
+@media (max-width: 760px) {
+  .app { grid-template-columns: 1fr; }
+  .tabs { display: flex; }
+  .side { border-right: 0; }
+  .filters { padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .app[data-view="map"] .side { display: none; }
+  .app[data-view="list"] .mapwrap { display: none; }
+  .top .sub { display: none; }
+}
+</style>
+
+<div class="app" id="app" data-view="list">
+  <header class="top">
+    <h1>Alpengipfel</h1>
+    <span class="sub" id="sub">Alle benannten Gipfel der Alpen aus OpenStreetMap</span>
+    <div class="tabs" role="group" aria-label="Ansicht">
+      <button id="tab-list" type="button" aria-pressed="true">Liste</button>
+      <button id="tab-map" type="button" aria-pressed="false">Karte</button>
+    </div>
+  </header>
+
+  <section class="side">
+    <div class="filters">
+      <div class="f wide"><label for="q">Name</label><input id="q" type="search" placeholder="z. B. Großglockner, Piz, Aiguille …" autocomplete="off"></div>
+      <div class="f wide">
+        <span class="lab">Höhe in Metern</span>
+        <div class="hrow"><input id="hmin" type="number" inputmode="numeric" min="0" max="4900" step="50" placeholder="von" aria-label="Mindesthöhe"><span>bis</span><input id="hmax" type="number" inputmode="numeric" min="0" max="4900" step="50" placeholder="bis" aria-label="Maximalhöhe"></div>
+        <div class="bands" id="bands"></div>
+      </div>
+      <div class="f"><label for="country">Land</label><select id="country"></select></div>
+      <div class="f"><label for="state">Bundesland / Region</label><select id="state"></select></div>
+      <div class="f wide"><label for="group">Gebirgsgruppe</label><select id="group"></select></div>
+    </div>
+    <div class="status">
+      <span><strong id="count">–</strong> Gipfel</span>
+      <button class="reset" id="reset" type="button" hidden>Filter zurücksetzen</button>
+      <select id="sort" aria-label="Sortierung">
+        <option value="hd">Höchste zuerst</option>
+        <option value="ha">Niedrigste zuerst</option>
+        <option value="na">Name A–Z</option>
+      </select>
+    </div>
+    <div class="list" id="list" tabindex="0"><div class="spacer" id="spacer"></div></div>
+    <div class="detail" id="detail" hidden></div>
+    <div class="loading" id="loading">Gipfeldaten werden geladen …</div>
+  </section>
+
+  <section class="mapwrap">
+    <div id="map"></div>
+    <div class="legend" id="legend"></div>
+    <div class="tip" id="tip" hidden></div>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(function () {
+'use strict';
+const $ = id => document.getElementById(id);
+const fmt = new Intl.NumberFormat('de-DE');
+const BANDS = [[0, 1000, '--h0', 'unter 1000'], [1000, 2000, '--h1', '1000–2000'], [2000, 3000, '--h2', '2000–3000'], [3000, 4000, '--h3', '3000–4000'], [4000, 9999, '--h5', 'über 4000']];
+const ROW = 52;
+let D, GEO, N = 0, idx = [], selected = -1, rankByEle = null;
+let map, peakLayer, cssColors = {}, mapShown = false;
+const ALPS_BOUNDS = [[43.4, 5.0], [48.4, 16.6]];
+
+function bandOf(e) { if (e == null) return -1; for (let i = 0; i < BANDS.length; i++) if (e < BANDS[i][1]) return i; return BANDS.length - 1; }
+function readColors() {
+  const cs = getComputedStyle(document.documentElement);
+  ['--h0','--h1','--h2','--h3','--h4','--h5','--ink','--surface','--accent','--map-alps','--map-water','--map-border','--map-group','--map-label','--map-land','--muted']
+    .forEach(k => cssColors[k] = cs.getPropertyValue(k).trim());
+}
+function colorOf(e) { const b = bandOf(e); return cssColors[b < 0 ? '--h4' : BANDS[b][2]]; }
+const arr = v => v == null || v === -1 ? [] : (Array.isArray(v) ? v : [v]);
+const norm = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ß/g, 'ss');
+
+/* ---------- filters ---------- */
+function fillSelect(sel, items, allLabel) {
+  sel.innerHTML = '';
+  sel.add(new Option(allLabel, ''));
+  items.forEach(([v, label]) => sel.add(new Option(label, v)));
+}
+function buildFilters() {
+  const cc = D.countries.map((c, i) => [i, c.n, c.count]).filter(x => x[2]).sort((a, b) => a[1].localeCompare(b[1], 'de'));
+  fillSelect($('country'), cc.map(x => [x[0], `${x[1]} (${fmt.format(x[2])})`]), 'Alle Länder');
+  fillStates();
+  const gg = D.groups.map((g, i) => [i, g.n, g.count]).filter(x => x[2]).sort((a, b) => a[1].localeCompare(b[1], 'de'));
+  const items = gg.map(x => [x[0], `${x[1]} (${fmt.format(x[2])})`]);
+  if (D.ungrouped) items.push(['none', `Ohne Zuordnung (${fmt.format(D.ungrouped)})`]);
+  fillSelect($('group'), items, 'Alle Gebirgsgruppen');
+  const bands = $('bands');
+  BANDS.forEach((b, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.textContent = b[3] + ' m'; btn.dataset.i = i; btn.setAttribute('aria-pressed', 'false');
+    btn.onclick = () => {
+      const on = btn.getAttribute('aria-pressed') === 'true';
+      $('hmin').value = on || b[0] === 0 ? '' : b[0];
+      $('hmax').value = on || b[1] > 9000 ? '' : b[1];
+      apply();
+    };
+    bands.appendChild(btn);
+  });
+  $('legend').innerHTML = BANDS.map(b => `<span><i style="background:var(${b[2]})"></i>${b[3]} m</span>`).join('') + `<span><i style="background:var(--h4)"></i>Höhe unbekannt</span>`;
+}
+function fillStates() {
+  const c = $('country').value, prev = $('state').value;
+  const ss = D.states.map((s, i) => [i, s.n, s.c, s.count]).filter(x => x[3] && (c === '' || x[2] === +c))
+    .sort((a, b) => a[1].localeCompare(b[1], 'de'));
+  fillSelect($('state'), ss.map(x => [x[0], `${x[1]}${c === '' ? ' · ' + D.countries[x[2]].c : ''} (${fmt.format(x[3])})`]), 'Alle');
+  if ([...$('state').options].some(o => o.value === prev)) $('state').value = prev;
+}
+function has(v, t) { return Array.isArray(v) ? v.includes(t) : v === t; }
+function apply() {
+  const P = D.peaks;
+  const q = norm($('q').value.trim());
+  const hmin = $('hmin').value === '' ? null : +$('hmin').value;
+  const hmax = $('hmax').value === '' ? null : +$('hmax').value;
+  const c = $('country').value === '' ? null : +$('country').value;
+  const s = $('state').value === '' ? null : +$('state').value;
+  const gv = $('group').value;
+  const g = gv === '' ? null : gv === 'none' ? -1 : +gv;
+  const out = [];
+  for (let i = 0; i < N; i++) {
+    const e = P.e[i];
+    if (hmin != null && (e == null || e < hmin)) continue;
+    if (hmax != null && (e == null || e > hmax)) continue;
+    if (c != null && !has(P.c[i], c)) continue;
+    if (s != null && !has(P.s[i], s)) continue;
+    if (g != null && !has(P.g[i], g)) continue;
+    if (q && !P.nn[i].includes(q)) continue;
+    out.push(i);
+  }
+  const sort = $('sort').value;
+  if (sort === 'hd') out.sort((a, b) => (P.e[b] ?? -1) - (P.e[a] ?? -1));
+  else if (sort === 'ha') out.sort((a, b) => (P.e[a] ?? 1e9) - (P.e[b] ?? 1e9));
+  else { const col = new Intl.Collator('de'); out.sort((a, b) => col.compare(P.n[a], P.n[b])); }
+  idx = out;
+  $('count').textContent = fmt.format(out.length) + (out.length === N ? '' : ' von ' + fmt.format(N));
+  $('reset').hidden = !(q || hmin != null || hmax != null || c != null || s != null || g != null);
+  [...$('bands').children].forEach(btn => {
+    const b = BANDS[+btn.dataset.i];
+    btn.setAttribute('aria-pressed', String((hmin ?? 0) === b[0] && (hmax ?? 9999) === b[1]));
+  });
+  $('list').scrollTop = 0;
+  renderList();
+  if (peakLayer) peakLayer.redraw();
+}
+function fitToFilter() {
+  if (!map || !idx.length || idx.length === N) return;
+  const P = D.peaks; let a = 90, b = 180, c = -90, d = -180;
+  for (const i of idx) { const la = P.la[i], lo = P.lo[i]; if (la < a) a = la; if (la > c) c = la; if (lo < b) b = lo; if (lo > d) d = lo; }
+  map.fitBounds([[a, b], [c, d]], { padding: [30, 30], maxZoom: 13 });
+}
+
+/* ---------- list (windowed) ---------- */
+function placeNames(i) {
+  const P = D.peaks;
+  const g = arr(P.g[i]).map(x => D.groups[x].n).join(' / ');
+  const s = arr(P.s[i]).map(x => D.states[x].n).join(' / ');
+  const c = arr(P.c[i]).map(x => D.countries[x].c).join('/');
+  return { g, s, c };
+}
+function renderList() {
+  const list = $('list'), spacer = $('spacer');
+  spacer.style.height = idx.length * ROW + 'px';
+  if (!idx.length) { spacer.innerHTML = '<div class="empty">Kein Gipfel passt zu diesen Filtern. Erweitere den Höhenbereich oder setze die Filter zurück.</div>'; return; }
+  const top = list.scrollTop, h = list.clientHeight || 600;
+  const from = Math.max(0, Math.floor(top / ROW) - 6), to = Math.min(idx.length, Math.ceil((top + h) / ROW) + 6);
+  const P = D.peaks; let html = '';
+  for (let k = from; k < to; k++) {
+    const i = idx[k], e = P.e[i], pl = placeNames(i);
+    const subl = [pl.g, pl.s || pl.c].filter(Boolean).join(' · ') || '–';
+    html += `<button type="button" class="row${i === selected ? ' sel' : ''}" data-i="${i}" style="top:${k * ROW}px">` +
+      `<span class="dot" style="background:${colorOf(e)}"></span>` +
+      `<span class="nm"><b>${esc(P.n[i])}</b><small>${esc(subl)}</small></span>` +
+      `<span class="el">${e == null ? '–' : fmt.format(e)}<i>m</i></span></button>`;
+  }
+  spacer.innerHTML = html;
+}
+const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+
+/* ---------- detail ---------- */
+function dms(v, pos, neg) {
+  const a = Math.abs(v), d = Math.floor(a), m = Math.floor((a - d) * 60), s = ((a - d) * 60 - m) * 60;
+  return `${d}° ${String(m).padStart(2, '0')}′ ${s.toFixed(1).padStart(4, '0')}″ ${v >= 0 ? pos : neg}`;
+}
+function showDetail(i, fromMap) {
+  selected = i;
+  const P = D.peaks, e = P.e[i], la = P.la[i], lo = P.lo[i];
+  const pl = placeNames(i);
+  const countries = arr(P.c[i]).map(x => D.countries[x].n).join(', ') || '–';
+  const sub = arr(P.sg[i]).map(x => D.subgroups[x]).join(', ');
+  if (!rankByEle) {
+    const order = [...Array(N).keys()].filter(k => P.e[k] != null).sort((a, b) => P.e[b] - P.e[a]);
+    rankByEle = new Int32Array(N).fill(0); order.forEach((k, r) => rankByEle[k] = r + 1);
+  }
+  const rt = P.rt[i] || [], w = P.w[i], r = rt.length;
+  let routes = `${r} ${r === 1 ? 'markierte Wanderroute' : 'markierte Wanderrouten'}<small>${w} ${w === 1 ? 'Weg' : 'Wege'} im Umkreis von ${D.meta.routeRadius} m um den Gipfel</small>`;
+  if (r) routes += '<ul class="rts">' + rt.slice(0, 12).map(k => { const x = D.routes[k]; return `<li><a href="https://hiking.waymarkedtrails.org/#route?id=${x[0]}" target="_blank" rel="noopener">${esc(x[1] || 'Route ohne Namen')}</a></li>`; }).join('') + (r > 12 ? `<li>und ${r - 12} weitere</li>` : '') + '</ul>';
+  const wp = P.wp[i];
+  let wpLink = '';
+  if (wp) { const k = wp.indexOf(':'); wpLink = `<a href="https://${esc(wp.slice(0, k))}.wikipedia.org/wiki/${encodeURIComponent(wp.slice(k + 1).replace(/ /g, '_'))}" target="_blank" rel="noopener">Wikipedia</a>`; }
+  const el = $('detail');
+  el.innerHTML =
+    `<button class="back" id="back" type="button">← Zur Liste</button>` +
+    `<div><h2>${esc(P.n[i])}</h2>${P.an[i] ? `<div class="alt">auch: ${esc(P.an[i])}</div>` : ''}</div>` +
+    `<div class="summit"><span class="big">${e == null ? '–' : fmt.format(e)}</span><span class="unit">m Höhe</span>` +
+    (e != null ? `<span class="rank">Rang ${fmt.format(rankByEle[i])}<br>von ${fmt.format(N)} Gipfeln</span>` : `<span class="rank">Höhe in OpenStreetMap<br>nicht eingetragen</span>`) + `</div>` +
+    `<dl class="facts">` +
+    `<dt>Koordinaten</dt><dd>${la.toFixed(5)}° N, ${lo.toFixed(5)}° O<small>${dms(la, 'N', 'S')}, ${dms(lo, 'O', 'W')}</small></dd>` +
+    `<dt>Land</dt><dd>${esc(countries)}</dd>` +
+    `<dt>Bundesland / Region</dt><dd>${esc(pl.s || '–')}</dd>` +
+    `<dt>Gebirgsgruppe</dt><dd>${esc(pl.g || 'Ohne Zuordnung')}${sub ? `<small>Untergruppe: ${esc(sub)}</small>` : ''}</dd>` +
+    (P.p[i] ? `<dt>Schartenhöhe</dt><dd>${fmt.format(P.p[i])} m</dd>` : '') +
+    `<dt>Routen</dt><dd>${routes}</dd>` +
+    `</dl>` +
+    `<div class="links"><button type="button" id="zoomto">Auf Karte zeigen</button>` +
+    `<a href="https://www.openstreetmap.org/node/${P.id[i]}" target="_blank" rel="noopener">OpenStreetMap</a>${wpLink}` +
+    `<a href="https://www.opentopomap.org/#marker=15/${la}/${lo}" target="_blank" rel="noopener">Topokarte</a></div>` +
+    `<section class="wx" id="wx"><h3>Wetter am Gipfel, nächste 7 Tage</h3><div id="wxbody" class="note">Vorhersage wird geladen …</div></section>` +
+    `<p class="note">Gezählt werden ausgeschilderte Wanderrouten aus OpenStreetMap, die höchstens ${D.meta.routeRadius} m am Gipfel vorbeiführen. Kletter- und Hochtourenrouten sind dort nicht systematisch erfasst und fehlen deshalb.</p>`;
+  el.hidden = false; el.scrollTop = 0;
+  loadWeather(i);
+  $('back').onclick = closeDetail;
+  $('zoomto').onclick = () => { setView('map'); map.setView([la, lo], Math.max(map.getZoom(), 13)); };
+  if (!fromMap && map) map.setView([la, lo], Math.max(map.getZoom(), 12));
+  if (fromMap && innerWidth <= 760) setView('list');
+  if (peakLayer) peakLayer.redraw();
+  renderList();
+}
+/* ---------- weather (Open-Meteo, forecast computed for the summit elevation) ---------- */
+const WMO = { 0: 'Klar', 1: 'Überwiegend klar', 2: 'Teils bewölkt', 3: 'Bedeckt', 45: 'Nebel', 48: 'Reifnebel', 51: 'Leichter Niesel', 53: 'Niesel', 55: 'Starker Niesel',
+  56: 'Gefrierender Niesel', 57: 'Gefrierender Niesel', 61: 'Leichter Regen', 63: 'Regen', 65: 'Starker Regen', 66: 'Gefrierender Regen', 67: 'Gefrierender Regen',
+  71: 'Leichter Schneefall', 73: 'Schneefall', 75: 'Starker Schneefall', 77: 'Schneegriesel', 80: 'Leichte Regenschauer', 81: 'Regenschauer', 82: 'Starke Regenschauer',
+  85: 'Schneeschauer', 86: 'Starke Schneeschauer', 95: 'Gewitter', 96: 'Gewitter mit Hagel', 99: 'Gewitter mit Hagel' };
+const wxCache = new Map();
+const dayFmt = new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+const n1 = v => v == null ? '–' : (Math.round(v * 10) / 10).toLocaleString('de-DE');
+async function loadWeather(i) {
+  const P = D.peaks, la = P.la[i], lo = P.lo[i], e = P.e[i];
+  const windy = `<a href="https://www.windy.com/${la}/${lo}?${la},${lo},11" target="_blank" rel="noopener">Wetter für diesen Punkt bei Windy öffnen</a>`;
+  let data = wxCache.get(i);
+  if (!data) {
+    try {
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}${e != null ? '&elevation=' + e : ''}` +
+        '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,snowfall_sum,wind_gusts_10m_max&timezone=Europe%2FBerlin&forecast_days=7';
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(r.status);
+      data = (await r.json()).daily; wxCache.set(i, data);
+    } catch (err) {
+      if (selected === i && $('wxbody')) $('wxbody').innerHTML = 'Die Vorhersage konnte nicht geladen werden. Innerhalb von claude.ai darf die Seite keine Wetterdaten abrufen; auf eigenem Webspace erscheint sie hier. ' + windy;
+      return;
+    }
+  }
+  if (selected !== i || !$('wxbody')) return;
+  const rows = data.time.map((t, k) => {
+    const snow = data.snowfall_sum[k], rain = data.precipitation_sum[k], prob = data.precipitation_probability_max[k];
+    const precip = !rain ? 'trocken' : `${n1(rain)} mm${prob != null ? ' · ' + prob + ' %' : ''}`;
+    return `<tr><td class="day">${k === 0 ? 'Heute' : dayFmt.format(new Date(t + 'T12:00'))}</td>` +
+      `<td>${WMO[data.weather_code[k]] || '–'}<small>${precip}${snow ? ' · ' + n1(snow) + ' cm Neuschnee' : ''}</small></td>` +
+      `<td class="temp">${n1(data.temperature_2m_min[k])} / ${n1(data.temperature_2m_max[k])} °C<small>Böen ${Math.round(data.wind_gusts_10m_max[k])} km/h</small></td></tr>`;
+  }).join('');
+  const body = $('wxbody'); body.className = '';
+  body.innerHTML = `<table class="wxt">${rows}</table><p class="note" style="margin-top:8px">Temperatur als Tagestief / Tageshoch${e != null ? `, berechnet für ${fmt.format(e)} m` : ''}. Modellvorhersage von <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>, kein Ersatz für den Bergwetterbericht.</p>`;
+}
+function closeDetail() { $('detail').hidden = true; selected = -1; renderList(); if (peakLayer) peakLayer.redraw(); }
+
+/* ---------- map ---------- */
+function setView(v) {
+  $('app').dataset.view = v;
+  $('tab-list').setAttribute('aria-pressed', String(v === 'list'));
+  $('tab-map').setAttribute('aria-pressed', String(v === 'map'));
+  if (v === 'map' && map) setTimeout(() => {
+    map.invalidateSize();
+    if (!mapShown) { mapShown = true; if (selected >= 0) return; if (idx.length && idx.length < N) fitToFilter(); else map.fitBounds(ALPS_BOUNDS); }
+  }, 0);
+}
+function initMap() {
+  if (!window.L) { $('map').innerHTML = '<div class="empty">Die Kartenbibliothek konnte nicht geladen werden. Liste und Filter funktionieren trotzdem.</div>'; return; }
+  map = L.map('map', { preferCanvas: true, zoomSnap: 0.5, minZoom: 5, maxZoom: 17, maxBounds: [[40.5, -1], [51, 23]] }).fitBounds(ALPS_BOUNDS);
+  mapShown = $('map').clientWidth > 0;
+  map.attributionControl.setPrefix(false).addAttribution('Daten © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende (ODbL)');
+  const baseStyle = () => ({
+    alps: { stroke: false, fillColor: cssColors['--map-alps'], fillOpacity: 1, interactive: false },
+    lakes: { stroke: false, fillColor: cssColors['--map-water'], fillOpacity: 1, interactive: false },
+    groups: { color: cssColors['--map-group'], weight: 1, opacity: .75, fill: false, interactive: false },
+    borders: { color: cssColors['--map-border'], weight: 1.4, opacity: .9, dashArray: '6 4', fill: false, interactive: false }
+  });
+  const layers = {};
+  const st = baseStyle();
+  const toLL = ring => ring.map(p => [p[1], p[0]]);
+  if (GEO) {
+    layers.alps = L.polygon(GEO.alps.map(poly => poly.map(toLL)), st.alps).addTo(map);
+    layers.lakes = L.polygon(GEO.lakes.map(poly => poly.map(toLL)), st.lakes).addTo(map);
+    layers.groups = L.polygon(GEO.groups.flatMap(g => g.p.map(poly => poly.map(toLL))), st.groups).addTo(map);
+    layers.borders = L.polyline(GEO.borders.map(toLL), st.borders).addTo(map);
+  }
+  // Background tiles are an optional extra: only added where the host page is allowed to load them.
+  const probe = new Image();
+  probe.onload = () => {
+    const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: 'Karte © OpenStreetMap' }).addTo(map);
+    tiles.bringToBack();
+    if (layers.alps) { map.removeLayer(layers.alps); map.removeLayer(layers.lakes); map.removeLayer(layers.borders); layers.groups.setStyle({ opacity: .9, weight: 1.5 }); }
+    hasTiles = true; peakLayer.redraw();
+  };
+  probe.src = 'https://tile.openstreetmap.org/6/33/22.png';
+
+  const PeakLayer = L.Layer.extend({
+    onAdd(m) {
+      this._c = L.DomUtil.create('canvas', 'leaflet-layer');
+      this._c.style.pointerEvents = 'none';
+      m.getPanes().overlayPane.appendChild(this._c);
+      m.on('moveend zoomend resize', this.redraw, this);
+      m.on('zoomstart', () => { this._c.style.visibility = 'hidden'; });
+      this.redraw();
+    },
+    redraw() {
+      const m = this._map; if (!m) return;
+      const size = m.getSize(), dpr = window.devicePixelRatio || 1, c = this._c;
+      const tl = m.containerPointToLayerPoint([0, 0]);
+      L.DomUtil.setPosition(c, tl);
+      c.width = size.x * dpr; c.height = size.y * dpr; c.style.width = size.x + 'px'; c.style.height = size.y + 'px'; c.style.visibility = '';
+      const ctx = c.getContext('2d'); ctx.scale(dpr, dpr);
+      const P = D.peaks, z = m.getZoom(), b = m.getBounds().pad(0.05);
+      const s = b.getSouth(), n = b.getNorth(), w = b.getWest(), e = b.getEast();
+      const vis = [];
+      for (const i of idx) { const la = P.la[i], lo = P.lo[i]; if (la >= s && la <= n && lo >= w && lo <= e) vis.push(i); }
+      this._vis = vis; this._pts = new Float32Array(vis.length * 2);
+      const r = vis.length > 20000 ? 1.1 : vis.length > 6000 ? 1.6 : vis.length > 1500 ? 2.4 : vis.length > 300 ? 3.4 : 4.6;
+      this._r = r;
+      // draw low peaks first so high ones stay on top
+      const order = vis.map((_, k) => k).sort((a, b2) => (P.e[vis[a]] ?? -1) - (P.e[vis[b2]] ?? -1));
+      const outline = r >= 3.4;
+      ctx.lineWidth = 1; ctx.strokeStyle = cssColors['--surface'];
+      for (const k of order) {
+        const i = vis[k], p = m.latLngToContainerPoint([P.la[i], P.lo[i]]);
+        this._pts[k * 2] = p.x; this._pts[k * 2 + 1] = p.y;
+        ctx.fillStyle = colorOf(P.e[i]);
+        ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 6.2832); ctx.fill();
+        if (outline) ctx.stroke();
+      }
+      // group names while zoomed out, peak names once few enough are in view
+      ctx.textAlign = 'center';
+      if (GEO && z < 10.5 && z >= 6.5) {
+        ctx.font = `600 ${z < 8 ? 11 : 13}px "Barlow Condensed", "Arial Narrow", sans-serif`;
+        const placed = [];
+        for (const g of GEO.groups) {
+          if (z < 8 && g.a < 0.12) continue;
+          const p = m.latLngToContainerPoint([g.c[1], g.c[0]]);
+          if (p.x < -50 || p.y < -20 || p.x > size.x + 50 || p.y > size.y + 20) continue;
+          const tw = ctx.measureText(g.n).width / 2 + 4;
+          if (placed.some(q => Math.abs(q[0] - p.x) < q[2] + tw && Math.abs(q[1] - p.y) < 14)) continue;
+          placed.push([p.x, p.y, tw]);
+          label(ctx, g.n.toUpperCase(), p.x, p.y, cssColors['--map-label']);
+        }
+      }
+      if (z >= 9.5 || vis.length <= 60) {
+        ctx.font = '600 12.5px "Barlow", system-ui, sans-serif';
+        const top = order.slice(-45).reverse(), placed = [];
+        for (const k of top) {
+          const i = vis[k], x = this._pts[k * 2], y = this._pts[k * 2 + 1];
+          if (i === selected) continue;
+          const t = P.n[i] + (P.e[i] != null ? ' ' + P.e[i] : ''), tw = ctx.measureText(t).width / 2 + 4;
+          if (placed.some(q => Math.abs(q[0] - x) < q[2] + tw && Math.abs(q[1] - y) < 15)) continue;
+          placed.push([x, y, tw]);
+          label(ctx, t, x, y - r - 5, cssColors['--ink']);
+        }
+      }
+      if (selected >= 0) {
+        const p = m.latLngToContainerPoint([P.la[selected], P.lo[selected]]);
+        ctx.lineWidth = 2.5; ctx.strokeStyle = cssColors['--accent'];
+        ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(r + 5, 8), 0, 6.2832); ctx.stroke();
+        ctx.font = '600 13px "Barlow", system-ui, sans-serif';
+        label(ctx, P.n[selected], p.x, p.y - Math.max(r + 5, 8) - 5, cssColors['--accent']);
+      }
+    },
+    nearest(pt, maxd) {
+      let best = -1, bd = maxd * maxd; const pts = this._pts;
+      for (let k = 0; k < this._vis.length; k++) { const dx = pts[k * 2] - pt.x, dy = pts[k * 2 + 1] - pt.y, d = dx * dx + dy * dy; if (d < bd || (d === bd && best >= 0 && (D.peaks.e[this._vis[k]] ?? 0) > (D.peaks.e[best] ?? 0))) { bd = d; best = this._vis[k]; } }
+      return best;
+    }
+  });
+  function label(ctx, t, x, y, color) {
+    ctx.lineWidth = 3; ctx.strokeStyle = cssColors['--surface']; ctx.lineJoin = 'round';
+    ctx.strokeText(t, x, y); ctx.fillStyle = color; ctx.fillText(t, x, y);
+  }
+  let hasTiles = false;
+  peakLayer = new PeakLayer().addTo(map);
+  const tip = $('tip');
+  map.on('click', ev => { const i = peakLayer.nearest(ev.containerPoint, 14); if (i >= 0) showDetail(i, true); });
+  map.on('mousemove', ev => {
+    const i = peakLayer.nearest(ev.containerPoint, 9);
+    $('map').style.cursor = i >= 0 ? 'pointer' : '';
+    if (i < 0) { tip.hidden = true; return; }
+    tip.textContent = D.peaks.n[i] + (D.peaks.e[i] != null ? ` · ${fmt.format(D.peaks.e[i])} m` : '');
+    tip.style.left = ev.containerPoint.x + 'px'; tip.style.top = ev.containerPoint.y + 'px'; tip.hidden = false;
+  });
+  map.on('mouseout movestart', () => { tip.hidden = true; });
+  const restyle = () => { readColors(); const s2 = baseStyle(); for (const k in layers) if (map.hasLayer(layers[k])) layers[k].setStyle(s2[k]); peakLayer.redraw(); renderList(); };
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', restyle);
+  new MutationObserver(restyle).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+}
+
+/* ---------- boot ---------- */
+async function boot() {
+  readColors();
+  try {
+    const inP = $('data-peaks'), inG = $('data-geo');   // the single-file build carries the data inline
+    if (inP) { D = JSON.parse(inP.textContent); GEO = inG ? JSON.parse(inG.textContent) : null; }
+    else {
+      const [d, g] = await Promise.all([
+        fetch('data/peaks.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
+        fetch('data/geo.json').then(r => r.ok ? r.json() : null).catch(() => null)
+      ]);
+      D = d; GEO = g;
+    }
+  } catch (err) {
+    $('loading').textContent = 'Die Gipfeldaten konnten nicht geladen werden. Lade die Seite neu; wenn du die App lokal öffnest, starte sie über einen Webserver (siehe README).';
+    return;
+  }
+  const P = D.peaks; N = P.n.length;
+  P.nn = P.n.map((n, i) => norm(n + (P.an[i] ? ' ' + P.an[i] : '')));
+  $('sub').textContent = `${fmt.format(N)} benannte Gipfel aus OpenStreetMap, Stand ${D.meta.date}`;
+  buildFilters();
+  initMap();
+  let t;
+  const debounced = () => { clearTimeout(t); t = setTimeout(apply, 140); };
+  $('q').addEventListener('input', debounced);
+  $('hmin').addEventListener('input', debounced);
+  $('hmax').addEventListener('input', debounced);
+  $('country').addEventListener('change', () => { fillStates(); apply(); fitToFilter(); });
+  $('state').addEventListener('change', () => { apply(); fitToFilter(); });
+  $('group').addEventListener('change', () => { apply(); fitToFilter(); });
+  $('sort').addEventListener('change', apply);
+  $('reset').addEventListener('click', () => {
+    ['q', 'hmin', 'hmax'].forEach(k => $(k).value = ''); $('country').value = ''; fillStates(); $('state').value = ''; $('group').value = '';
+    apply(); if (map) map.fitBounds([[43.4, 5.0], [48.4, 16.6]]);
+  });
+  let raf = 0;
+  $('list').addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; renderList(); }); });
+  $('list').addEventListener('click', ev => { const b = ev.target.closest('.row'); if (b) showDetail(+b.dataset.i, false); });
+  addEventListener('resize', renderList);
+  $('tab-list').onclick = () => setView('list');
+  $('tab-map').onclick = () => setView('map');
+  apply();
+  $('loading').hidden = true;
+}
+boot();
+})();
+</script>
