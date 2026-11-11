@@ -483,12 +483,13 @@ function accountHtml() {
     `<label>Benutzername<input type="text" id="aname" autocomplete="username" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_.\-]{3,20}" title="3 bis 20 Zeichen: Buchstaben ohne Umlaute, Ziffern, Punkt, Binde- und Unterstrich"></label>${mail}` +
     `<label>Passwort (mindestens 8 Zeichen)<input type="password" id="apass" autocomplete="new-password" required minlength="8"></label>` +
     `<div class="links"><button type="submit" id="asubmit">Konto anlegen</button></div>${msg}<p class="note">Schon ein Konto? ${sw('login', 'Anmelden')}</p></form>`;
-  if (acctMode === 'verify') return `<form class="acct" id="acctform">${head}<p>Wir haben eine E-Mail an <b>${esc(acctMail)}</b> geschickt. Gib den Code daraus hier ein. Enthält die E-Mail stattdessen einen Bestätigungslink, öffne ihn auf diesem Gerät.</p>` +
-    `<label>Bestätigungscode<input type="text" id="acode" inputmode="numeric" autocomplete="one-time-code" required pattern="[0-9]{6,8}" maxlength="8"></label>` +
-    `<div class="links"><button type="submit" id="asubmit">Bestätigen</button><button type="button" id="aresend">Code erneut senden</button></div>${msg}<p class="note">${sw('login', 'Zurück zur Anmeldung')}</p></form>`;
+  if (acctMode === 'verify') return `<form class="acct" id="acctform">${head}<p>Wir haben eine E-Mail an <b>${esc(acctMail)}</b> geschickt. Öffne den Bestätigungslink darin auf diesem Gerät, dann bist du angemeldet.</p>` +
+    `<p class="note">Keine E-Mail bekommen? Sieh im Spam-Ordner nach. Der Versand kann ein paar Minuten dauern und ist auf wenige E-Mails pro Stunde begrenzt.</p>` +
+    `<label>Nur falls die E-Mail einen Code enthält<input type="text" id="acode" inputmode="numeric" autocomplete="one-time-code" required pattern="[0-9]{6,8}" maxlength="8"></label>` +
+    `<div class="links"><button type="submit" id="asubmit">Code bestätigen</button><button type="button" id="aresend">E-Mail erneut senden</button></div>${msg}<p class="note">${sw('login', 'Zurück zur Anmeldung')}</p></form>`;
   if (acctMode === 'forgot') return `<form class="acct" id="acctform">${head}<p class="note">Gib deine E-Mail-Adresse ein. Du bekommst eine E-Mail, mit der du ein neues Passwort festlegst.</p>${mail}` +
     `<div class="links"><button type="submit" id="asubmit">Code senden</button></div>${msg}<p class="note">${sw('login', 'Zurück zur Anmeldung')}</p></form>`;
-  if (acctMode === 'reset') return `<form class="acct" id="acctform">${head}<p>Wir haben eine E-Mail an <b>${esc(acctMail)}</b> geschickt. Gib den Code daraus hier ein. Enthält die E-Mail stattdessen einen Link, öffne ihn auf diesem Gerät und lege dort das neue Passwort fest.</p>` +
+  if (acctMode === 'reset') return `<form class="acct" id="acctform">${head}<p>Wir haben eine E-Mail an <b>${esc(acctMail)}</b> geschickt. Öffne den Link darin auf diesem Gerät und lege dann das neue Passwort fest. Die Felder unten brauchst du nur, falls die E-Mail einen Code enthält.</p>` +
     `<label>Code aus der E-Mail<input type="text" id="acode" inputmode="numeric" autocomplete="one-time-code" required pattern="[0-9]{6,8}" maxlength="8"></label>` +
     `<label>Neues Passwort (mindestens 8 Zeichen)<input type="password" id="apass" autocomplete="new-password" required minlength="8"></label>` +
     `<div class="links"><button type="submit" id="asubmit">Passwort ändern</button></div>${msg}<p class="note">${sw('login', 'Zurück zur Anmeldung')}</p></form>`;
@@ -499,7 +500,7 @@ function accountHtml() {
 function wireAccount() {
   const go = (mode, text) => { acctMode = mode; acctMsg = text || ''; showBook(); };
   const say = text => { acctMsg = text; if ($('acctmsg')) $('acctmsg').textContent = text; };
-  const tooMany = err => err && err.status === 429 ? 'Zu viele Versuche. Warte ein paar Minuten und versuch es noch einmal.' : '';
+  const tooMany = err => err && err.status === 429 ? 'Zu viele Versuche: Der E-Mail-Versand ist gerade gesperrt. Warte bis zu einer Stunde und versuch es dann noch einmal.' : '';
   if ($('logout')) $('logout').onclick = async () => {
     clearTimeout(pushTimer); await pushBook(); await sb.auth.signOut();
     book = { done: {}, wish: {} }; storeBook(); try { localStorage.removeItem(SYNC_KEY); } catch (err) { /* nothing to forget */ }
@@ -508,7 +509,7 @@ function wireAccount() {
   document.querySelectorAll('#bookpanel .linkbtn').forEach(btn => { btn.onclick = () => { if ($('amail')) acctMail = $('amail').value.trim(); go(btn.dataset.mode); }; });
   if ($('aresend')) $('aresend').onclick = async () => {
     const { error } = await sb.auth.resend({ type: 'signup', email: acctMail, options: { emailRedirectTo: location.origin + ROOT } });
-    say(error ? tooMany(error) || 'Der Code konnte nicht gesendet werden. Versuch es später noch einmal.' : 'Ein neuer Code ist unterwegs.');
+    say(error ? tooMany(error) || 'Die E-Mail konnte nicht gesendet werden. Versuch es später noch einmal.' : 'Eine neue E-Mail ist unterwegs.');
   };
   if (!$('acctform')) return;
   $('acctform').onsubmit = async ev => {
