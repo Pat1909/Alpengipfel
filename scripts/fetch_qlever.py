@@ -75,3 +75,9 @@ for name in ('ne_10m_admin_0_countries', 'ne_10m_lakes'):
 run(f'''SELECT ?h ?type ?name ?ele ?web ?wkt WHERE {{ osmrel:{ALPS} ogc:sfContains ?h . ?h osmkey:tourism ?type ; geo:hasGeometry/geo:asWKT ?wkt .
   FILTER(?type = "alpine_hut" || ?type = "wilderness_hut")
   OPTIONAL {{ ?h osmkey:name ?name }} OPTIONAL {{ ?h osmkey:ele ?ele }} OPTIONAL {{ ?h osmkey:website ?web }} }}''', 'data/raw/q/huts.tsv')
+# starting points: public car parks and stops (bus, rail, cable car) inside the Alps, as centre points
+PFX += 'PREFIX geof: <http://www.opengis.net/def/function/geosparql/>\n'
+run(f'''SELECT ?p ?name ?access (geof:centroid(?g) AS ?c) WHERE {{ osmrel:{ALPS} ogc:sfContains ?p . ?p osmkey:amenity "parking" ; geo:hasGeometry/geo:asWKT ?g .
+  OPTIONAL {{ ?p osmkey:name ?name }} OPTIONAL {{ ?p osmkey:access ?access }} }}''', 'data/raw/q/parking.tsv')
+for key, vals, out in (('highway', '"bus_stop"', 'bus'), ('railway', '"station" "halt"', 'rail'), ('aerialway', '"station"', 'cable')):
+    run(f'''SELECT ?p ?name (geof:centroid(?g) AS ?c) WHERE {{ VALUES ?v {{ {vals} }} osmrel:{ALPS} ogc:sfContains ?p . ?p osmkey:{key} ?v ; osmkey:name ?name ; geo:hasGeometry/geo:asWKT ?g }}''', f'data/raw/q/stops_{out}.tsv')

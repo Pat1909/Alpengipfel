@@ -18,7 +18,7 @@ const ALPS_BOUNDS = [[43.4, 5.0], [48.4, 16.6]];
 function bandOf(e) { if (e == null) return -1; for (let i = 0; i < BANDS.length; i++) if (e < BANDS[i][1]) return i; return BANDS.length - 1; }
 function readColors() {
   const cs = getComputedStyle(document.documentElement);
-  ['--h0','--h1','--h2','--h3','--h4','--h5','--ink','--surface','--accent','--map-alps','--map-water','--map-border','--map-group','--map-label','--map-land','--muted','--tw','--ta','--tk','--tt','--hut']
+  ['--h0','--h1','--h2','--h3','--h4','--h5','--ink','--surface','--accent','--map-alps','--map-water','--map-border','--map-group','--map-label','--map-land','--muted','--tw','--ta','--tk','--tt','--hut','--park','--stop']
     .forEach(k => cssColors[k] = cs.getPropertyValue(k).trim());
 }
 function colorOf(e) { const b = bandOf(e); return cssColors[b < 0 ? '--h4' : BANDS[b][2]]; }
@@ -148,22 +148,22 @@ function dms(v, pos, neg) {
 const KINDS = ['Wandern', 'Hochalpin', 'Klettersteig', 'Skitour'];
 const KIND_HINT = ['Wanderwege und -routen bis T3 oder ohne Schwierigkeitsangabe', 'Alpinwanderwege T4–T6, Hochtouren und Klettereien', 'Gesicherte Steige mit Drahtseil, Klettersteigset nötig', 'Skitouren und Schneeschuhrouten im Winter'];
 const gradeLabel = (cat, grade, vf) => [grade ? 'T' + grade : '', vf ? 'Klettersteig-Skala ' + vf + ' von 6' : ''].filter(Boolean).join(' · ');
-function routesHtml(i) {
+function routesHtml(i, d) {
   const P = D.peaks, osm = [[], [], [], []], c2c = [[], [], [], []];
-  (P.rt[i] || []).forEach(([k, cat, grade, vf]) => {
-    const x = D.routes[k];
+  (d.rt || []).forEach(([rel, rname, cat, grade, vf]) => {
+    const x = [rel, rname];
     osm[cat].push(`<li><a href="https://hiking.waymarkedtrails.org/#route?id=${x[0]}" target="_blank" rel="noopener">${esc(x[1] || 'Markierte Route ohne Namen')}</a>` +
       (HOSTED ? `<button type="button" class="onmap" data-rel="${x[0]}">Auf Karte</button>` : '') +
       `<small>markierte Route${gradeLabel(cat, grade, vf) ? ' · ' + gradeLabel(cat, grade, vf) : ''}</small></li>`);
   });
-  (P.ap[i] || []).forEach(([cat, grade, vf, name]) => {
+  (d.ap || []).forEach(([cat, grade, vf, name]) => {
     osm[cat].push(`<li>${esc(name || (cat === 2 ? 'Klettersteig ohne Namen' : 'Weg ohne Namen'))}<small>${gradeLabel(cat, grade, vf) || 'ohne Schwierigkeitsangabe'}</small></li>`);
   });
-  (P.cc[i] || []).forEach(([id, title, cat, act, rating, up]) => {
+  (d.cc || []).forEach(([id, title, cat, act, rating, up]) => {
     c2c[cat].push(`<li><a href="https://www.camptocamp.org/routes/${id}" target="_blank" rel="noopener">${esc(title || 'Route ohne Namen')}</a>` +
       `<small>${[D.c2cActs[act], rating, up ? fmt.format(up) + ' Hm Aufstieg' : ''].filter(Boolean).map(esc).join(' · ')}</small></li>`);
   });
-  const near = P.nr[i] || [], total = osm.concat(c2c).reduce((s, g) => s + g.length, 0);
+  const near = d.nr || [], total = osm.concat(c2c).reduce((s, g) => s + g.length, 0);
   let out = `<section class="ways"><h3 class="h3">Wege und Routen auf den Gipfel</h3>`;
   if (!total && !near.length) out += `<p class="note">Weder in OpenStreetMap noch bei Camptocamp ist ein Weg oder eine Route zu diesem Gipfel erfasst. Das heißt meist: wegloser Anstieg oder ein selten besuchter Nebengipfel.</p>`;
   KINDS.forEach((kind, cat) => {
@@ -172,7 +172,7 @@ function routesHtml(i) {
     const moreOsm = osm[cat].length - 15, moreC = c2c[cat].length - 8;
     out += `<div class="kind"><div class="kh"><span class="kb k${cat}">${kind}</span><small>${KIND_HINT[cat]}</small></div><ul class="rts">` +
       osm[cat].slice(0, 15).join('') + (moreOsm > 0 ? `<li>und ${moreOsm} weitere Wege</li>` : '') +
-      c2c[cat].slice(0, 8).join('') + (moreC > 0 ? `<li><a href="https://www.camptocamp.org/waypoints/${P.cw[i]}" target="_blank" rel="noopener">${moreC} weitere Routen bei Camptocamp</a></li>` : '') + `</ul></div>`;
+      c2c[cat].slice(0, 8).join('') + (moreC > 0 ? `<li><a href="https://www.camptocamp.org/waypoints/${d.cw}" target="_blank" rel="noopener">${moreC} weitere Routen bei Camptocamp</a></li>` : '') + `</ul></div>`;
   });
   if (near.length) out += `<div class="kind"><div class="kh"><span class="kb kn">In Gipfelnähe</span><small>Diese Wege führen nicht bis zum Gipfel, das letzte Stück ist weglos</small></div><ul class="rts">` +
     near.map(([dist, cat, grade, vf, name]) => `<li>${esc(name || 'Weg ohne Namen')}<small>${dist} m vom Gipfel entfernt · ${KINDS[cat]}${gradeLabel(cat, grade, vf) ? ' · ' + gradeLabel(cat, grade, vf) : ''}</small></li>`).join('') + `</ul></div>`;
@@ -291,6 +291,32 @@ async function showRouteOnMap(rel, btn) {
   } catch (err) { btn.textContent = 'Gerade nicht verfügbar'; setTimeout(() => { btn.textContent = 'Auf Karte'; }, 2500); }
   btn.disabled = false;
 }
+/* ---------- details of a summit are loaded in small files when it is opened ---------- */
+const chunkCache = new Map();
+let inlineDetails = null, startPts = [];
+async function detailOf(i) {
+  const size = D.meta.chunk, c = Math.floor(i / size);
+  let p = chunkCache.get(c);
+  if (!p) {
+    p = inlineDetails ? Promise.resolve(inlineDetails[c]) : fetch(ROOT + 'data/d/' + c + '.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+    chunkCache.set(c, p); p.catch(() => chunkCache.delete(c));
+  }
+  const chunk = await p, d = {};
+  for (const key in chunk) d[key] = chunk[key][i % size];
+  return d;
+}
+const START_KIND = ['Parkplatz', 'Bushaltestelle', 'Bahnhof', 'Seilbahnstation'];
+function startHtml(d) {
+  const item = ([name, dist, la, lo, kind]) => `<li>${esc(name || START_KIND[kind] + ' ohne Namen')}` +
+    `<a class="onmap" href="https://www.google.com/maps/dir/?api=1&destination=${la},${lo}" target="_blank" rel="noopener">Anfahrt</a>` +
+    `<small>${kind ? START_KIND[kind] + ' · ' : ''}${n1(dist)} km Luftlinie zum Gipfel</small></li>`;
+  const pk = d.pk || [], st = d.st || [];
+  if (!pk.length && !st.length) return '';
+  return `<section class="ways"><h3 class="h3">Ausgangspunkte in der Nähe</h3>` +
+    (pk.length ? `<div class="kind"><div class="kh"><span class="kb kp">P</span><small>Nächste öffentliche Parkplätze</small></div><ul class="rts">${pk.map(item).join('')}</ul></div>` : '') +
+    (st.length ? `<div class="kind"><div class="kh"><span class="kb kh2">H</span><small>Nächste Haltestellen</small></div><ul class="rts">${st.map(item).join('')}</ul></div>` : '') +
+    `<p class="note">Die nächsten Punkte nach Luftlinie, auf der Karte mit P und H markiert. Der Weg von dort zum Gipfel kann deutlich länger sein oder auf der anderen Talseite beginnen; prüfe ihn auf der Karte.</p></section>`;
+}
 function showDetail(i, fromMap, noPush) {
   selected = i;
   $('bookpanel').hidden = true;
@@ -298,15 +324,24 @@ function showDetail(i, fromMap, noPush) {
     if (!noPush && location.pathname !== peakUrl(i)) history.pushState({ p: D.peaks.id[i] }, '', peakUrl(i));
     document.title = `${D.peaks.n[i]}${D.peaks.e[i] != null ? ' (' + fmt.format(D.peaks.e[i]) + ' m)' : ''} – Alpengipfel`;
   }
+  const box = $('detail');
+  box.innerHTML = `<button class="back" id="back" type="button">← Zur Liste</button><div><h2>${esc(D.peaks.n[i])}</h2></div><p class="note" id="dload">Angaben werden geladen …</p>`;
+  box.hidden = false; $('back').onclick = () => closeDetail();
+  startPts = []; if (peakLayer) peakLayer.redraw(); renderList();
+  detailOf(i).then(d => { if (selected === i) renderDetail(i, fromMap, d); },
+    () => { if (selected === i && $('dload')) $('dload').textContent = 'Die Angaben zu diesem Gipfel konnten nicht geladen werden. Prüfe die Verbindung und öffne den Gipfel noch einmal.'; });
+}
+function renderDetail(i, fromMap, d) {
   const P = D.peaks, e = P.e[i], la = P.la[i], lo = P.lo[i];
   const pl = placeNames(i);
+  startPts = [...(d.pk || []), ...(d.st || [])];
   const countries = arr(P.c[i]).map(x => D.countries[x].n).join(', ') || '–';
-  const sub = arr(P.sg[i]).map(x => D.subgroups[x]).join(', ');
+  const sub = arr(d.sg).map(x => D.subgroups[x]).join(', ');
   if (!rankByEle) {
     const order = [...Array(N).keys()].filter(k => P.e[k] != null).sort((a, b) => P.e[b] - P.e[a]);
     rankByEle = new Int32Array(N).fill(0); order.forEach((k, r) => rankByEle[k] = r + 1);
   }
-  const wp = P.wp[i];
+  const wp = d.wp;
   let wpLink = '';
   if (wp) { const k = wp.indexOf(':'); wpLink = `<a href="https://${esc(wp.slice(0, k))}.wikipedia.org/wiki/${encodeURIComponent(wp.slice(k + 1).replace(/ /g, '_'))}" target="_blank" rel="noopener">Wikipedia</a>`; }
   const el = $('detail');
@@ -322,12 +357,12 @@ function showDetail(i, fromMap, noPush) {
     `<dt>Land</dt><dd>${esc(countries)}</dd>` +
     `<dt>Bundesland / Region</dt><dd>${esc(pl.s || '–')}</dd>` +
     `<dt>Gebirgsgruppe</dt><dd>${esc(pl.g || 'Ohne Zuordnung')}${sub ? `<small>Untergruppe: ${esc(sub)}</small>` : ''}</dd>` +
-    (P.p[i] ? `<dt>Schartenhöhe</dt><dd>${fmt.format(P.p[i])} m</dd>` : '') +
+    (d.p ? `<dt>Schartenhöhe</dt><dd>${fmt.format(d.p)} m</dd>` : '') +
     `</dl>` +
     `<div class="links"><button type="button" id="zoomto">Auf Karte zeigen</button>${HOSTED ? '<button type="button" id="share">Link kopieren</button>' : ''}` +
     `<a href="https://www.openstreetmap.org/node/${P.id[i]}" target="_blank" rel="noopener">OpenStreetMap</a>${wpLink}` +
     `<a href="https://www.opentopomap.org/#marker=15/${la}/${lo}" target="_blank" rel="noopener">Topokarte</a></div>` +
-    routesHtml(i) +
+    routesHtml(i, d) + startHtml(d) +
     `<section class="wx" id="wx"><h3>Wetter am Gipfel, nächste 7 Tage</h3><div id="wxbody" class="note">Vorhersage wird geladen …</div></section>`;
   el.hidden = false; el.scrollTop = 0;
   loadWeather(i);
@@ -409,7 +444,7 @@ async function loadWeather(i) {
   body.innerHTML = days + `<p class="note" style="margin-top:8px">Tippe auf einen Tag für den Verlauf in 3-Stunden-Schritten. Temperatur als Tagestief / Tageshoch${e != null ? `, berechnet für ${fmt.format(e)} m` : ''}. Modellvorhersage von <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>, kein Ersatz für den Bergwetterbericht.</p>`;
 }
 function closeDetail(noPush) {
-  $('detail').hidden = true; selected = -1; clearTrails();
+  $('detail').hidden = true; selected = -1; startPts = []; clearTrails();
   if (HOSTED) { if (!noPush && location.pathname !== ROOT) history.pushState({}, '', ROOT); document.title = 'Alpengipfel'; }
   renderList(); if (peakLayer) peakLayer.redraw();
 }
@@ -759,6 +794,16 @@ function initMap() {
         ctx.font = '500 11.5px "Barlow", system-ui, sans-serif';
         named.forEach(([x, y, t]) => label(ctx, t, x, y + hs + 12, cssColors['--hut']));
       }
+      if (selected >= 0 && startPts.length && z >= 9) {   // car parks and stops of the open summit
+        ctx.font = '700 10.5px "Barlow", system-ui, sans-serif'; ctx.lineWidth = 1.5; ctx.strokeStyle = cssColors['--surface'];
+        for (const [name, dist, la, lo, kind] of startPts) {
+          const p = m.latLngToContainerPoint([la, lo]);
+          ctx.fillStyle = cssColors[kind ? '--stop' : '--park'];
+          ctx.beginPath(); ctx.rect(p.x - 7, p.y - 7, 14, 14); ctx.fill(); ctx.stroke();
+          ctx.fillStyle = cssColors['--surface']; ctx.fillText(kind ? 'H' : 'P', p.x, p.y + 3.8);
+          if (z >= 12 && name) { ctx.font = '500 11.5px "Barlow", system-ui, sans-serif'; label(ctx, name, p.x, p.y + 20, cssColors[kind ? '--stop' : '--park']); ctx.font = '700 10.5px "Barlow", system-ui, sans-serif'; ctx.lineWidth = 1.5; ctx.strokeStyle = cssColors['--surface']; }
+        }
+      }
       if (me) {
         const p = m.latLngToContainerPoint([me.la, me.lo]);
         ctx.fillStyle = cssColors['--accent']; ctx.strokeStyle = cssColors['--surface']; ctx.lineWidth = 2;
@@ -821,7 +866,7 @@ async function boot() {
   readColors();
   try {
     const inP = $('data-peaks'), inG = $('data-geo');   // the single-file build carries the data inline
-    if (inP) { D = JSON.parse(inP.textContent); GEO = inG ? JSON.parse(inG.textContent) : null; }
+    if (inP) { D = JSON.parse(inP.textContent); GEO = inG ? JSON.parse(inG.textContent) : null; inlineDetails = JSON.parse($('data-details').textContent); }
     else {
       const [d, g] = await Promise.all([
         fetch(ROOT + 'data/peaks.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
@@ -868,6 +913,7 @@ async function boot() {
   $('loading').hidden = true;
   if (HOSTED) { addEventListener('popstate', route); route(); }
   initAccount();
+  if (HOSTED && 'serviceWorker' in navigator) navigator.serviceWorker.register(ROOT + 'sw.js').catch(() => { /* the app works without it */ });
   if (window.AG_LEGAL) { $('foot').hidden = false; $('foot').innerHTML = `<a href="${ROOT}impressum.html">Impressum</a><a href="${ROOT}datenschutz.html">Datenschutz</a>`; }
 }
 boot();

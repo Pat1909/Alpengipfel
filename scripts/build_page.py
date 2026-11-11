@@ -53,6 +53,8 @@ for name in ('impressum', 'datenschutz'):
 
 D = json.load(open('docs/data/peaks.json'))
 P = D['peaks']; N = len(P['n'])
+details = [json.load(open(f'docs/data/d/{c}.json')) for c in range((N + D['meta']['chunk'] - 1) // D['meta']['chunk'])]
+for key in details[0]: P[key] = [v for ch in details for v in ch[key]]      # full columns for the static summit pages
 E = html.escape
 num = lambda v: f'{v:,}'.replace(',', '.')
 lst = lambda v: [] if v in (-1, None) else (v if isinstance(v, list) else [v])
@@ -70,6 +72,7 @@ def page(base, title, desc, canonical, static, extra_head='', peak=None):
             '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
             f'<title>{E(title)}</title>\n<meta name="description" content="{E(desc)}">\n<link rel="canonical" href="{canonical}">\n'
             f'<meta property="og:title" content="{E(title)}">\n<meta property="og:description" content="{E(desc)}">\n{extra_head}'
+            f'<link rel="manifest" href="{base}manifest.webmanifest">\n<meta name="theme-color" content="#1d2623">\n<link rel="apple-touch-icon" href="{base}assets/icon-180.png">\n<link rel="icon" href="{base}assets/icon-192.png">\n'
             f'<link rel="stylesheet" href="{base}assets/fonts.css">\n<link rel="stylesheet" href="{base}assets/app.css">\n'
             '<style>html{color-scheme:light}body{margin:0}[hidden]{display:none!important}</style>\n</head>\n<body>\n'
             f'<div id="app-root" style="height:100%">{static}</div>\n<script src="{base}assets/leaflet.js"></script>\n<script src="{base}assets/supabase.js"></script>\n{boot}\n<script src="{base}assets/app.js"></script>\n</body>\n</html>\n')
@@ -111,7 +114,22 @@ open('docs/sitemap.xml', 'w').write('<?xml version="1.0" encoding="UTF-8"?>\n<ur
 
 # single-file variant: styles, data and script inline, nothing to fetch
 inline = ''.join(f'<script type="application/json" id="data-{k}">' + open(f'docs/data/{k}.json').read().replace('</', '<\\/') + '</script>\n' for k in ('peaks', 'geo'))
+# the single file has a size limit, so it carries the details without the starting points
+slim = [{k: v for k, v in ch.items() if k not in ('pk', 'st')} for ch in details]
+inline += '<script type="application/json" id="data-details">' + json.dumps(slim, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/') + '</script>\n'
 open('dist/artifact.html', 'w').write(
     '<title>Alpengipfel</title>\n<meta name="claude:viewport-fit-sides" content="cover">\n' + FONTS + '\n<style>\n' + css + '</style>\n'
     '<div id="app-root" style="height:100%"></div>\n' + inline + LEAFLET + '\n<script>\n' + js.replace('</script', '<\\/script') + '</script>\n')
+# installable app: icons, manifest and a service worker that caches the app itself for offline use
+for f in glob.glob('src/vendor/icons/*.png'): shutil.copy(f, 'docs/assets/')
+json.dump({'name': 'Alpengipfel', 'short_name': 'Alpengipfel', 'description': 'Alle benannten Gipfel der Alpen mit Karte, Routen, Gipfelbuch und Bergwetter.', 'lang': 'de',
+           'start_url': './', 'scope': './', 'display': 'standalone', 'background_color': '#f3f5f2', 'theme_color': '#1d2623',
+           'icons': [{'src': 'assets/icon-192.png', 'sizes': '192x192', 'type': 'image/png'}, {'src': 'assets/icon-512.png', 'sizes': '512x512', 'type': 'image/png'},
+                     {'src': 'assets/icon-512.png', 'sizes': '512x512', 'type': 'image/png', 'purpose': 'maskable'}]},
+          open('docs/manifest.webmanifest', 'w'), ensure_ascii=False, indent=1)
+shell_files = ['./', 'manifest.webmanifest', 'data/peaks.json', 'data/geo.json'] + sorted('assets/' + os.path.relpath(f, 'docs/assets') for f in glob.glob('docs/assets/**/*', recursive=True) if os.path.isfile(f))
+import hashlib
+version = hashlib.sha1(b''.join(open('docs/' + (f if f != './' else 'index.html'), 'rb').read() for f in shell_files)).hexdigest()[:12]
+open('docs/sw.js', 'w').write(open('src/sw.js').read().replace('__VERSION__', version).replace('__FILES__', json.dumps(shell_files)))
+
 print(f'ok: {N} summit pages, sitemap with {len(urls)} addresses')

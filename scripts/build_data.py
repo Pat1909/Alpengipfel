@@ -1,5 +1,5 @@
 """Turn the raw Overpass downloads into docs/data/peaks.json and docs/data/geo.json."""
-import json, glob, gzip, os, re, sys, datetime, math, unicodedata
+import json, glob, gzip, os, re, shutil, sys, datetime, math, unicodedata
 import numpy as np
 import shapely
 from shapely.geometry import shape, box, mapping
@@ -222,8 +222,36 @@ if os.path.exists(f'{RAW}/c2c/routes.json'):
         c2c_wp.setdefault(pid, sm['id']); attached += 1
     print(f'camptocamp: {len(summit_peak)} of {len(summits)} summits matched to OSM peaks, {attached} routes on {len(c2c_routes)} peaks')
 
+# ---------- starting points: the nearest public car parks and stops around each summit (straight-line distance) ----------
+START_KM, START_N = 12, 3
+def load_points(path, kind, keep=lambda row: True):
+    out = []
+    for row in tsv(path):
+        m = re.match(r'POINT\(([-\d.]+) ([-\d.]+)\)', row['c'])
+        if m and keep(row): out.append((float(m.group(2)), float(m.group(1)), row['name'], kind))
+    return out
+def nearest(points):
+    """For every summit the START_N nearest points within START_KM, as [name, km, lat, lon, kind]."""
+    points.sort(); lat = np.array([p[0] for p in points]); lon = np.array([p[1] for p in points])
+    dlat = START_KM / 111.32; res = []
+    for y, x in zip(ys, xs):
+        a, b = np.searchsorted(lat, [y - dlat, y + dlat])
+        d = np.hypot((lon[a:b] - x) * math.cos(math.radians(y)), lat[a:b] - y) * 111.32
+        picked = []
+        for j in np.argsort(d)[:40]:
+            if d[j] > START_KM or len(picked) == START_N: break
+            p = points[a + j]
+            # skip a second platform of the same stop, or a car park right next to one already listed
+            if any((p[2] and p[2] == q[0] and p[3] == q[4]) or (not p[2] and math.hypot((p[1] - q[3]) * 0.7, p[0] - q[2]) * 111.32 < 0.2) for q in picked): continue
+            picked.append([p[2], round(float(d[j]), 1), round(p[0], 5), round(p[1], 5), p[3]])
+        res.append(picked)
+    return res
+parkings = nearest(load_points(f'{RAW}/q/parking.tsv', 0, lambda row: row['access'] in ('', 'yes', 'permissive', 'public')))
+stops = nearest(load_points(f'{RAW}/q/stops_bus.tsv', 1) + load_points(f'{RAW}/q/stops_rail.tsv', 2) + load_points(f'{RAW}/q/stops_cable.tsv', 3))
+print('summits with a car park within', START_KM, 'km:', sum(1 for p in parkings if p), '; with a stop:', sum(1 for p in stops if p))
+
 country_keys = list(COUNTRIES); state_keys = list(STATES)
-cols = {k: [] for k in ['n', 'an', 'e', 'la', 'lo', 'c', 's', 'g', 'sg', 'p', 'wp', 'id', 'rt', 'ap', 'nr', 'cc', 'cw', 'k']}
+cols = {k: [] for k in ['n', 'an', 'e', 'la', 'lo', 'c', 's', 'g', 'sg', 'p', 'wp', 'id', 'rt', 'ap', 'nr', 'cc', 'cw', 'k', 'pk', 'st']}
 ccount = [0] * len(country_keys); scount = [0] * len(state_keys); gcount = [0] * len(groups); ungrouped = 0
 def compact(lst): return -1 if not lst else (lst[0] if len(lst) == 1 else lst)
 order = sorted(range(len(P)), key=lambda i: -(parse_num(P[i]['t'].get('ele'), 0, 4900) or -1))
@@ -269,21 +297,31 @@ for i in order:
     if not kinds and nr: kinds = 16                 # only a path nearby
     cols['rt'].append(rt or 0); cols['ap'].append([list(x) for x in ap] or 0); cols['nr'].append(nr or 0)
     cols['cc'].append(cc or 0); cols['cw'].append(c2c_wp.get(p['id'], 0)); cols['k'].append(kinds)
+    cols['pk'].append(parkings[i] or 0); cols['st'].append(stops[i] or 0)
 
+# The list and the map need only a few columns (peaks.json); everything shown when a summit is opened
+# is split into small files of CHUNK summits each (d/<n>.json), loaded on demand.
+CORE = ['n', 'an', 'e', 'la', 'lo', 'c', 's', 'g', 'k', 'id']
+CHUNK = 512
+N = len(cols['n'])
+cols['rt'] = [[[*route_list[r[0]], *r[1:]] for r in rt] if rt else 0 for rt in cols['rt']]     # route: [relation id, name, kind, grade, via ferrata scale]
 data = {
-    'meta': {'date': datetime.date.today().strftime('%d.%m.%Y'), 'source': 'OpenStreetMap contributors, ODbL', 'routeRadius': ROUTE_RADIUS, 'nearRadius': NEAR_RADIUS},
+    'meta': {'date': datetime.date.today().strftime('%d.%m.%Y'), 'source': 'OpenStreetMap contributors, ODbL', 'routeRadius': ROUTE_RADIUS, 'nearRadius': NEAR_RADIUS, 'chunk': CHUNK},
     'countries': [{'c': k, 'n': COUNTRIES[k], 'count': ccount[i]} for i, k in enumerate(country_keys)],
     'states': [{'n': STATES[k], 'c': country_keys.index(k[:2]), 'count': scount[i]} for i, k in enumerate(state_keys)],
     'groups': [{'n': g['n'], 'count': gcount[i]} for i, g in enumerate(groups)],
     'subgroups': [g['n'] for g in subs],
     'ungrouped': ungrouped,
-    'routes': route_list,
     'c2cActs': c2c_acts,
-    'peaks': cols,
+    'peaks': {k: cols[k] for k in CORE},
 }
-json.dump(data, open(f'{OUT}/peaks.json', 'w'), ensure_ascii=False, separators=(',', ':'))
-print('peaks.json', os.path.getsize(f'{OUT}/peaks.json') // 1024, 'KB;', len(cols['n']), 'peaks; ungrouped', ungrouped,
-      '; with ele', sum(e is not None for e in cols['e']))
+dump = lambda obj, path: json.dump(obj, open(path, 'w'), ensure_ascii=False, separators=(',', ':'))
+dump(data, f'{OUT}/peaks.json')
+shutil.rmtree(f'{OUT}/d', ignore_errors=True); os.makedirs(f'{OUT}/d')
+for c in range(0, N, CHUNK):
+    dump({k: v[c:c + CHUNK] for k, v in cols.items() if k not in CORE}, f'{OUT}/d/{c // CHUNK}.json')
+print('peaks.json', os.path.getsize(f'{OUT}/peaks.json') // 1024, 'KB;', N, 'peaks; ungrouped', ungrouped, '; with ele', sum(e is not None for e in cols['e']),
+      ';', len(os.listdir(f'{OUT}/d')), 'detail files, largest', max(os.path.getsize(f) for f in glob.glob(f'{OUT}/d/*.json')) // 1024, 'KB')
 
 # ---------- base map geometry ----------
 def rings(geom, tol, nd=3):
