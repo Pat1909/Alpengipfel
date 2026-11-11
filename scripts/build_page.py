@@ -11,6 +11,7 @@ import html, json, os, re, shutil, unicodedata
 
 SITE_URL = 'https://pat1909.github.io/Alpengipfel/'      # public address of docs/ (used for canonical links and the sitemap)
 LEAFLET = '<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>'
+SUPABASE = '<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>'   # accounts for the Gipfelbuch
 FONTS = '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&display=swap">'
 
 leaflet_css = re.sub(r'/\*.*?\*/', '', open('src/leaflet.css').read(), flags=re.S)
@@ -45,7 +46,7 @@ def page(base, title, desc, canonical, static, extra_head='', peak=None):
             f'<meta property="og:title" content="{E(title)}">\n<meta property="og:description" content="{E(desc)}">\n{extra_head}'
             f'{FONTS}\n<link rel="stylesheet" href="{base}assets/app.css">\n'
             '<style>html{color-scheme:light}body{margin:0}[hidden]{display:none!important}</style>\n</head>\n<body>\n'
-            f'<div id="app-root" style="height:100%">{static}</div>\n{LEAFLET}\n{boot}\n<script src="{base}assets/app.js"></script>\n</body>\n</html>\n')
+            f'<div id="app-root" style="height:100%">{static}</div>\n{LEAFLET}\n{SUPABASE}\n{boot}\n<script src="{base}assets/app.js"></script>\n</body>\n</html>\n')
 
 intro = ('<article class="static"><h1>Alpengipfel</h1>'
          f'<p>Alle {num(N)} benannten Gipfel der Alpen aus OpenStreetMap: filterbar nach Höhe, Land, Bundesland und Gebirgsgruppe, '

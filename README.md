@@ -23,6 +23,13 @@ Danach im Browser `http://localhost:8000` öffnen. Zum Veröffentlichen genügt 
 
 Die öffentliche Adresse steht als `SITE_URL` in `scripts/build_page.py`; bei einem Umzug dort ändern und neu bauen.
 
+## Nutzerkonten
+
+Angemeldete Nutzer bekommen ihr Gipfelbuch aus einem Supabase-Projekt (Anmeldung per E-Mail-Link). Projektadresse und öffentlicher Schlüssel stehen in `src/app.js` (`SB_URL`, `SB_KEY`). Einmalig im Supabase-Projekt nötig:
+
+1. `supabase/gipfelbuch.sql` im SQL Editor ausführen (Tabelle mit Zugriff nur auf die eigene Zeile).
+2. Unter Authentication → URL Configuration die Site URL auf die Adresse der App setzen und dieselbe Adresse mit `**` am Ende bei Redirect URLs eintragen.
+
 ## Daten neu erzeugen
 
 ```bash

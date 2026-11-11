@@ -426,7 +426,69 @@ function route() {                                  // show what the current add
 const BOOK_KEY = 'alpengipfel.gipfelbuch.v1';
 let book = { done: {}, wish: {} };
 try { const raw = JSON.parse(localStorage.getItem(BOOK_KEY) || 'null'); if (raw && raw.done && raw.wish) book = raw; } catch (err) { /* storage unavailable: the book lasts for this visit only */ }
-function saveBook() { try { localStorage.setItem(BOOK_KEY, JSON.stringify(book)); } catch (err) { /* see above */ } }
+function storeBook() { try { localStorage.setItem(BOOK_KEY, JSON.stringify(book)); } catch (err) { /* see above */ } }
+function saveBook() { storeBook(); if (sbUser) { clearTimeout(pushTimer); pushTimer = setTimeout(pushBook, 800); } }
+
+/* ---------- account: the Gipfelbuch of a signed-in user is kept in Supabase and follows them to every device ---------- */
+const SB_URL = 'https://jhkzxneztgpezidgfhah.supabase.co', SB_KEY = 'sb_publishable_ITvFoKOEjH8mBzWuxhWOlQ_haTXZXmW';   // publishable key, safe in page code
+const SYNC_KEY = 'alpengipfel.konto';               // remembers which account this browser's book was already merged into
+let sb = null, sbUser = null, pushTimer = 0, syncMsg = '';
+function initAccount() {
+  if (!HOSTED || !window.supabase) return;
+  sb = window.supabase.createClient(SB_URL, SB_KEY);
+  sb.auth.onAuthStateChange((event, session) => {
+    const user = session ? session.user : null, changed = (user && user.id) !== (sbUser && sbUser.id);
+    sbUser = user;
+    if (user && changed) setTimeout(pullBook, 0);
+    if (changed && !$('bookpanel').hidden) showBook();
+  });
+}
+function setSync(text) { syncMsg = text; if ($('syncmsg')) $('syncmsg').textContent = text; }
+async function pullBook() {
+  const user = sbUser; if (!user) return;
+  setSync('Gipfelbuch wird geladen …');
+  const { data, error } = await sb.from('gipfelbuch').select('data').eq('user_id', user.id).maybeSingle();
+  if (error) return setSync('Das Gipfelbuch konnte nicht vom Konto geladen werden. Deine Einträge bleiben in diesem Browser.');
+  const remote = data && data.data && data.data.done && data.data.wish ? data.data : null;
+  let merged = false; try { merged = localStorage.getItem(SYNC_KEY) === user.id; } catch (err) { /* treat as first sign-in */ }
+  if (merged) { if (remote) book = remote; }        // this browser was synced before: the account is the truth
+  else {                                            // first sign-in here: bring this browser's entries into the account
+    book = { done: Object.assign({}, remote ? remote.done : {}, book.done), wish: Object.assign({}, remote ? remote.wish : {}, book.wish) };
+    try { localStorage.setItem(SYNC_KEY, user.id); } catch (err) { /* merges again next time, which is harmless */ }
+    await pushBook();
+  }
+  storeBook(); setSync('Gespeichert im Konto.');
+  apply(); if (selected >= 0) renderBookRow(selected); if (!$('bookpanel').hidden) showBook();
+}
+async function pushBook() {
+  if (!sbUser) return;
+  const { error } = await sb.from('gipfelbuch').upsert({ user_id: sbUser.id, data: book, updated_at: new Date().toISOString() });
+  setSync(error ? 'Die Änderung konnte nicht im Konto gespeichert werden. Sie bleibt in diesem Browser.' : 'Gespeichert im Konto.');
+}
+function accountHtml() {
+  if (!sb) return '';
+  if (sbUser) return `<div class="acct"><h3 class="h3">Konto</h3><p>Angemeldet als <b>${esc(sbUser.email || '')}</b></p><p class="note" id="syncmsg">${esc(syncMsg)}</p>` +
+    `<div class="links"><button type="button" id="logout">Abmelden</button></div></div>`;
+  return `<form class="acct" id="loginform"><h3 class="h3">Konto</h3><p class="note">Melde dich an, damit dein Gipfelbuch gespeichert bleibt und auf jedem Gerät dasselbe ist. Du bekommst einen Anmelde-Link per E-Mail, ein Passwort brauchst du nicht.</p>` +
+    `<div class="hrow"><input type="email" id="loginmail" placeholder="deine@email.at" autocomplete="email" required aria-label="E-Mail-Adresse"><button type="submit" class="nearbtn" id="loginbtn">Link senden</button></div>` +
+    `<p class="note" id="loginmsg"></p></form>`;
+}
+function wireAccount() {
+  if ($('logout')) $('logout').onclick = async () => {
+    clearTimeout(pushTimer); await pushBook(); await sb.auth.signOut();
+    book = { done: {}, wish: {} }; storeBook(); try { localStorage.removeItem(SYNC_KEY); } catch (err) { /* nothing to forget */ }
+    syncMsg = ''; apply(); showBook();
+  };
+  if ($('loginform')) $('loginform').onsubmit = async ev => {
+    ev.preventDefault();
+    const mail = $('loginmail').value.trim(); if (!mail) return;
+    $('loginbtn').disabled = true; $('loginmsg').textContent = 'Link wird gesendet …';
+    const { error } = await sb.auth.signInWithOtp({ email: mail, options: { emailRedirectTo: location.origin + ROOT } });
+    $('loginbtn').disabled = false;
+    $('loginmsg').textContent = error ? (error.status === 429 ? 'Zu viele Anmeldeversuche. Warte ein paar Minuten und versuch es noch einmal.' : 'Der Link konnte nicht gesendet werden. Prüfe die Adresse und versuch es noch einmal.')
+      : `Wir haben einen Anmelde-Link an ${mail} geschickt. Öffne ihn auf diesem Gerät.`;
+  };
+}
 const today = () => { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; };
 function renderBookRow(i) {
   const id = D.peaks.id[i], done = book.done[id] != null, wish = !!book.wish[id], el = $('bookrow');
@@ -461,9 +523,11 @@ function showBook() {
     (recent.length ? `<div><h3 class="h3">Zuletzt eingetragen</h3><ul class="rts">${recent.map(i => `<li><a href="${HOSTED ? peakUrl(i) : '#'}" data-i="${i}">${esc(P.n[i])}</a> · ${dateDe(book.done[P.id[i]])}</li>`).join('')}</ul></div>` : '') +
     `<div class="links"><button type="button" id="bshowdone">Bestiegene in der Liste zeigen</button><button type="button" id="bshowwish">Wunschliste zeigen</button>` +
     (HOSTED ? `<button type="button" id="bexport">Sichern (Datei)</button><button type="button" id="bimport">Wiederherstellen</button><input type="file" id="bfile" accept="application/json,.json" hidden>` : '') + `</div>` +
-    `<p class="note" id="bookmsg">Das Gipfelbuch wird nur in diesem Browser auf diesem Gerät gespeichert, ohne Konto.${HOSTED ? ' Mit „Sichern“ kannst du es als Datei ablegen und auf einem anderen Gerät wiederherstellen.' : ''}</p>`;
+    accountHtml() +
+    `<p class="note" id="bookmsg">${sbUser ? 'Dein Gipfelbuch liegt in deinem Konto und zusätzlich in diesem Browser.' : 'Ohne Anmeldung wird das Gipfelbuch nur in diesem Browser auf diesem Gerät gespeichert.'}${HOSTED ? ' Mit „Sichern“ kannst du es als Datei ablegen und auf einem anderen Gerät wiederherstellen.' : ''}</p>`;
   el.hidden = false; el.scrollTop = 0; setView('list');
   $('bookback').onclick = () => { el.hidden = true; };
+  wireAccount();
   const show = v => { el.hidden = true; if (selected >= 0) closeDetail(); $('book').value = v; apply(); fitToFilter(); };
   $('bshowdone').onclick = () => show('done'); $('bshowwish').onclick = () => show('wish');
   el.querySelectorAll('a[data-i]').forEach(a => { a.onclick = ev => { ev.preventDefault(); showDetail(+a.dataset.i, false); }; });
@@ -732,6 +796,7 @@ async function boot() {
   apply();
   $('loading').hidden = true;
   if (HOSTED) { addEventListener('popstate', route); route(); }
+  initAccount();
 }
 boot();
 })();
