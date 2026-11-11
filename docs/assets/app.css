@@ -833,6 +833,13 @@ a.onmap { color: var(--ink); text-decoration: none; display: inline-block; }
 .leaflet-control-attribution a { color: var(--muted) !important; }
 .leaflet-bar a { background: var(--surface) !important; color: var(--ink) !important; border-color: var(--line) !important; }
 .tip { position: absolute; z-index: 600; pointer-events: none; background: var(--ink); color: var(--surface); padding: 3px 8px; border-radius: 4px; font-size: 12.5px; white-space: nowrap; transform: translate(-50%, -140%); }
+.view3d { position: absolute; inset: 0; z-index: 1200; background: var(--map-land); }
+#v3map { position: absolute; inset: 0; }
+.view3d .back { position: absolute; top: 10px; left: 10px; z-index: 2; background: var(--surface); border: 1px solid var(--line); border-radius: 5px; padding: 6px 10px; cursor: pointer; }
+.v3hint { position: absolute; left: 10px; bottom: 26px; z-index: 2; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font-size: 12px; color: var(--muted); max-width: calc(100% - 20px); }
+.v3msg { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; text-align: center; padding: 24px; background: var(--map-land); color: var(--muted); }
+.v3pin { background: #b3261e; color: #ffffff; font: 600 13px var(--font-body); padding: 3px 8px; border-radius: 4px; white-space: nowrap; box-shadow: 0 1px 4px rgba(0, 0, 0, .4); }
+.v3pin::after { content: ""; position: absolute; left: 50%; bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: #b3261e; }
 .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); background: var(--surface); z-index: 20; text-align: center; padding: 16px; }
 
 @media (max-width: 760px) {

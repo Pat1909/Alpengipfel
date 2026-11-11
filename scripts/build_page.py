@@ -29,7 +29,7 @@ open('docs/assets/app.css', 'w').write(css)
 open('docs/assets/app.js', 'w').write(js)
 
 # vendored libraries and fonts
-for f in ('leaflet.js', 'supabase.js'): shutil.copy(f'src/vendor/{f}', f'docs/assets/{f}')
+for f in ('leaflet.js', 'supabase.js', 'maplibre-gl.js', 'maplibre-gl.css'): shutil.copy(f'src/vendor/{f}', f'docs/assets/{f}')
 os.makedirs('docs/assets/fonts', exist_ok=True)
 faces = []
 for f in sorted(glob.glob('src/vendor/fonts/*.woff2')):
@@ -130,7 +130,7 @@ json.dump({'name': 'Alpengipfel', 'short_name': 'Alpengipfel', 'description': 'A
            'icons': [{'src': 'assets/icon-192.png', 'sizes': '192x192', 'type': 'image/png'}, {'src': 'assets/icon-512.png', 'sizes': '512x512', 'type': 'image/png'},
                      {'src': 'assets/icon-512.png', 'sizes': '512x512', 'type': 'image/png', 'purpose': 'maskable'}]},
           open('docs/manifest.webmanifest', 'w'), ensure_ascii=False, indent=1)
-shell_files = ['./', 'manifest.webmanifest', 'data/peaks.json', 'data/geo.json'] + sorted('assets/' + os.path.relpath(f, 'docs/assets') for f in glob.glob('docs/assets/**/*', recursive=True) if os.path.isfile(f))
+shell_files = ['./', 'manifest.webmanifest', 'data/peaks.json', 'data/geo.json'] + sorted('assets/' + os.path.relpath(f, 'docs/assets') for f in glob.glob('docs/assets/**/*', recursive=True) if os.path.isfile(f) and 'maplibre' not in f)
 import hashlib
 version = hashlib.sha1(b''.join(open('docs/' + (f if f != './' else 'index.html'), 'rb').read() for f in shell_files)).hexdigest()[:12]
 open('docs/sw.js', 'w').write(open('src/sw.js').read().replace('__VERSION__', version).replace('__FILES__', json.dumps(shell_files)))

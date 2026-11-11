@@ -37,7 +37,8 @@ def impressum(d):
              '<li>Hochtouren, Klettereien, Skitouren und weitere Routen: © <a href="https://www.camptocamp.org/">Camptocamp.org</a>-Mitwirkende, CC BY-SA 3.0</li>'
              '<li>Wettervorhersage: <a href="https://open-meteo.com/">Open-Meteo.com</a>, CC BY 4.0</li>'
              '<li>Ländergrenzen und Seen der Übersichtskarte: Natural Earth (gemeinfrei)</li>'
-             '<li>Schrift Barlow: SIL Open Font License 1.1 · Kartenbibliothek Leaflet: BSD-2-Clause</li></ul>'
+             '<li>Höhendaten der 3D-Ansicht: Mapzen Terrain Tiles (u. a. SRTM, EU-DEM, Daten der Alpenländer; Nachweise unter <a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md">Terrain Tiles Attribution</a>)</li>'
+             '<li>Schrift Barlow: SIL Open Font License 1.1 · Kartenbibliotheken Leaflet (BSD-2-Clause) und MapLibre GL JS (BSD-3-Clause)</li></ul>'
              '<p>Weitergabe: Die aus OpenStreetMap abgeleiteten Daten dieser Website stehen unter der ODbL, die aus Camptocamp übernommenen Routenangaben unter CC BY-SA 3.0. '
              'Wer sie weiterverwendet, muss die Quellen nennen und Bearbeitungen unter denselben Bedingungen weitergeben. Der Quelltext und die Datendateien liegen offen unter '
              '<a href="https://github.com/Pat1909/Alpengipfel">github.com/Pat1909/Alpengipfel</a>.</p>'
@@ -86,6 +87,7 @@ erforderlich, werden nicht zu Werbe- oder Analysezwecken verwendet und lassen si
 <p>Die folgenden Inhalte lädt Ihr Browser direkt beim jeweiligen Anbieter. Dabei wird Ihre IP-Adresse an den Anbieter übermittelt, bei Wetter und Wegen außerdem die Koordinaten bzw. die Kennung des geöffneten Gipfels.
 Rechtsgrundlage ist unser berechtigtes Interesse, Karte, Wetter und Wege anzuzeigen (Art. 6 Abs. 1 lit. f DSGVO).</p>
 <ul><li><b>Kartenbilder:</b> OpenStreetMap Foundation, St John’s Innovation Centre, Cowley Road, Cambridge, CB4 0WS, Vereinigtes Königreich (<a href="https://osmfoundation.org/wiki/Privacy_Policy">Datenschutzerklärung</a>)</li>
+<li><b>Höhendaten der 3D-Ansicht</b> (nur wenn Sie diese öffnen): Terrain Tiles, bereitgestellt über Amazon Web Services, Inc., 410 Terry Avenue North, Seattle, WA 98109, USA; dabei kann Ihre IP-Adresse in die USA übermittelt werden</li>
 <li><b>Wettervorhersage:</b> Open-Meteo, Bischofszell, Schweiz (<a href="https://open-meteo.com/en/terms">Bedingungen und Datenschutz</a>)</li>
 <li><b>Wegverläufe:</b> QLever, Lehrstuhl für Algorithmen und Datenstrukturen der Albert-Ludwigs-Universität Freiburg, Deutschland; ersatzweise die Overpass-Schnittstellen von FOSSGIS e.V., Deutschland (overpass-api.de), und Private.coffee, Österreich</li></ul>
 <p>Schriften und Programmbibliotheken werden von dieser Website selbst ausgeliefert, nicht von Dritten.</p>

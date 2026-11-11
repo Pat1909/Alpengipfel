@@ -318,6 +318,7 @@ function startHtml(d) {
     `<p class="note">Die nächsten Punkte nach Luftlinie, auf der Karte mit P und H markiert. Der Weg von dort zum Gipfel kann deutlich länger sein oder auf der anderen Talseite beginnen; prüfe ihn auf der Karte.</p></section>`;
 }
 function showDetail(i, fromMap, noPush) {
+  if (selected !== i) close3d();
   selected = i;
   $('bookpanel').hidden = true;
   if (HOSTED) {
@@ -360,7 +361,7 @@ function renderDetail(i, fromMap, d) {
     `<dt>Gebirgsgruppe</dt><dd>${esc(pl.g || 'Ohne Zuordnung')}${sub ? `<small>Untergruppe: ${esc(sub)}</small>` : ''}</dd>` +
     (d.p ? `<dt>Schartenhöhe</dt><dd>${fmt.format(d.p)} m</dd>` : '') +
     `</dl>` +
-    `<div class="links"><button type="button" id="zoomto">Auf Karte zeigen</button>${HOSTED ? '<button type="button" id="share">Link kopieren</button>' : ''}` +
+    `<div class="links"><button type="button" id="zoomto">Auf Karte zeigen</button>${HOSTED ? '<button type="button" id="show3d">3D-Ansicht</button><button type="button" id="share">Link kopieren</button>' : ''}` +
     `<a href="https://www.openstreetmap.org/node/${P.id[i]}" target="_blank" rel="noopener">OpenStreetMap</a>${wpLink}` +
     `<a href="https://www.opentopomap.org/#marker=15/${la}/${lo}" target="_blank" rel="noopener">Topokarte</a></div>` +
     routesHtml(i, d) + startHtml(d) +
@@ -369,11 +370,12 @@ function renderDetail(i, fromMap, d) {
   loadWeather(i);
   $('back').onclick = () => closeDetail();
   renderBookRow(i);
+  if ($('show3d')) $('show3d').onclick = () => open3d(i);
   if ($('share')) $('share').onclick = ev => {
     const done = () => { ev.target.textContent = 'Link kopiert'; setTimeout(() => { ev.target.textContent = 'Link kopieren'; }, 1800); };
     navigator.clipboard.writeText(location.origin + peakUrl(i)).then(done).catch(() => { ev.target.textContent = location.origin + peakUrl(i); });
   };
-  $('zoomto').onclick = () => { setView('map'); map.setView([la, lo], Math.max(map.getZoom(), 13)); };
+  $('zoomto').onclick = () => { close3d(); setView('map'); map.setView([la, lo], Math.max(map.getZoom(), 13)); };
   if (!fromMap && map) map.setView([la, lo], Math.max(map.getZoom(), HOSTED ? 13 : 12));
   el.querySelectorAll('.onmap').forEach(b => { b.onclick = () => showRouteOnMap(b.dataset.rel, b); });
   if (trailsFor !== i) clearTrails();
@@ -444,8 +446,67 @@ async function loadWeather(i) {
   const body = $('wxbody'); body.className = '';
   body.innerHTML = days + `<p class="note" style="margin-top:8px">Tippe auf einen Tag für den Verlauf in 3-Stunden-Schritten. Temperatur als Tagestief / Tageshoch${e != null ? `, berechnet für ${fmt.format(e)} m` : ''}. Modellvorhersage von <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>, kein Ersatz für den Bergwetterbericht.</p>`;
 }
+/* ---------- 3D view of a summit's surroundings (MapLibre GL with terrain, loaded only when opened) ---------- */
+let gl3d = null, glLib = null;
+function loadMaplibre() {
+  if (!glLib) glLib = new Promise((ok, fail) => {
+    const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = ROOT + 'assets/maplibre-gl.css'; document.head.appendChild(css);
+    const s = document.createElement('script'); s.src = ROOT + 'assets/maplibre-gl.js'; s.onload = ok; s.onerror = () => { glLib = null; fail(new Error('load')); }; document.head.appendChild(s);
+  });
+  return glLib;
+}
+function close3d() { if (gl3d) { gl3d.remove(); gl3d = null; } if ($('view3d')) $('view3d').hidden = true; }
+async function open3d(i) {
+  const P = D.peaks, la = P.la[i], lo = P.lo[i], wrap = $('view3d'), msg = $('v3msg');
+  setView('map'); wrap.hidden = false; msg.hidden = false; msg.textContent = '3D-Ansicht wird geladen …';
+  const fail = () => { msg.hidden = false; msg.textContent = 'Die 3D-Ansicht lässt sich auf diesem Gerät oder gerade nicht laden. Die flache Karte funktioniert weiter.'; };
+  try { await loadMaplibre(); } catch (err) { return fail(); }
+  if (gl3d) { gl3d.remove(); gl3d = null; }
+  try {
+    gl3d = new maplibregl.Map({
+      container: 'v3map', center: [lo, la], zoom: 12.6, pitch: 62, bearing: -20, maxPitch: 80, maxZoom: 16, minZoom: 9,
+      style: { version: 8,
+        sources: {
+          osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 19, attribution: '© OpenStreetMap-Mitwirkende' },
+          dem: { type: 'raster-dem', tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 14, encoding: 'terrarium', attribution: 'Höhendaten: Mapzen Terrain Tiles' } },
+        layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+        terrain: { source: 'dem', exaggeration: 1.2 },
+        sky: { 'sky-color': '#9cc3e6', 'horizon-color': '#e6eef2', 'fog-color': '#e6eef2', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.6, 'fog-ground-blend': 0.3 } }
+    });
+  } catch (err) { return fail(); }
+  const m = gl3d;
+  m.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+  m.on('error', ev => { if (!m.loaded()) fail(); });
+  m.on('load', async () => {
+    if (gl3d !== m) return;
+    msg.hidden = true;
+    // neighbouring summits as dots, the open one as a labelled pin
+    const near = [];
+    for (let k = 0; k < N; k++) if (k !== i && Math.abs(P.la[k] - la) < 0.09 && Math.abs(P.lo[k] - lo) < 0.13) near.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [P.lo[k], P.la[k]] }, properties: { c: colorOf(P.e[k]), n: P.n[k] + (P.e[k] != null ? ', ' + fmt.format(P.e[k]) + ' m' : '') } });
+    m.addSource('peaks', { type: 'geojson', data: { type: 'FeatureCollection', features: near } });
+    m.addLayer({ id: 'peaks', type: 'circle', source: 'peaks', paint: { 'circle-radius': 4.5, 'circle-color': ['get', 'c'], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.2 } });
+    const tip = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 8 });
+    m.on('mousemove', 'peaks', ev => { m.getCanvas().style.cursor = 'pointer'; tip.setLngLat(ev.features[0].geometry.coordinates).setText(ev.features[0].properties.n).addTo(m); });
+    m.on('mouseleave', 'peaks', () => { m.getCanvas().style.cursor = ''; tip.remove(); });
+    m.on('click', 'peaks', ev => { tip.setLngLat(ev.features[0].geometry.coordinates).setText(ev.features[0].properties.n).addTo(m); });
+    const pin = document.createElement('div'); pin.className = 'v3pin'; pin.textContent = P.n[i] + (P.e[i] != null ? ' · ' + fmt.format(P.e[i]) + ' m' : '');
+    new maplibregl.Marker({ element: pin, anchor: 'bottom', offset: [0, -6] }).setLngLat([lo, la]).addTo(m);
+    // the paths around the summit, coloured like on the flat map
+    let data = trailCache.get(i);
+    if (!data) { try { data = await fetchTrails(i); trailCache.set(i, data); } catch (err) { data = null; } }
+    if (!data || gl3d !== m) return;
+    const feats = data.ways.map(w => {
+      const t = w.t, g = Math.max(0, ...(t.sac_scale || '').split(';').map(v => SAC[v.trim()] || 0));
+      const cat = t.highway === 'via_ferrata' || t.via_ferrata_scale ? 2 : g >= 4 ? 1 : 0, track = t.highway === 'track' && !g;
+      return { type: 'Feature', geometry: { type: 'LineString', coordinates: w.ll.map(p => [p[1], p[0]]) }, properties: { c: cssColors[cat === 2 ? '--tk' : cat === 1 ? '--ta' : track ? '--tt' : '--tw'], w: track ? 1.6 : 3 } };
+    });
+    m.addSource('trails', { type: 'geojson', data: { type: 'FeatureCollection', features: feats } });
+    m.addLayer({ id: 'trails-case', type: 'line', source: 'trails', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': ['+', ['get', 'w'], 2.2], 'line-opacity': 0.8 } }, 'peaks');
+    m.addLayer({ id: 'trails', type: 'line', source: 'trails', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'c'], 'line-width': ['get', 'w'] } }, 'peaks');
+  });
+}
 function closeDetail(noPush) {
-  $('detail').hidden = true; selected = -1; startPts = []; clearTrails();
+  $('detail').hidden = true; selected = -1; startPts = []; clearTrails(); close3d();
   if (HOSTED) { if (!noPush && location.pathname !== ROOT) history.pushState({}, '', ROOT); document.title = 'Alpengipfel'; }
   renderList(); if (peakLayer) peakLayer.redraw();
 }
@@ -911,6 +972,7 @@ async function boot() {
   $('radius').addEventListener('change', () => { apply(); fitToFilter(); });
   $('near').addEventListener('click', locate);
   $('openbook').addEventListener('click', showBook);
+  $('v3close').addEventListener('click', close3d);
   $('huts').checked = showHuts;
   $('huts').addEventListener('change', () => { showHuts = $('huts').checked; try { localStorage.setItem('alpengipfel.huts', showHuts ? '1' : '0'); } catch (err) { /* not remembered */ } if (map) map.closePopup(); if (peakLayer) peakLayer.redraw(); });
   $('reset').addEventListener('click', () => {

@@ -22,6 +22,7 @@ Danach im Browser `http://localhost:8000` öffnen. Zum Veröffentlichen genügt 
 - Ausgangspunkte je Gipfel: die nächsten öffentlichen Parkplätze und Haltestellen (Bus, Bahn, Seilbahn) nach Luftlinie, in der Liste und auf der Karte
 - Installierbar als App (Manifest und Service Worker); Liste, Karte ohne Hintergrund und Gipfelbuch funktionieren auch ohne Netz
 - Schneller Start: `docs/data/peaks.json` enthält nur die Spalten für Liste und Karte, die Angaben je Gipfel liegen in `docs/data/d/` und werden beim Öffnen geladen
+- 3D-Ansicht je Gipfel: Geländekarte mit Wegen (MapLibre GL JS mit Höhendaten der Mapzen Terrain Tiles), wird erst beim Öffnen geladen
 - Bergwetter für 7 Tage mit 3-Stunden-Verlauf, Nullgradgrenze, Wind und Sicht (Open-Meteo, kostenlos nur für nicht-kommerzielle Nutzung)
 
 Die öffentliche Adresse steht als `SITE_URL` in `scripts/build_page.py`; bei einem Umzug dort ändern und neu bauen.
