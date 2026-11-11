@@ -528,8 +528,11 @@ function wireAccount() {
         const free = await sb.rpc('username_frei', { name });
         if (free.error) return say('Die Anmeldung ist noch nicht fertig eingerichtet. Versuch es später noch einmal.');
         if (!free.data) return say('Dieser Benutzername ist schon vergeben. Wähle einen anderen.');
-        const { error } = await sb.auth.signUp({ email: acctMail, password: $('apass').value, options: { data: { username: name }, emailRedirectTo: location.origin + ROOT } });
+        const { data, error } = await sb.auth.signUp({ email: acctMail, password: $('apass').value, options: { data: { username: name }, emailRedirectTo: location.origin + ROOT } });
         if (error) return say(tooMany(error) || (/password/i.test(error.message) ? 'Das Passwort ist zu schwach. Nimm mindestens 8 Zeichen.' : 'Das Konto konnte nicht angelegt werden. Prüfe Benutzername und E-Mail-Adresse.'));
+        // Supabase answers a sign-up for an address that already has an account with a user without identities, and sends no e-mail
+        if (data && data.user && data.user.identities && !data.user.identities.length) return go('login', 'Für diese E-Mail-Adresse gibt es schon ein Konto. Melde dich an oder wähle „Passwort vergessen“.');
+        if (data && data.session) { acctMode = 'login'; acctMsg = ''; return; }
         return go('verify');
       }
       if (acctMode === 'verify') {
