@@ -465,28 +465,86 @@ async function pushBook() {
   const { error } = await sb.from('gipfelbuch').upsert({ user_id: sbUser.id, data: book, updated_at: new Date().toISOString() });
   setSync(error ? 'Die Änderung konnte nicht im Konto gespeichert werden. Sie bleibt in diesem Browser.' : 'Gespeichert im Konto.');
 }
+// Account forms: sign in (e-mail + password), register (user name, e-mail, password), confirm by e-mailed code, reset password by code.
+let acctMode = 'login', acctMail = '', acctMsg = '';
+const privacyHint = () => window.AG_LEGAL ? ` Was dabei gespeichert wird, steht in der <a href="${ROOT}datenschutz.html">Datenschutzerklärung</a>.` : '';
 function accountHtml() {
   if (!sb) return '';
-  if (sbUser) return `<div class="acct"><h3 class="h3">Konto</h3><p>Angemeldet als <b>${esc(sbUser.email || '')}</b></p><p class="note" id="syncmsg">${esc(syncMsg)}</p>` +
-    `<div class="links"><button type="button" id="logout">Abmelden</button></div></div>`;
-  return `<form class="acct" id="loginform"><h3 class="h3">Konto</h3><p class="note">Melde dich an, damit dein Gipfelbuch gespeichert bleibt und auf jedem Gerät dasselbe ist. Du bekommst einen Anmelde-Link per E-Mail, ein Passwort brauchst du nicht.${window.AG_LEGAL ? ` Was dabei gespeichert wird, steht in der <a href="${ROOT}datenschutz.html">Datenschutzerklärung</a>.` : ''}</p>` +
-    `<div class="hrow"><input type="email" id="loginmail" placeholder="deine@email.at" autocomplete="email" required aria-label="E-Mail-Adresse"><button type="submit" class="nearbtn" id="loginbtn">Link senden</button></div>` +
-    `<p class="note" id="loginmsg"></p></form>`;
+  const head = `<h3 class="h3">Konto</h3>`, msg = `<p class="note" id="acctmsg" role="status">${esc(acctMsg)}</p>`;
+  const mail = `<label>E-Mail-Adresse<input type="email" id="amail" autocomplete="email" required value="${esc(acctMail)}"></label>`;
+  const sw = (mode, text) => `<button type="button" class="linkbtn" data-mode="${mode}">${text}</button>`;
+  if (sbUser) return `<div class="acct">${head}<p>Angemeldet als <b>${esc((sbUser.user_metadata && sbUser.user_metadata.username) || sbUser.email || '')}</b><small class="note"> · ${esc(sbUser.email || '')}</small></p>` +
+    `<p class="note" id="syncmsg">${esc(syncMsg)}</p><div class="links"><button type="button" id="logout">Abmelden</button></div></div>`;
+  if (acctMode === 'register') return `<form class="acct" id="acctform">${head}<p class="note">Lege ein Konto an, damit dein Gipfelbuch gespeichert bleibt und auf jedem Gerät dasselbe ist.${privacyHint()}</p>` +
+    `<label>Benutzername<input type="text" id="aname" autocomplete="username" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_.\-]{3,20}" title="3 bis 20 Zeichen: Buchstaben ohne Umlaute, Ziffern, Punkt, Binde- und Unterstrich"></label>${mail}` +
+    `<label>Passwort (mindestens 8 Zeichen)<input type="password" id="apass" autocomplete="new-password" required minlength="8"></label>` +
+    `<div class="links"><button type="submit" id="asubmit">Konto anlegen</button></div>${msg}<p class="note">Schon ein Konto? ${sw('login', 'Anmelden')}</p></form>`;
+  if (acctMode === 'verify') return `<form class="acct" id="acctform">${head}<p>Wir haben einen Bestätigungscode an <b>${esc(acctMail)}</b> geschickt. Gib ihn hier ein.</p>` +
+    `<label>Bestätigungscode<input type="text" id="acode" inputmode="numeric" autocomplete="one-time-code" required pattern="[0-9]{6,8}" maxlength="8"></label>` +
+    `<div class="links"><button type="submit" id="asubmit">Bestätigen</button><button type="button" id="aresend">Code erneut senden</button></div>${msg}<p class="note">${sw('login', 'Zurück zur Anmeldung')}</p></form>`;
+  if (acctMode === 'forgot') return `<form class="acct" id="acctform">${head}<p class="note">Gib deine E-Mail-Adresse ein. Du bekommst einen Code, mit dem du ein neues Passwort festlegst.</p>${mail}` +
+    `<div class="links"><button type="submit" id="asubmit">Code senden</button></div>${msg}<p class="note">${sw('login', 'Zurück zur Anmeldung')}</p></form>`;
+  if (acctMode === 'reset') return `<form class="acct" id="acctform">${head}<p>Wir haben einen Code an <b>${esc(acctMail)}</b> geschickt.</p>` +
+    `<label>Code aus der E-Mail<input type="text" id="acode" inputmode="numeric" autocomplete="one-time-code" required pattern="[0-9]{6,8}" maxlength="8"></label>` +
+    `<label>Neues Passwort (mindestens 8 Zeichen)<input type="password" id="apass" autocomplete="new-password" required minlength="8"></label>` +
+    `<div class="links"><button type="submit" id="asubmit">Passwort ändern</button></div>${msg}<p class="note">${sw('login', 'Zurück zur Anmeldung')}</p></form>`;
+  return `<form class="acct" id="acctform">${head}<p class="note">Melde dich an, damit dein Gipfelbuch gespeichert bleibt und auf jedem Gerät dasselbe ist.</p>${mail}` +
+    `<label>Passwort<input type="password" id="apass" autocomplete="current-password" required></label>` +
+    `<div class="links"><button type="submit" id="asubmit">Anmelden</button></div>${msg}<p class="note">Noch kein Konto? ${sw('register', 'Konto anlegen')} · ${sw('forgot', 'Passwort vergessen')}</p></form>`;
 }
 function wireAccount() {
+  const go = (mode, text) => { acctMode = mode; acctMsg = text || ''; showBook(); };
+  const say = text => { acctMsg = text; if ($('acctmsg')) $('acctmsg').textContent = text; };
+  const tooMany = err => err && err.status === 429 ? 'Zu viele Versuche. Warte ein paar Minuten und versuch es noch einmal.' : '';
   if ($('logout')) $('logout').onclick = async () => {
     clearTimeout(pushTimer); await pushBook(); await sb.auth.signOut();
     book = { done: {}, wish: {} }; storeBook(); try { localStorage.removeItem(SYNC_KEY); } catch (err) { /* nothing to forget */ }
-    syncMsg = ''; apply(); showBook();
+    syncMsg = ''; acctMode = 'login'; acctMsg = ''; apply(); showBook();
   };
-  if ($('loginform')) $('loginform').onsubmit = async ev => {
+  document.querySelectorAll('#bookpanel .linkbtn').forEach(btn => { btn.onclick = () => { if ($('amail')) acctMail = $('amail').value.trim(); go(btn.dataset.mode); }; });
+  if ($('aresend')) $('aresend').onclick = async () => {
+    const { error } = await sb.auth.resend({ type: 'signup', email: acctMail });
+    say(error ? tooMany(error) || 'Der Code konnte nicht gesendet werden. Versuch es später noch einmal.' : 'Ein neuer Code ist unterwegs.');
+  };
+  if (!$('acctform')) return;
+  $('acctform').onsubmit = async ev => {
     ev.preventDefault();
-    const mail = $('loginmail').value.trim(); if (!mail) return;
-    $('loginbtn').disabled = true; $('loginmsg').textContent = 'Link wird gesendet …';
-    const { error } = await sb.auth.signInWithOtp({ email: mail, options: { emailRedirectTo: location.origin + ROOT } });
-    $('loginbtn').disabled = false;
-    $('loginmsg').textContent = error ? (error.status === 429 ? 'Zu viele Anmeldeversuche. Warte ein paar Minuten und versuch es noch einmal.' : 'Der Link konnte nicht gesendet werden. Prüfe die Adresse und versuch es noch einmal.')
-      : `Wir haben einen Anmelde-Link an ${mail} geschickt. Öffne ihn auf diesem Gerät.`;
+    const val = id => $(id) ? $(id).value.trim() : '';
+    if ($('amail')) acctMail = val('amail');
+    const btn = $('asubmit'); btn.disabled = true; say('Einen Moment …');
+    try {
+      if (acctMode === 'register') {
+        const name = val('aname');
+        const free = await sb.rpc('username_frei', { name });
+        if (free.error) return say('Die Anmeldung ist noch nicht fertig eingerichtet. Versuch es später noch einmal.');
+        if (!free.data) return say('Dieser Benutzername ist schon vergeben. Wähle einen anderen.');
+        const { error } = await sb.auth.signUp({ email: acctMail, password: $('apass').value, options: { data: { username: name } } });
+        if (error) return say(tooMany(error) || (/password/i.test(error.message) ? 'Das Passwort ist zu schwach. Nimm mindestens 8 Zeichen.' : 'Das Konto konnte nicht angelegt werden. Prüfe Benutzername und E-Mail-Adresse.'));
+        return go('verify');
+      }
+      if (acctMode === 'verify') {
+        const { error } = await sb.auth.verifyOtp({ email: acctMail, token: val('acode'), type: 'email' });
+        if (error) return say(tooMany(error) || 'Der Code stimmt nicht oder ist abgelaufen. Fordere einen neuen an.');
+        acctMode = 'login'; acctMsg = ''; return;        // signed in: the panel redraws through onAuthStateChange
+      }
+      if (acctMode === 'forgot') {
+        const { error } = await sb.auth.resetPasswordForEmail(acctMail);
+        if (error) return say(tooMany(error) || 'Der Code konnte nicht gesendet werden. Prüfe die Adresse.');
+        return go('reset');
+      }
+      if (acctMode === 'reset') {
+        const pass = $('apass').value, v = await sb.auth.verifyOtp({ email: acctMail, token: val('acode'), type: 'recovery' });
+        if (v.error) return say(tooMany(v.error) || 'Der Code stimmt nicht oder ist abgelaufen.');
+        const u = await sb.auth.updateUser({ password: pass });
+        acctMode = 'login'; acctMsg = '';
+        if (u.error) say('Du bist angemeldet, aber das neue Passwort wurde nicht gespeichert. Es muss mindestens 8 Zeichen haben.');
+        return;
+      }
+      const { error } = await sb.auth.signInWithPassword({ email: acctMail, password: $('apass').value });
+      if (error && /not confirmed/i.test(error.message)) { await sb.auth.resend({ type: 'signup', email: acctMail }); return go('verify', 'Deine E-Mail-Adresse ist noch nicht bestätigt. Wir haben dir einen neuen Code geschickt.'); }
+      if (error) return say(tooMany(error) || 'E-Mail-Adresse oder Passwort stimmen nicht.');
+      acctMsg = '';
+    } finally { if ($('asubmit')) $('asubmit').disabled = false; }
   };
 }
 const today = () => { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; };

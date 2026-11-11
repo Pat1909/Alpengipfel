@@ -57,7 +57,7 @@ def datenschutz(d):
 <h2>Kurz gesagt</h2>
 <ul><li>Die Website verwendet keine Werbung, keine Analyse- oder Tracking-Dienste und keine Cookies zu solchen Zwecken.</li>
 <li>Ohne Anmeldung bleiben Ihr Gipfelbuch und Ihre Einstellungen ausschließlich in Ihrem Browser.</li>
-<li>Nur wenn Sie ein Konto anlegen, speichern wir Ihre E-Mail-Adresse und Ihr Gipfelbuch.</li>
+<li>Nur wenn Sie ein Konto anlegen, speichern wir Benutzername, E-Mail-Adresse, Passwort (als Prüfwert) und Ihr Gipfelbuch.</li>
 <li>Für Karte, Wetter und Wegverläufe ruft Ihr Browser Daten bei den unten genannten Diensten ab; diese erfahren dabei technisch bedingt Ihre IP-Adresse.</li></ul>
 <h2>Hosting</h2>
 <p>Die Website wird über GitHub Pages ausgeliefert, einen Dienst der GitHub, Inc., 88 Colin P. Kelly Jr. Street, San Francisco, CA 94107, USA. Beim Aufruf verarbeitet GitHub technisch notwendige Daten,
@@ -65,7 +65,7 @@ insbesondere IP-Adresse, Zeitpunkt, aufgerufene Seite und Angaben zum Browser, u
 (Art. 6 Abs. 1 lit. f DSGVO). Dabei können Daten in die USA übermittelt werden; GitHub ist unter dem EU-US Data Privacy Framework zertifiziert. Näheres in der
 <a href="https://docs.github.com/de/site-policy/privacy-policies/github-general-privacy-statement">Datenschutzerklärung von GitHub</a>.</p>
 <h2>Konto und Gipfelbuch</h2>
-<p>Die Anmeldung ist freiwillig. Wenn Sie sich anmelden, verarbeiten wir Ihre E-Mail-Adresse, um Ihnen den Anmelde-Link zu senden und Ihr Konto zuzuordnen, sowie Ihr Gipfelbuch
+<p>Die Anmeldung ist freiwillig. Wenn Sie sich anmelden, verarbeiten wir Ihren Benutzernamen, Ihre E-Mail-Adresse (für den Bestätigungscode und zum Zurücksetzen des Passworts) und Ihr Passwort, das nur als nicht umkehrbarer Prüfwert gespeichert wird, sowie Ihr Gipfelbuch
 (bestiegene Gipfel mit Datum, Wunschliste), damit es auf allen Ihren Geräten verfügbar ist. Rechtsgrundlage ist die Bereitstellung der von Ihnen gewünschten Funktion (Art. 6 Abs. 1 lit. b DSGVO).</p>
 <p>Konto und Gipfelbuch werden bei unserem Auftragsverarbeiter Supabase, Inc., 970 Toa Payoh North #07-04, Singapur 318992, gespeichert; der Speicherort der Datenbank ist {region}.
 Nur Sie selbst können Ihr Gipfelbuch lesen und ändern. Wir speichern die Daten, solange Ihr Konto besteht. Sie können die Löschung Ihres Kontos und aller zugehörigen Daten jederzeit per E-Mail an die oben genannte Adresse verlangen.</p>
