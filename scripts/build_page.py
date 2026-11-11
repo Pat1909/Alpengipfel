@@ -120,6 +120,7 @@ inline += '<script type="application/json" id="data-details">' + json.dumps(slim
 open('dist/artifact.html', 'w').write(
     '<title>Alpengipfel</title>\n<meta name="claude:viewport-fit-sides" content="cover">\n' + FONTS + '\n<style>\n' + css + '</style>\n'
     '<div id="app-root" style="height:100%"></div>\n' + inline + LEAFLET + '\n<script>\n' + js.replace('</script', '<\\/script') + '</script>\n')
+open('docs/robots.txt', 'w').write(f'User-agent: *\nAllow: /\n\nSitemap: {SITE_URL}sitemap.xml\n')    # points search engines to the sitemap
 open('docs/CNAME', 'w').write(SITE_URL.split('//')[1].strip('/') + '\n')      # tells GitHub Pages which domain serves the site
 
 # installable app: icons, manifest and a service worker that caches the app itself for offline use
