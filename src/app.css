@@ -18,6 +18,7 @@
   --map-group: #b08a5e;
   --map-label: #6d5334;
   --h0: #5f8f4e; --h1: #a6a042; --h2: #c98a3a; --h3: #a0522d; --h4: #6f6f78; --h5: #2f7fa8;
+  --tw: #c2410c; --ta: #1d4ed8; --tk: #7e22ce; --tt: #6b7280; --ski: #0f766e;   /* trail kinds: Wandern, Hochalpin, Klettersteig, Fahrweg; Skitour */
   --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
 }
@@ -26,12 +27,14 @@
   --relief: #d2a070; --glacier: #6fb7dc; --accent: #ef6a5f; --accent-ink: #1a0f0e; --hover: #262f2d;
   --map-land: #1b2120; --map-alps: #262b27; --map-water: #1f3b4a; --map-border: #a99bbb; --map-group: #7d6547; --map-label: #c9ab84;
   --h0: #7fb56b; --h1: #c7c05a; --h2: #e3a455; --h3: #d07a4f; --h4: #b3b3bd; --h5: #7cc4ea;
+  --tw: #fb923c; --ta: #7aa5ff; --tk: #c084fc; --tt: #9ca3af; --ski: #5eead4;
   color-scheme: dark } }
 :root[data-theme="dark"] {
   --paper: #151a19; --surface: #1d2423; --ink: #e6ebe8; --muted: #9aa7a2; --line: #333d3a;
   --relief: #d2a070; --glacier: #6fb7dc; --accent: #ef6a5f; --accent-ink: #1a0f0e; --hover: #262f2d;
   --map-land: #1b2120; --map-alps: #262b27; --map-water: #1f3b4a; --map-border: #a99bbb; --map-group: #7d6547; --map-label: #c9ab84;
   --h0: #7fb56b; --h1: #c7c05a; --h2: #e3a455; --h3: #d07a4f; --h4: #b3b3bd; --h5: #7cc4ea;
+  --tw: #fb923c; --ta: #7aa5ff; --tk: #c084fc; --tt: #9ca3af; --ski: #5eead4;
   color-scheme: dark }
 
 html, body { height: 100%; }
@@ -108,7 +111,9 @@ dl.facts dd small { color: var(--muted); display: block; }
 .kh { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .kh small { color: var(--muted); font-size: 12.5px; }
 .kb { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 1px 9px; border: 1px solid currentColor; white-space: nowrap; }
-.kb.k0 { color: var(--h0); } .kb.k1 { color: var(--h3); } .kb.k2 { color: var(--glacier); }
+.kb.k0 { color: var(--tw); } .kb.k1 { color: var(--ta); } .kb.k2 { color: var(--tk); } .kb.k3 { color: var(--ski); } .kb.kn { color: var(--muted); }
+.onmap { margin-left: 8px; border: 1px solid var(--line); border-radius: 5px; background: transparent; padding: 0 7px; font-size: 12.5px; cursor: pointer; }
+.onmap:hover { background: var(--hover); }
 .wx { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
 .wx h3, .h3 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; }
 .wx a { color: var(--glacier); }
@@ -148,6 +153,9 @@ dl.facts dd small { color: var(--muted); display: block; }
 .mapwrap { min-width: 0; min-height: 0; position: relative; }
 #map { position: absolute; inset: 0; background: var(--map-land); font-family: var(--font-body); }
 .legend { position: absolute; left: 10px; bottom: 22px; z-index: 500; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; font-size: 12px; display: flex; gap: 9px; flex-wrap: wrap; max-width: calc(100% - 20px); }
+.legend { flex-direction: column; flex-wrap: nowrap; gap: 4px; }
+.lrow { display: flex; gap: 9px; flex-wrap: wrap; }
+.legend i.ln { width: 16px; height: 3px; border-radius: 0; }
 .legend span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
 .leaflet-container { background: var(--map-land); }

@@ -40,7 +40,7 @@ for k in STATES:
     run(f'SELECT ?wkt WHERE {{ ?a osmkey:ISO3166-2 "{k}" ; osmkey:boundary "administrative" ; geo:hasGeometry/geo:asWKT ?wkt }}', f'data/raw/q/b_{k}.tsv')
 for k, rid in {'SI': 218657, 'LI': 1155955, 'MC': 1124039, 'HU': 21335}.items():
     run(f'SELECT ?wkt WHERE {{ osmrel:{rid} geo:hasGeometry/geo:asWKT ?wkt }}', f'data/raw/q/b_{k}.tsv')
-# signposted hiking routes (route relations) and paths within 100 m of each named summit
+# signposted hiking routes (route relations) within 100 m of each named summit, and the paths around it
 PFX += 'PREFIX qlss: <https://qlever.cs.uni-freiburg.de/spatialSearch/>\n'
 PEAK = f'osmrel:{ALPS} ogc:sfContains ?n . ?n osmkey:natural "peak" ; osmkey:name ?pname ; geo:hasGeometry/geo:asWKT ?pg .'
 JOIN = '_:config qlss:algorithm qlss:libspatialjoin ; qlss:joinType qlss:within-dist ; qlss:maxDistance 100 ; qlss:left ?pg ; qlss:right ?rg ;'
@@ -49,8 +49,9 @@ run(f'''SELECT ?n ?rel WHERE {{ {PEAK}
   SERVICE qlss: {{ {JOIN} qlss:payload ?rel .
     {{ {ROUTE} ?rel geo:hasGeometry/geo:asWKT ?rg }} }} }}''', 'data/raw/q/routes.tsv')
 run(f'SELECT ?rel ?name ?ref WHERE {{ {ROUTE} OPTIONAL {{ ?rel osmkey:name ?name }} OPTIONAL {{ ?rel osmkey:ref ?ref }} }}', 'data/raw/q/route_names.tsv')
-run(f'''SELECT ?n ?w ?h ?sac ?vf ?name WHERE {{ {PEAK}
-  SERVICE qlss: {{ {JOIN} qlss:payload ?w , ?h , ?sac , ?vf , ?name .
+# paths up to 300 m from the summit, with their distance in metres (?d)
+run(f'''SELECT ?n ?w ?d ?h ?sac ?vf ?name WHERE {{ {PEAK}
+  SERVICE qlss: {{ {JOIN.replace('qlss:maxDistance 100', 'qlss:maxDistance 300')} qlss:bindDistance ?d ; qlss:payload ?w , ?h , ?sac , ?vf , ?name .
     {{ osmrel:{ALPS} ogc:sfIntersects ?w . ?w osmkey:highway ?h ; geo:hasGeometry/geo:asWKT ?rg . FILTER(?h = "path" || ?h = "footway" || ?h = "track" || ?h = "via_ferrata" || ?h = "steps")
       OPTIONAL {{ ?w osmkey:sac_scale ?sac }} OPTIONAL {{ ?w osmkey:via_ferrata_scale ?vf }} OPTIONAL {{ ?w osmkey:name ?name }} }} }} }}''', 'data/raw/q/ways.tsv')
 # which of those paths belong to which hiking route (gives each route its difficulty at the summit)

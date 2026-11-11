@@ -3,3 +3,4 @@ data/raw/ne_*.geojson
 data/raw/ranges_tags.json
 dist/
 __pycache__/
+data/raw/c2c/

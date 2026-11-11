@@ -1,5 +1,5 @@
 """Turn the raw Overpass downloads into docs/data/peaks.json and docs/data/geo.json."""
-import json, glob, gzip, os, re, sys, datetime, math
+import json, glob, gzip, os, re, sys, datetime, math, unicodedata
 import numpy as np
 import shapely
 from shapely.geometry import shape, box, mapping
@@ -23,7 +23,8 @@ def tsv(path):
                 vals.append(v.strip())
             yield dict(zip(head, vals + [''] * (len(head) - len(vals))))
 os.makedirs(OUT, exist_ok=True)
-ROUTE_RADIUS = 100
+ROUTE_RADIUS = 100        # a path or route this close counts as reaching the summit
+NEAR_RADIUS = 300         # paths up to here are listed as 'near the summit' when nothing reaches it
 
 # ---------- Alps outline ----------
 alps = relation_polygon(json.load(gzip.open(f'{RAW}/alps.json.gz', 'rt', encoding='utf-8'))['elements'][0])
@@ -139,7 +140,7 @@ def classify(row):
     vf = row['vf'] if re.fullmatch(r'[0-6][+-]?', row['vf']) else ''
     if row['h'] == 'via_ferrata' or vf: return (2, grade, vf, row['name'])
     return (1 if grade >= 4 else 0, grade, '', row['name'])
-for row in tsv(f'{RAW}/q/ways.tsv'): peak_ways.setdefault(nid(row['n']), {})[nid(row['w'])] = classify(row)
+for row in tsv(f'{RAW}/q/ways.tsv'): peak_ways.setdefault(nid(row['n']), {})[nid(row['w'])] = (float(row['d']), classify(row))
 route_ways = {}
 for row in tsv(f'{RAW}/q/route_ways.tsv'): route_ways.setdefault(nid(row['rel']), set()).add(nid(row['w']))
 hardest = lambda infos: max(infos, key=lambda x: (x[0], x[1], x[2]))
@@ -149,8 +150,80 @@ def route_ref(rid):
         route_idx[rid] = len(route_list); route_list.append([rid, rnames.get(rid, '')])
     return route_idx[rid]
 
+# ---------- Camptocamp.org: alpine routes, ski tours, via ferratas and hikes per summit (CC BY-SA 3.0) ----------
+C2C_ACT = {'hiking': 'Wandern', 'via_ferrata': 'Klettersteig', 'snow_ice_mixed': 'Hochtour', 'mountain_climbing': 'Alpinklettern',
+           'rock_climbing': 'Klettern', 'ice_climbing': 'Eisklettern', 'skitouring': 'Skitour', 'snowshoeing': 'Schneeschuh'}
+ALPINE = {'snow_ice_mixed', 'mountain_climbing', 'rock_climbing', 'ice_climbing'}
+GLOBAL = ['F', 'F+', 'PD-', 'PD', 'PD+', 'AD-', 'AD', 'AD+', 'D-', 'D', 'D+', 'TD-', 'TD', 'TD+', 'ED-', 'ED', 'ED+', 'ED4', 'ED5', 'ED6', 'ED7']
+QUALITY = {'great': 0, 'fine': 1, 'medium': 2, 'draft': 3}
+def c2c_cat(acts):
+    if 'via_ferrata' in acts: return 2
+    if ALPINE & acts: return 1
+    if 'hiking' in acts: return 0
+    if acts & {'skitouring', 'snowshoeing'}: return 3
+    return None                                    # mountain biking, paragliding, ...
+def c2c_rating(r, cat):
+    if cat == 0: parts, rank = [r.get('hiking_rating')], r.get('hiking_rating') or 'T9'
+    elif cat == 2: parts, rank = [r.get('via_ferrata_rating')], r.get('via_ferrata_rating') or 'K9'
+    elif cat == 1:
+        parts = [r.get('global_rating'), f"Fels {r['rock_free_rating']}" if r.get('rock_free_rating') else None, f"Eis {r['ice_rating']}" if r.get('ice_rating') else None]
+        rank = '%02d' % (GLOBAL.index(r['global_rating']) if r.get('global_rating') in GLOBAL else 50)
+    else:
+        parts = [f"Ski {r['ski_rating']}" if r.get('ski_rating') else None, r.get('snowshoe_rating'), r.get('labande_global_rating')]
+        rank = r.get('ski_rating') or r.get('snowshoe_rating') or '9'
+    return ' · '.join(p for p in parts if p), rank
+def name_keys(*names):
+    """Normalised spellings of a summit name; bilingual names are split."""
+    out = set()
+    for n in names:
+        for part in re.split(r'\s+[/-]\s+|;|,', n or ''):
+            k = re.sub('[\u0300-\u036f]', '', unicodedata.normalize('NFD', part.lower())).replace('ß', 'ss')
+            k = re.sub('[^a-z0-9]+', ' ', k).strip()
+            if len(k) >= 3: out.add(k)
+    return out
+def lonlat(xy):
+    return math.degrees(xy[0] / 6378137), math.degrees(2 * math.atan(math.exp(xy[1] / 6378137)) - math.pi / 2)
+
+c2c_routes, c2c_wp, c2c_acts = {}, {}, []
+if os.path.exists(f'{RAW}/c2c/routes.json'):
+    summits = json.load(open(f'{RAW}/c2c/summits.json')); croutes = json.load(open(f'{RAW}/c2c/routes.json'))
+    osm_keys = [name_keys(*[p['t'].get(k) for k in ('name', 'name:de', 'name:it', 'name:fr', 'name:sl', 'alt_name')]) for p in P]
+    osm_ele = [parse_num(p['t'].get('ele'), 0, 4900) for p in P]
+    # 1. each Camptocamp summit -> the OpenStreetMap peak it describes
+    summit_peak = {}
+    for sm in summits:
+        lon, lat = lonlat(sm['xy']); keys = name_keys(*sm['titles'])
+        dist = np.hypot((xs - lon) * KX, ys - lat) * 111320
+        best = None
+        for i in np.nonzero(dist <= 400)[0]:
+            same = bool(keys & osm_keys[i]); de = abs(osm_ele[i] - sm['ele']) if osm_ele[i] is not None and sm['ele'] else None
+            if same and (de is None or de <= 100): score = dist[i]
+            elif dist[i] <= 80 and de is not None and de <= 30: score = 1000 + dist[i]      # other name, same spot and height
+            else: continue
+            if best is None or score < best[0]: best = (score, i)
+        if best: summit_peak[sm['id']] = best[1]
+    # 2. each route -> the summit it is named after (title prefix), the nearest one within 6 km
+    by_title = {}
+    for sm in summits:
+        for t in sm['titles']: by_title.setdefault(t.strip().lower(), []).append(sm)
+    attached = 0
+    for r in croutes:
+        cat = c2c_cat(set(r['act']))
+        if cat is None or r.get('quality') == 'empty': continue
+        cands = by_title.get(r['prefix'].strip().lower())
+        if not cands: continue
+        d, sm = min(((math.hypot(c['xy'][0] - r['xy'][0], c['xy'][1] - r['xy'][1]) * KX, c) for c in cands), key=lambda x: x[0])
+        if d > 6000 or sm['id'] not in summit_peak: continue
+        pid = P[summit_peak[sm['id']]]['id']
+        label = ' / '.join(C2C_ACT[a] for a in r['act'] if a in C2C_ACT)
+        if label not in c2c_acts: c2c_acts.append(label)
+        rating, rank = c2c_rating(r, cat)
+        c2c_routes.setdefault(pid, []).append(((cat, rank, QUALITY.get(r.get('quality'), 4), r['title']), [r['id'], r['title'].strip(), cat, c2c_acts.index(label), rating, r.get('up') or 0]))
+        c2c_wp.setdefault(pid, sm['id']); attached += 1
+    print(f'camptocamp: {len(summit_peak)} of {len(summits)} summits matched to OSM peaks, {attached} routes on {len(c2c_routes)} peaks')
+
 country_keys = list(COUNTRIES); state_keys = list(STATES)
-cols = {k: [] for k in ['n', 'an', 'e', 'la', 'lo', 'c', 's', 'g', 'sg', 'p', 'wp', 'id', 'rt', 'ap', 'k']}
+cols = {k: [] for k in ['n', 'an', 'e', 'la', 'lo', 'c', 's', 'g', 'sg', 'p', 'wp', 'id', 'rt', 'ap', 'nr', 'cc', 'cw', 'k']}
 ccount = [0] * len(country_keys); scount = [0] * len(state_keys); gcount = [0] * len(groups); ungrouped = 0
 def compact(lst): return -1 if not lst else (lst[0] if len(lst) == 1 else lst)
 order = sorted(range(len(P)), key=lambda i: -(parse_num(P[i]['t'].get('ele'), 0, 4900) or -1))
@@ -176,7 +249,8 @@ for i in order:
     cols['p'].append(parse_num(t.get('prominence'), 0, 4900) or 0)
     cols['wp'].append(t.get('wikipedia') or 0)
     cols['id'].append(p['id'])
-    ways = peak_ways.get(p['id'], {})
+    allw = peak_ways.get(p['id'], {})
+    ways = {w: c for w, (d, c) in allw.items() if d <= ROUTE_RADIUS}
     rts = sorted(peak_routes.get(p['id'], ()), key=lambda r: rnames.get(r, '~'))
     rt, used, kinds = [], set(), 0
     for r in rts:                                   # a route is as hard as its hardest stretch at the summit
@@ -185,16 +259,26 @@ for i in order:
         rt.append([route_ref(r), cat, grade, vf]); kinds |= 1 << cat
     ap = sorted({ways[w] for w in ways.keys() - used})   # paths that belong to no signposted route
     for cat, *_ in ap: kinds |= 1 << cat
-    cols['rt'].append(rt or 0); cols['ap'].append([list(x) for x in ap] or 0); cols['k'].append(kinds)
+    nr = []                                         # nothing reaches the summit: the nearest paths around it
+    if not rt and not ap:
+        for d, c in sorted(allw.values()):
+            if d <= NEAR_RADIUS and c not in [tuple(x[1:]) for x in nr]: nr.append([int(round(d / 10) * 10), *c])
+            if len(nr) == 3: break
+    cc = [rec for _, rec in sorted(c2c_routes.get(p['id'], []), key=lambda x: x[0])]
+    for rec in cc: kinds |= 1 << rec[2]
+    if not kinds and nr: kinds = 16                 # only a path nearby
+    cols['rt'].append(rt or 0); cols['ap'].append([list(x) for x in ap] or 0); cols['nr'].append(nr or 0)
+    cols['cc'].append(cc or 0); cols['cw'].append(c2c_wp.get(p['id'], 0)); cols['k'].append(kinds)
 
 data = {
-    'meta': {'date': datetime.date.today().strftime('%d.%m.%Y'), 'source': 'OpenStreetMap contributors, ODbL', 'routeRadius': ROUTE_RADIUS},
+    'meta': {'date': datetime.date.today().strftime('%d.%m.%Y'), 'source': 'OpenStreetMap contributors, ODbL', 'routeRadius': ROUTE_RADIUS, 'nearRadius': NEAR_RADIUS},
     'countries': [{'c': k, 'n': COUNTRIES[k], 'count': ccount[i]} for i, k in enumerate(country_keys)],
     'states': [{'n': STATES[k], 'c': country_keys.index(k[:2]), 'count': scount[i]} for i, k in enumerate(state_keys)],
     'groups': [{'n': g['n'], 'count': gcount[i]} for i, g in enumerate(groups)],
     'subgroups': [g['n'] for g in subs],
     'ungrouped': ungrouped,
     'routes': route_list,
+    'c2cActs': c2c_acts,
     'peaks': cols,
 }
 json.dump(data, open(f'{OUT}/peaks.json', 'w'), ensure_ascii=False, separators=(',', ':'))

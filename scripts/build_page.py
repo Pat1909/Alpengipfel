@@ -59,19 +59,20 @@ for i in range(N):
     countries = ', '.join(D['countries'][c]['n'] for c in lst(P['c'][i]))
     states = ' / '.join(D['states'][s]['n'] for s in lst(P['s'][i]))
     group = ' / '.join(D['groups'][g]['n'] for g in lst(P['g'][i]))
-    routes = len(P['rt'][i] or [])
+    routes = len(P['rt'][i] or []) + len(P['ap'][i] or []) + len(P['cc'][i] or [])
     where = ', '.join(x for x in (group, states, countries) if x)
     title = f"{name}{f' ({num(ele)} m)' if ele is not None else ''} – {group or countries or 'Alpen'} | Alpengipfel"
     desc = (f"{name}{f', {num(ele)} m hoch' if ele is not None else ''}: Gipfel in {where or 'den Alpen'}. "
-            f"Lage, Koordinaten, {'Wanderrouten, ' if routes else ''}Karte und Bergwetter für die nächsten 7 Tage.")
+            f"Lage, Koordinaten, {'Wege und Routen, ' if routes else ''}Karte und Bergwetter für die nächsten 7 Tage.")
     facts = [('Höhe', f'{num(ele)} m' if ele is not None else 'nicht eingetragen'), ('Koordinaten', f'{la:.5f}° N, {lo:.5f}° O'),
              ('Land', countries or '–'), ('Bundesland / Region', states or '–'), ('Gebirgsgruppe', group or 'ohne Zuordnung')]
     if P['p'][i]: facts.append(('Schartenhöhe', f"{num(P['p'][i])} m"))
-    if routes: facts.append(('Markierte Wanderrouten am Gipfel', str(routes)))
+    if routes: facts.append(('Erfasste Wege und Routen auf den Gipfel', str(routes)))
     static = (f'<article class="static"><h1>{E(name)}</h1>'
               + (f"<p>auch: {E(P['an'][i])}</p>" if P['an'][i] else '')
               + '<dl>' + ''.join(f'<dt>{E(k)}</dt><dd>{E(v)}</dd>' for k, v in facts) + '</dl>'
-              + '<p><a href="../">Alle Alpengipfel</a></p></article>')
+              + '<p><a href="../">Alle Alpengipfel</a></p>'
+              + '<p>Daten: OpenStreetMap-Mitwirkende (ODbL)' + (', Routen: Camptocamp.org (CC BY-SA 3.0)' if P['cc'][i] else '') + '</p></article>')
     ld = {'@context': 'https://schema.org', '@type': 'Mountain', 'name': name,
           'geo': {'@type': 'GeoCoordinates', 'latitude': la, 'longitude': lo, **({'elevation': ele} if ele is not None else {})}}
     head = '<script type="application/ld+json">' + json.dumps(ld, ensure_ascii=False).replace('</', '<\\/') + '</script>\n'
