@@ -928,7 +928,7 @@ async function boot() {
   if (HOSTED) { addEventListener('popstate', route); route(); }
   initAccount();
   if (HOSTED && 'serviceWorker' in navigator) navigator.serviceWorker.register(ROOT + 'sw.js').catch(() => { /* the app works without it */ });
-  if (window.AG_LEGAL) { $('foot').hidden = false; $('foot').innerHTML = `<a href="${ROOT}impressum.html">Impressum</a><a href="${ROOT}datenschutz.html">Datenschutz</a><a href="${ROOT}nutzungsbedingungen.html">Nutzungsbedingungen</a>`; }
+  if (window.AG_LEGAL) { $('foot').hidden = false; $('foot').innerHTML = `<a href="${ROOT}impressum.html">Impressum</a><a href="${ROOT}datenschutz.html">Datenschutz</a><a href="${ROOT}nutzungsbedingungen.html">Nutzungsbedingungen</a><span>Daten: © OpenStreetMap-Mitwirkende, Camptocamp, Open-Meteo</span>`; }
 }
 boot();
 })();
