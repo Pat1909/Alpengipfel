@@ -11,7 +11,7 @@ import glob, html, json, os, re, shutil, sys, unicodedata
 sys.path.insert(0, 'scripts')
 import legal
 
-SITE_URL = 'https://pat1909.github.io/Alpengipfel/'      # public address of docs/ (used for canonical links and the sitemap)
+SITE_URL = 'https://alpen-gipfel.de/'      # public address of docs/ (used for canonical links and the sitemap)
 # The hosted site serves fonts and libraries itself (src/vendor), so visitors' browsers contact no third party for them.
 # Only the single-file variant loads them from these addresses.
 LEAFLET = '<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>'
@@ -120,6 +120,8 @@ inline += '<script type="application/json" id="data-details">' + json.dumps(slim
 open('dist/artifact.html', 'w').write(
     '<title>Alpengipfel</title>\n<meta name="claude:viewport-fit-sides" content="cover">\n' + FONTS + '\n<style>\n' + css + '</style>\n'
     '<div id="app-root" style="height:100%"></div>\n' + inline + LEAFLET + '\n<script>\n' + js.replace('</script', '<\\/script') + '</script>\n')
+open('docs/CNAME', 'w').write(SITE_URL.split('//')[1].strip('/') + '\n')      # tells GitHub Pages which domain serves the site
+
 # installable app: icons, manifest and a service worker that caches the app itself for offline use
 for f in glob.glob('src/vendor/icons/*.png'): shutil.copy(f, 'docs/assets/')
 json.dump({'name': 'Alpengipfel', 'short_name': 'Alpengipfel', 'description': 'Alle benannten Gipfel der Alpen mit Karte, Routen, Gipfelbuch und Bergwetter.', 'lang': 'de',
