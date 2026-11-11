@@ -30,6 +30,12 @@ Angemeldete Nutzer bekommen ihr Gipfelbuch aus einem Supabase-Projekt (Anmeldung
 1. `supabase/gipfelbuch.sql` im SQL Editor ausführen (Tabelle mit Zugriff nur auf die eigene Zeile).
 2. Unter Authentication → URL Configuration die Site URL auf die Adresse der App setzen und dieselbe Adresse mit `**` am Ende bei Redirect URLs eintragen.
 
+## Impressum und Datenschutzerklärung
+
+Beide Seiten entstehen beim Bauen aus `src/legal.json` (Aufbau siehe `scripts/legal.py`). Fehlt die Datei, gibt es die Seiten und die Links darauf nicht. Die Texte sind ein sorgfältiger Entwurf, keine Rechtsberatung.
+
+Schriften, Leaflet und die Supabase-Bibliothek liegen in `src/vendor` und werden von der Seite selbst ausgeliefert, damit dafür kein fremder Dienst kontaktiert wird.
+
 ## Daten neu erzeugen
 
 ```bash

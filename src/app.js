@@ -183,7 +183,7 @@ function routesHtml(i) {
 }
 
 /* ---------- trails on the map (fetched live from OpenStreetMap via Overpass) ---------- */
-const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
+const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
 const SAC = { strolling: 1, hiking: 1, mountain_hiking: 2, demanding_mountain_hiking: 3, alpine_hiking: 4, demanding_alpine_hiking: 5, difficult_alpine_hiking: 6 };
 const trailCache = new Map();
 let trailLayer, hiLayer, trailsFor = -1;
@@ -469,7 +469,7 @@ function accountHtml() {
   if (!sb) return '';
   if (sbUser) return `<div class="acct"><h3 class="h3">Konto</h3><p>Angemeldet als <b>${esc(sbUser.email || '')}</b></p><p class="note" id="syncmsg">${esc(syncMsg)}</p>` +
     `<div class="links"><button type="button" id="logout">Abmelden</button></div></div>`;
-  return `<form class="acct" id="loginform"><h3 class="h3">Konto</h3><p class="note">Melde dich an, damit dein Gipfelbuch gespeichert bleibt und auf jedem Gerät dasselbe ist. Du bekommst einen Anmelde-Link per E-Mail, ein Passwort brauchst du nicht.</p>` +
+  return `<form class="acct" id="loginform"><h3 class="h3">Konto</h3><p class="note">Melde dich an, damit dein Gipfelbuch gespeichert bleibt und auf jedem Gerät dasselbe ist. Du bekommst einen Anmelde-Link per E-Mail, ein Passwort brauchst du nicht.${window.AG_LEGAL ? ` Was dabei gespeichert wird, steht in der <a href="${ROOT}datenschutz.html">Datenschutzerklärung</a>.` : ''}</p>` +
     `<div class="hrow"><input type="email" id="loginmail" placeholder="deine@email.at" autocomplete="email" required aria-label="E-Mail-Adresse"><button type="submit" class="nearbtn" id="loginbtn">Link senden</button></div>` +
     `<p class="note" id="loginmsg"></p></form>`;
 }
@@ -797,6 +797,7 @@ async function boot() {
   $('loading').hidden = true;
   if (HOSTED) { addEventListener('popstate', route); route(); }
   initAccount();
+  if (window.AG_LEGAL) { $('foot').hidden = false; $('foot').innerHTML = `<a href="${ROOT}impressum.html">Impressum</a><a href="${ROOT}datenschutz.html">Datenschutz</a>`; }
 }
 boot();
 })();

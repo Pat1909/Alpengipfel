@@ -7,11 +7,14 @@ Writes
   docs/sitemap.xml
   dist/artifact.html                        single-file variant with everything inline
 """
-import html, json, os, re, shutil, unicodedata
+import glob, html, json, os, re, shutil, sys, unicodedata
+sys.path.insert(0, 'scripts')
+import legal
 
 SITE_URL = 'https://pat1909.github.io/Alpengipfel/'      # public address of docs/ (used for canonical links and the sitemap)
+# The hosted site serves fonts and libraries itself (src/vendor), so visitors' browsers contact no third party for them.
+# Only the single-file variant loads them from these addresses.
 LEAFLET = '<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>'
-SUPABASE = '<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>'   # accounts for the Gipfelbuch
 FONTS = '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&display=swap">'
 
 leaflet_css = re.sub(r'/\*.*?\*/', '', open('src/leaflet.css').read(), flags=re.S)
@@ -24,6 +27,29 @@ assert '__SHELL__' not in js
 os.makedirs('docs/assets', exist_ok=True); os.makedirs('dist', exist_ok=True)
 open('docs/assets/app.css', 'w').write(css)
 open('docs/assets/app.js', 'w').write(js)
+
+# vendored libraries and fonts
+for f in ('leaflet.js', 'supabase.js'): shutil.copy(f'src/vendor/{f}', f'docs/assets/{f}')
+os.makedirs('docs/assets/fonts', exist_ok=True)
+faces = []
+for f in sorted(glob.glob('src/vendor/fonts/*.woff2')):
+    shutil.copy(f, 'docs/assets/fonts/')
+    name = os.path.basename(f); fam, subset, weight = re.match(r'(barlow(?:-condensed)?)-(latin(?:-ext)?)-(\d+)-normal', name).groups()
+    urange = ('U+0100-02AF,U+0304,U+0308,U+0329,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF' if subset == 'latin-ext'
+              else 'U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD')
+    faces.append(f"@font-face{{font-family:'{'Barlow Condensed' if 'condensed' in fam else 'Barlow'}';font-style:normal;font-weight:{weight};font-display:swap;src:url(fonts/{name}) format('woff2');unicode-range:{urange}}}")
+open('docs/assets/fonts.css', 'w').write('\n'.join(faces) + '\n')
+
+# Impressum and Datenschutzerklärung exist once the operator's details are in src/legal.json
+LEGAL = json.load(open('src/legal.json')) if os.path.exists('src/legal.json') else None
+def legal_page(title, body):
+    return ('<!doctype html>\n<html lang="de">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+            f'<title>{title} – Alpengipfel</title>\n<meta name="robots" content="noindex">\n<link rel="stylesheet" href="assets/fonts.css">\n<link rel="stylesheet" href="assets/app.css">\n'
+            '<style>html{color-scheme:light}body{margin:0}</style>\n</head>\n<body>\n'
+            f'<article class="static legal"><p><a href="./">← Alpengipfel</a></p>{body}</article>\n</body>\n</html>\n')
+for name in ('impressum', 'datenschutz'):
+    if LEGAL: open(f'docs/{name}.html', 'w').write(legal_page(name.capitalize() if name == 'impressum' else 'Datenschutzerklärung', getattr(legal, name)(LEGAL)))
+    elif os.path.exists(f'docs/{name}.html'): os.remove(f'docs/{name}.html')
 
 D = json.load(open('docs/data/peaks.json'))
 P = D['peaks']; N = len(P['n'])
@@ -39,14 +65,14 @@ def slug(i):
     return f"{s or 'gipfel'}-{P['id'][i]}"
 
 def page(base, title, desc, canonical, static, extra_head='', peak=None):
-    boot = f"<script>window.AG_BASE={json.dumps(base)};" + (f"window.AG_PEAK={peak};" if peak else '') + "</script>"
+    boot = f"<script>window.AG_BASE={json.dumps(base)};" + (f"window.AG_PEAK={peak};" if peak else '') + ('window.AG_LEGAL=1;' if LEGAL else '') + "</script>"
     return ('<!doctype html>\n<html lang="de">\n<head>\n<meta charset="utf-8">\n'
             '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
             f'<title>{E(title)}</title>\n<meta name="description" content="{E(desc)}">\n<link rel="canonical" href="{canonical}">\n'
             f'<meta property="og:title" content="{E(title)}">\n<meta property="og:description" content="{E(desc)}">\n{extra_head}'
-            f'{FONTS}\n<link rel="stylesheet" href="{base}assets/app.css">\n'
+            f'<link rel="stylesheet" href="{base}assets/fonts.css">\n<link rel="stylesheet" href="{base}assets/app.css">\n'
             '<style>html{color-scheme:light}body{margin:0}[hidden]{display:none!important}</style>\n</head>\n<body>\n'
-            f'<div id="app-root" style="height:100%">{static}</div>\n{LEAFLET}\n{SUPABASE}\n{boot}\n<script src="{base}assets/app.js"></script>\n</body>\n</html>\n')
+            f'<div id="app-root" style="height:100%">{static}</div>\n<script src="{base}assets/leaflet.js"></script>\n<script src="{base}assets/supabase.js"></script>\n{boot}\n<script src="{base}assets/app.js"></script>\n</body>\n</html>\n')
 
 intro = ('<article class="static"><h1>Alpengipfel</h1>'
          f'<p>Alle {num(N)} benannten Gipfel der Alpen aus OpenStreetMap: filterbar nach Höhe, Land, Bundesland und Gebirgsgruppe, '
