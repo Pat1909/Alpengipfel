@@ -652,7 +652,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   --muted: #5d6a66;
   --line: #d5dbd7;
   --relief: #8a5a2b;     /* contour brown of topographic sheets */
-  --glacier: #2f7fa8;    /* glacier/water blue */
+  --glacier: #1b6388;    /* glacier/water blue */
   --accent: #b3261e;     /* trail-marker red */
   --accent-ink: #ffffff;
   --hover: #e9eeea;
@@ -810,6 +810,8 @@ a.onmap { color: var(--ink); text-decoration: none; display: inline-block; }
 .acct a { color: var(--glacier); }
 .acct label { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--muted); }
 .acct label input { flex: none; font-size: 15px; color: var(--ink); }
+.danger { color: var(--accent) !important; border-color: var(--accent) !important; }
+#dtitle:focus { outline: none; }
 .linkbtn { border: 0; background: none; padding: 0; color: var(--glacier); text-decoration: underline; cursor: pointer; font-size: inherit; }
 .note { color: var(--muted); font-size: 12.5px; margin: 0; }
 

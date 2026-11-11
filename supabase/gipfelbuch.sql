@@ -49,3 +49,11 @@ language sql stable security definer set search_path = '' as $$
 $$;
 revoke all on function public.username_frei(text) from public;
 grant execute on function public.username_frei(text) to anon, authenticated;
+
+-- 3. Konto löschen: Ein angemeldeter Nutzer kann sein eigenes Konto entfernen; Gipfelbuch und Profil werden mitgelöscht.
+create or replace function public.konto_loeschen() returns void
+language sql security definer set search_path = '' as $$
+  delete from auth.users where id = (select auth.uid());
+$$;
+revoke all on function public.konto_loeschen() from public, anon;
+grant execute on function public.konto_loeschen() to authenticated;

@@ -68,7 +68,8 @@ insbesondere IP-Adresse, Zeitpunkt, aufgerufene Seite und Angaben zum Browser, u
 <p>Die Anmeldung ist freiwillig. Wenn Sie sich anmelden, verarbeiten wir Ihren Benutzernamen, Ihre E-Mail-Adresse (für den Bestätigungscode und zum Zurücksetzen des Passworts) und Ihr Passwort, das nur als nicht umkehrbarer Prüfwert gespeichert wird, sowie Ihr Gipfelbuch
 (bestiegene Gipfel mit Datum, Wunschliste), damit es auf allen Ihren Geräten verfügbar ist. Rechtsgrundlage ist die Bereitstellung der von Ihnen gewünschten Funktion (Art. 6 Abs. 1 lit. b DSGVO).</p>
 <p>Konto und Gipfelbuch werden bei unserem Auftragsverarbeiter Supabase, Inc., 970 Toa Payoh North #07-04, Singapur 318992, gespeichert; der Speicherort der Datenbank ist {region}.
-Nur Sie selbst können Ihr Gipfelbuch lesen und ändern. Wir speichern die Daten, solange Ihr Konto besteht. Sie können die Löschung Ihres Kontos und aller zugehörigen Daten jederzeit per E-Mail an die oben genannte Adresse verlangen.</p>
+Nur Sie selbst können Ihr Gipfelbuch lesen und ändern. Wir speichern die Daten, solange Ihr Konto besteht. Sie können Ihr Konto mit allen zugehörigen Daten jederzeit selbst löschen: im Gipfelbuch unter „Konto“ → „Konto löschen“. Alternativ genügt eine E-Mail an die oben genannte Adresse.</p>
+<p>Das Angebot richtet sich an Personen ab 16 Jahren. Wir erheben wissentlich keine Daten von Kindern.</p>
 <h2>Speicherung in Ihrem Browser</h2>
 <p>Die Website legt im lokalen Speicher Ihres Browsers ab: Ihr Gipfelbuch, die Einstellung zur Anzeige der Hütten und, falls Sie angemeldet sind, die Anmeldung. Außerdem werden die Dateien der App im Browser zwischengespeichert, damit sie auch ohne Internetverbindung startet. Diese Daten sind für die von Ihnen genutzten Funktionen
 erforderlich, werden nicht zu Werbe- oder Analysezwecken verwendet und lassen sich über die Browser-Einstellungen jederzeit löschen. Beim Abmelden wird das Gipfelbuch aus dem Browser entfernt.</p>
@@ -87,3 +88,27 @@ Rechtsgrundlage ist unser berechtigtes Interesse, Karte, Wetter und Wege anzuzei
 <p>Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit und Widerspruch gegen Verarbeitungen, die auf berechtigtem Interesse beruhen.
 Wenden Sie sich dazu an die oben genannte Adresse. Außerdem können Sie sich bei {authority} beschweren.</p>
 <p>Stand: {stand}</p>'''
+
+
+def nutzungsbedingungen(d):
+    stand = datetime.date.today().strftime('%d.%m.%Y')
+    return f"""<h1>Nutzungsbedingungen</h1>
+<p>Diese Bedingungen gelten für die Nutzung von Alpengipfel als Website und als App. Anbieter ist {E(d['name'])}; die Kontaktdaten stehen im <a href="impressum.html">Impressum</a>.</p>
+<h2>1. Leistung</h2>
+<p>Alpengipfel zeigt Informationen zu Gipfeln der Alpen: Lage, Höhe, Wege und Routen, Hütten, Ausgangspunkte und Wettervorhersagen. Die Nutzung ist kostenlos. Es gibt keine kostenpflichtigen Funktionen, keine Abonnements und keine Käufe in der App.
+Ein Anspruch auf ständige Verfügbarkeit oder auf bestimmte Funktionen besteht nicht.</p>
+<h2>2. Keine Gewähr für die Angaben, Touren auf eigene Gefahr</h2>
+<p>Die Angaben stammen aus frei verfügbaren Quellen (unter anderem OpenStreetMap, Camptocamp und Open-Meteo) und werden von Freiwilligen gepflegt. Sie können unvollständig, veraltet oder falsch sein.
+Das gilt besonders für Wegverläufe, Schwierigkeitsangaben und Wetter. Alpengipfel ersetzt keine Tourenplanung mit aktuellen Karten, Führerliteratur, Lawinen- und Wetterbericht und keine eigene Beurteilung vor Ort.
+Bergtouren unternehmen Sie auf eigene Gefahr.</p>
+<h2>3. Konto</h2>
+<p>Für das Gipfelbuch auf mehreren Geräten können Sie ein kostenloses Konto anlegen. Voraussetzung ist ein Mindestalter von 16 Jahren. Wählen Sie einen Benutzernamen, der keine Rechte Dritter verletzt und nicht beleidigend ist,
+und halten Sie Ihr Passwort geheim. Sie können Ihr Konto jederzeit in der App löschen (Gipfelbuch → Konto → Konto löschen). Wir können Konten sperren oder löschen, die missbräuchlich verwendet werden.</p>
+<h2>4. Erlaubte Nutzung</h2>
+<p>Sie dürfen Alpengipfel für private Zwecke nutzen. Nicht erlaubt ist es, den Dienst zu stören, Schutzmaßnahmen zu umgehen oder Inhalte automatisiert in großem Umfang abzurufen.
+Die Daten selbst stehen unter den im Impressum genannten freien Lizenzen und können bei den jeweiligen Quellen bezogen werden.</p>
+<h2>5. Haftung</h2>
+<p>Wir haften unbeschränkt bei Vorsatz und grober Fahrlässigkeit sowie bei Verletzung von Leben, Körper oder Gesundheit. Im Übrigen ist die Haftung für die unentgeltliche Bereitstellung im gesetzlich zulässigen Umfang ausgeschlossen.</p>
+<h2>6. Änderungen</h2>
+<p>Wir können diese Bedingungen anpassen, etwa wenn Funktionen hinzukommen. Die jeweils aktuelle Fassung steht auf dieser Seite. Es gilt deutsches Recht; zwingende Verbraucherschutzvorschriften Ihres Wohnsitzlandes bleiben unberührt.</p>
+<p>Stand: {stand}</p>"""

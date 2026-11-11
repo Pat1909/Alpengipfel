@@ -325,8 +325,9 @@ function showDetail(i, fromMap, noPush) {
     document.title = `${D.peaks.n[i]}${D.peaks.e[i] != null ? ' (' + fmt.format(D.peaks.e[i]) + ' m)' : ''} – Alpengipfel`;
   }
   const box = $('detail');
-  box.innerHTML = `<button class="back" id="back" type="button">← Zur Liste</button><div><h2>${esc(D.peaks.n[i])}</h2></div><p class="note" id="dload">Angaben werden geladen …</p>`;
+  box.innerHTML = `<button class="back" id="back" type="button">← Zur Liste</button><div><h2 tabindex="-1" id="dtitle">${esc(D.peaks.n[i])}</h2></div><p class="note" id="dload" role="status">Angaben werden geladen …</p>`;
   box.hidden = false; $('back').onclick = () => closeDetail();
+  if (!fromMap) $('dtitle').focus({ preventScroll: true });
   startPts = []; if (peakLayer) peakLayer.redraw(); renderList();
   detailOf(i).then(d => { if (selected === i) renderDetail(i, fromMap, d); },
     () => { if (selected === i && $('dload')) $('dload').textContent = 'Die Angaben zu diesem Gipfel konnten nicht geladen werden. Prüfe die Verbindung und öffne den Gipfel noch einmal.'; });
@@ -503,7 +504,7 @@ async function pushBook() {
 }
 // Account forms: sign in (e-mail + password), register (user name, e-mail, password), confirm by e-mailed code, reset password by code.
 let acctMode = 'login', acctMail = '', acctMsg = '';
-const privacyHint = () => window.AG_LEGAL ? ` Was dabei gespeichert wird, steht in der <a href="${ROOT}datenschutz.html">Datenschutzerklärung</a>.` : '';
+const privacyHint = () => window.AG_LEGAL ? ` Mit dem Anlegen akzeptierst du die <a href="${ROOT}nutzungsbedingungen.html">Nutzungsbedingungen</a>. Was gespeichert wird, steht in der <a href="${ROOT}datenschutz.html">Datenschutzerklärung</a>.` : '';
 function accountHtml() {
   if (!sb) return '';
   const head = `<h3 class="h3">Konto</h3>`, msg = `<p class="note" id="acctmsg" role="status">${esc(acctMsg)}</p>`;
@@ -512,8 +513,10 @@ function accountHtml() {
   if (sbUser && acctMode === 'newpass') return `<form class="acct" id="acctform">${head}<p>Lege ein neues Passwort für dein Konto fest.</p>` +
     `<label>Neues Passwort (mindestens 8 Zeichen)<input type="password" id="apass" autocomplete="new-password" required minlength="8"></label>` +
     `<div class="links"><button type="submit" id="asubmit">Passwort speichern</button></div>${msg}</form>`;
+  if (sbUser && acctMode === 'delete') return `<div class="acct">${head}<p><b>Konto wirklich löschen?</b> Dein Konto, dein Benutzername und dein gespeichertes Gipfelbuch werden sofort und endgültig gelöscht. Das lässt sich nicht rückgängig machen.</p>` +
+    `<div class="links"><button type="button" id="delyes" class="danger">Endgültig löschen</button><button type="button" id="delno">Abbrechen</button></div>${msg}</div>`;
   if (sbUser) return `<div class="acct">${head}<p>Angemeldet als <b>${esc((sbUser.user_metadata && sbUser.user_metadata.username) || sbUser.email || '')}</b><small class="note"> · ${esc(sbUser.email || '')}</small></p>` +
-    `<p class="note" id="syncmsg">${esc(syncMsg)}</p><div class="links"><button type="button" id="logout">Abmelden</button></div></div>`;
+    `<p class="note" id="syncmsg">${esc(syncMsg)}</p><div class="links"><button type="button" id="logout">Abmelden</button><button type="button" id="delask">Konto löschen</button></div></div>`;
   if (acctMode === 'register') return `<form class="acct" id="acctform">${head}<p class="note">Lege ein Konto an, damit dein Gipfelbuch gespeichert bleibt und auf jedem Gerät dasselbe ist.${privacyHint()}</p>` +
     `<label>Benutzername<input type="text" id="aname" autocomplete="username" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_.\-]{3,20}" title="3 bis 20 Zeichen: Buchstaben ohne Umlaute, Ziffern, Punkt, Binde- und Unterstrich"></label>${mail}` +
     `<label>Passwort (mindestens 8 Zeichen)<input type="password" id="apass" autocomplete="new-password" required minlength="8"></label>` +
@@ -540,6 +543,16 @@ function wireAccount() {
     clearTimeout(pushTimer); await pushBook(); await sb.auth.signOut();
     book = { done: {}, wish: {} }; storeBook(); try { localStorage.removeItem(SYNC_KEY); } catch (err) { /* nothing to forget */ }
     syncMsg = ''; acctMode = 'login'; acctMsg = ''; apply(); showBook();
+  };
+  if ($('delask')) $('delask').onclick = () => go('delete');
+  if ($('delno')) $('delno').onclick = () => go('login');
+  if ($('delyes')) $('delyes').onclick = async () => {
+    $('delyes').disabled = true; clearTimeout(pushTimer);
+    const { error } = await sb.rpc('konto_loeschen');
+    if (error) { $('delyes').disabled = false; return say('Das Konto konnte nicht gelöscht werden. Versuch es noch einmal oder schreib an die Adresse im Impressum.'); }
+    await sb.auth.signOut({ scope: 'local' });
+    book = { done: {}, wish: {} }; storeBook(); try { localStorage.removeItem(SYNC_KEY); } catch (err) { /* nothing to forget */ }
+    syncMsg = ''; acctMode = 'login'; acctMsg = 'Dein Konto und dein Gipfelbuch wurden gelöscht.'; apply(); showBook();
   };
   document.querySelectorAll('#bookpanel .linkbtn').forEach(btn => { btn.onclick = () => { if ($('amail')) acctMail = $('amail').value.trim(); go(btn.dataset.mode); }; });
   if ($('aresend')) $('aresend').onclick = async () => {
@@ -688,6 +701,7 @@ function setView(v) {
 }
 function initMap() {
   if (!window.L) { $('map').innerHTML = '<div class="empty">Die Kartenbibliothek konnte nicht geladen werden. Liste und Filter funktionieren trotzdem.</div>'; return; }
+  $('map').setAttribute('role', 'application'); $('map').setAttribute('aria-label', 'Karte der Gipfel, Hütten und Wege. Alle Gipfel sind auch über die Liste erreichbar.');
   map = L.map('map', { preferCanvas: true, zoomSnap: 0.5, minZoom: 5, maxZoom: 17, maxBounds: [[40.5, -1], [51, 23]] }).fitBounds(ALPS_BOUNDS);
   mapShown = $('map').clientWidth > 0;
   map.attributionControl.setPrefix(false).addAttribution('Daten © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende (ODbL)');
@@ -914,7 +928,7 @@ async function boot() {
   if (HOSTED) { addEventListener('popstate', route); route(); }
   initAccount();
   if (HOSTED && 'serviceWorker' in navigator) navigator.serviceWorker.register(ROOT + 'sw.js').catch(() => { /* the app works without it */ });
-  if (window.AG_LEGAL) { $('foot').hidden = false; $('foot').innerHTML = `<a href="${ROOT}impressum.html">Impressum</a><a href="${ROOT}datenschutz.html">Datenschutz</a>`; }
+  if (window.AG_LEGAL) { $('foot').hidden = false; $('foot').innerHTML = `<a href="${ROOT}impressum.html">Impressum</a><a href="${ROOT}datenschutz.html">Datenschutz</a><a href="${ROOT}nutzungsbedingungen.html">Nutzungsbedingungen</a>`; }
 }
 boot();
 })();

@@ -47,8 +47,8 @@ def legal_page(title, body):
             f'<title>{title} – Alpengipfel</title>\n<meta name="robots" content="noindex">\n<link rel="stylesheet" href="assets/fonts.css">\n<link rel="stylesheet" href="assets/app.css">\n'
             '<style>html{color-scheme:light}body{margin:0}</style>\n</head>\n<body>\n'
             f'<article class="static legal"><p><a href="./">← Alpengipfel</a></p>{body}</article>\n</body>\n</html>\n')
-for name in ('impressum', 'datenschutz'):
-    if LEGAL: open(f'docs/{name}.html', 'w').write(legal_page(name.capitalize() if name == 'impressum' else 'Datenschutzerklärung', getattr(legal, name)(LEGAL)))
+for name, title in (('impressum', 'Impressum'), ('datenschutz', 'Datenschutzerklärung'), ('nutzungsbedingungen', 'Nutzungsbedingungen')):
+    if LEGAL: open(f'docs/{name}.html', 'w').write(legal_page(title, getattr(legal, name)(LEGAL)))
     elif os.path.exists(f'docs/{name}.html'): os.remove(f'docs/{name}.html')
 
 D = json.load(open('docs/data/peaks.json'))
