@@ -18,6 +18,7 @@
   --map-group: #b08a5e;
   --map-label: #6d5334;
   --h0: #5f8f4e; --h1: #a6a042; --h2: #c98a3a; --h3: #a0522d; --h4: #6f6f78; --h5: #2f7fa8;
+  --hut: #5b2a86;
   --tw: #c2410c; --ta: #1d4ed8; --tk: #7e22ce; --tt: #6b7280; --ski: #0f766e;   /* trail kinds: Wandern, Hochalpin, Klettersteig, Fahrweg; Skitour */
   --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
@@ -27,14 +28,14 @@
   --relief: #d2a070; --glacier: #6fb7dc; --accent: #ef6a5f; --accent-ink: #1a0f0e; --hover: #262f2d;
   --map-land: #1b2120; --map-alps: #262b27; --map-water: #1f3b4a; --map-border: #a99bbb; --map-group: #7d6547; --map-label: #c9ab84;
   --h0: #7fb56b; --h1: #c7c05a; --h2: #e3a455; --h3: #d07a4f; --h4: #b3b3bd; --h5: #7cc4ea;
-  --tw: #fb923c; --ta: #7aa5ff; --tk: #c084fc; --tt: #9ca3af; --ski: #5eead4;
+  --hut: #d8b4fe; --tw: #fb923c; --ta: #7aa5ff; --tk: #c084fc; --tt: #9ca3af; --ski: #5eead4;
   color-scheme: dark } }
 :root[data-theme="dark"] {
   --paper: #151a19; --surface: #1d2423; --ink: #e6ebe8; --muted: #9aa7a2; --line: #333d3a;
   --relief: #d2a070; --glacier: #6fb7dc; --accent: #ef6a5f; --accent-ink: #1a0f0e; --hover: #262f2d;
   --map-land: #1b2120; --map-alps: #262b27; --map-water: #1f3b4a; --map-border: #a99bbb; --map-group: #7d6547; --map-label: #c9ab84;
   --h0: #7fb56b; --h1: #c7c05a; --h2: #e3a455; --h3: #d07a4f; --h4: #b3b3bd; --h5: #7cc4ea;
-  --tw: #fb923c; --ta: #7aa5ff; --tk: #c084fc; --tt: #9ca3af; --ski: #5eead4;
+  --hut: #d8b4fe; --tw: #fb923c; --ta: #7aa5ff; --tk: #c084fc; --tt: #9ca3af; --ski: #5eead4;
   color-scheme: dark }
 
 html, body { height: 100%; }
@@ -155,6 +156,9 @@ dl.facts dd small { color: var(--muted); display: block; }
 .legend { position: absolute; left: 10px; bottom: 22px; z-index: 500; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; font-size: 12px; display: flex; gap: 9px; flex-wrap: wrap; max-width: calc(100% - 20px); }
 .legend { flex-direction: column; flex-wrap: nowrap; gap: 4px; }
 .lrow { display: flex; gap: 9px; flex-wrap: wrap; }
+.hutrow { align-items: center; gap: 6px; cursor: pointer; }
+.hutrow input { margin: 0; }
+.legend i.sq { width: 9px; height: 9px; border-radius: 0; background: var(--hut); }
 .legend i.ln { width: 16px; height: 3px; border-radius: 0; }
 .legend span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }

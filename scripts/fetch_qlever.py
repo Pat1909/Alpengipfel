@@ -71,3 +71,7 @@ for name in ('ne_10m_admin_0_countries', 'ne_10m_lakes'):
     out = 'data/raw/' + {'ne_10m_admin_0_countries': 'ne_countries', 'ne_10m_lakes': 'ne_lakes'}[name] + '.geojson'
     if not os.path.exists(out):
         urllib.request.urlretrieve(f'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/{name}.geojson', out); print(out)
+# mountain huts (nodes and buildings) inside the Alps
+run(f'''SELECT ?h ?type ?name ?ele ?web ?wkt WHERE {{ osmrel:{ALPS} ogc:sfContains ?h . ?h osmkey:tourism ?type ; geo:hasGeometry/geo:asWKT ?wkt .
+  FILTER(?type = "alpine_hut" || ?type = "wilderness_hut")
+  OPTIONAL {{ ?h osmkey:name ?name }} OPTIONAL {{ ?h osmkey:ele ?ele }} OPTIONAL {{ ?h osmkey:website ?web }} }}''', 'data/raw/q/huts.tsv')

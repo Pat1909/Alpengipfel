@@ -11,13 +11,14 @@ const BANDS = [[0, 1000, '--h0', 'unter 1000'], [1000, 2000, '--h1', '1000–200
 const ROW = 52;
 let D, GEO, N = 0, idx = [], selected = -1, rankByEle = null;
 let map, peakLayer, cssColors = {}, mapShown = false;
-let me = null, distKm = null, idIndex = null;
+let me = null, distKm = null, idIndex = null, showHuts = true;
+try { showHuts = localStorage.getItem('alpengipfel.huts') !== '0'; } catch (err) { /* default: shown */ }
 const ALPS_BOUNDS = [[43.4, 5.0], [48.4, 16.6]];
 
 function bandOf(e) { if (e == null) return -1; for (let i = 0; i < BANDS.length; i++) if (e < BANDS[i][1]) return i; return BANDS.length - 1; }
 function readColors() {
   const cs = getComputedStyle(document.documentElement);
-  ['--h0','--h1','--h2','--h3','--h4','--h5','--ink','--surface','--accent','--map-alps','--map-water','--map-border','--map-group','--map-label','--map-land','--muted','--tw','--ta','--tk','--tt']
+  ['--h0','--h1','--h2','--h3','--h4','--h5','--ink','--surface','--accent','--map-alps','--map-water','--map-border','--map-group','--map-label','--map-land','--muted','--tw','--ta','--tk','--tt','--hut']
     .forEach(k => cssColors[k] = cs.getPropertyValue(k).trim());
 }
 function colorOf(e) { const b = bandOf(e); return cssColors[b < 0 ? '--h4' : BANDS[b][2]]; }
@@ -196,28 +197,49 @@ async function overpass(query) {
   }
   throw new Error('overpass');
 }
+const QLEVER = 'https://qlever.dev/api/osm-planet';
+const QPFX = 'PREFIX osmkey: <https://www.openstreetmap.org/wiki/Key:> PREFIX osmnode: <https://www.openstreetmap.org/node/> PREFIX osmrel: <https://www.openstreetmap.org/relation/> ' +
+  'PREFIX geo: <http://www.opengis.net/ont/geosparql#> PREFIX ogc: <http://www.opengis.net/rdf#> PREFIX qlss: <https://qlever.cs.uni-freiburg.de/spatialSearch/> ';
+const WAYS = '?w osmkey:highway ?h ; geo:hasGeometry/geo:asWKT ?g . FILTER(?h = "path" || ?h = "footway" || ?h = "track" || ?h = "via_ferrata" || ?h = "steps")';
+// paths within `dist` metres of a summit; candidates are the paths of the districts and municipalities the summit lies in
+const nearQuery = (id, dist, select, payload, inner) => `SELECT DISTINCT ${select} WHERE { osmnode:${id} geo:hasGeometry/geo:asWKT ?pg . ` +
+  `SERVICE qlss: { _:c qlss:algorithm qlss:libspatialjoin ; qlss:joinType qlss:within-dist ; qlss:maxDistance ${dist} ; qlss:left ?pg ; qlss:right ?g ; qlss:payload ${payload} . { ${inner} } } }`;
+const inDistricts = id => `?m ogc:sfIntersects osmnode:${id} ; osmkey:boundary "administrative" ; osmkey:admin_level ?l . FILTER(?l >= 6) ?m ogc:sfIntersects ?w . `;
+async function qlever(query) {                      // rows of a SPARQL result, values unquoted
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 25000);
+  try {
+    const r = await fetch(QLEVER, { method: 'POST', body: 'query=' + encodeURIComponent(QPFX + query), headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'text/tab-separated-values' }, signal: ctl.signal });
+    if (!r.ok) throw new Error(r.status);
+    return (await r.text()).split('\n').slice(1).filter(Boolean).map(line => line.split('\t').map(v => v[0] === '<' ? v.slice(1, -1) : v[0] === '"' ? v.slice(1, v.lastIndexOf('"')) : v));
+  } finally { clearTimeout(timer); }
+}
+const wktLine = wkt => { const ll = []; wkt.replace(/(-?\d+\.?\d*) (-?\d+\.?\d*)/g, (m, lon, lat) => { ll.push([+lat, +lon]); }); return ll; };
+const wayId = iri => +iri.slice(iri.lastIndexOf('/') + 1);
 function trailMsg(text) { const el = $('tlegend'); el.hidden = !text; el.textContent = text; }
 function clearTrails() { trailsFor = -1; if (trailLayer) { trailLayer.clearLayers(); hiLayer.clearLayers(); } if ($('tlegend')) trailMsg(''); }
-async function loadTrails(i) {
-  if (!HOSTED || !map || trailsFor === i || !$('map').clientWidth) return;      // on phones the map loads once it is opened
-  trailsFor = i; trailLayer.clearLayers(); hiLayer.clearLayers(); trailMsg('Wege um den Gipfel werden geladen …');
-  const P = D.peaks;
-  let data = trailCache.get(i);
-  if (!data) {
-    try {
-      data = await overpass(`[out:json][timeout:20];way(around:2000,${P.la[i]},${P.lo[i]})[highway~"^(path|footway|track|via_ferrata|steps)$"]->.w;.w out tags geom qt;` +
-        `rel(bw.w)[type=route][route~"^(hiking|foot)$"];way(r)->.rw;way.w.rw;out ids qt;`);
-      trailCache.set(i, data);
-    } catch (err) { if (trailsFor === i) { trailsFor = -1; trailMsg('Die Wege um den Gipfel konnten gerade nicht geladen werden.'); } return; }
-  }
-  if (trailsFor !== i || selected !== i) return;
-  const marked = new Set(data.elements.filter(e => !e.geometry).map(e => e.id)), lines = [];
-  for (const e of data.elements) {
-    if (!e.geometry) continue;
-    const t = e.tags || {}, g = Math.max(0, ...(t.sac_scale || '').split(';').map(v => SAC[v.trim()] || 0));
-    const cat = t.highway === 'via_ferrata' || t.via_ferrata_scale ? 2 : g >= 4 ? 1 : 0, track = t.highway === 'track' && !g, on = marked.has(e.id);
+async function fetchTrails(i) {                     // -> { ways: [{ id, t: tags, ll }], marked: Set of way ids, or null while still loading }
+  const P = D.peaks, id = P.id[i];
+  let empty = false;
+  try {
+    const rows = await qlever(nearQuery(id, 2000, '?w ?h ?sac ?vf ?name ?g', '?w , ?h , ?sac , ?vf , ?name',
+      inDistricts(id) + WAYS + ' OPTIONAL { ?w osmkey:sac_scale ?sac } OPTIONAL { ?w osmkey:via_ferrata_scale ?vf } OPTIONAL { ?w osmkey:name ?name }'));
+    if (rows.length) return { marked: null, ways: rows.map(r => ({ id: wayId(r[0]), t: { highway: r[1], sac_scale: r[2], via_ferrata_scale: r[3], name: r[4] }, ll: wktLine(r[5]) })) };
+    empty = true;
+  } catch (err) { /* fall through to the second source */ }
+  try {
+    const d = await overpass(`[out:json][timeout:20];way(around:2000,${P.la[i]},${P.lo[i]})[highway~"^(path|footway|track|via_ferrata|steps)$"]->.w;.w out tags geom qt;` +
+      `rel(bw.w)[type=route][route~"^(hiking|foot)$"];way(r)->.rw;way.w.rw;out ids qt;`);
+    return { marked: new Set(d.elements.filter(e => !e.geometry).map(e => e.id)), ways: d.elements.filter(e => e.geometry).map(e => ({ id: e.id, t: e.tags || {}, ll: e.geometry.map(p => [p.lat, p.lon]) })) };
+  } catch (err) { if (empty) return { marked: new Set(), ways: [] }; throw err; }
+}
+function drawTrails(data) {
+  trailLayer.clearLayers();
+  const lines = [];
+  for (const w of data.ways) {
+    const t = w.t, g = Math.max(0, ...(t.sac_scale || '').split(';').map(v => SAC[v.trim()] || 0));
+    const cat = t.highway === 'via_ferrata' || t.via_ferrata_scale ? 2 : g >= 4 ? 1 : 0, track = t.highway === 'track' && !g, on = !!data.marked && data.marked.has(w.id);
     const label = [t.name, track ? 'Fahrweg' : '', g ? 'T' + g : '', cat === 2 ? 'Klettersteig' + (t.via_ferrata_scale ? ' ' + t.via_ferrata_scale : '') : '', on ? 'markierte Route' : ''].filter(Boolean).join(' · ') || 'Weg ohne Angaben';
-    lines.push({ ll: e.geometry.map(p => [p.lat, p.lon]), track, label, rank: cat * 10 + g + (on ? 5 : 0),
+    lines.push({ ll: w.ll, track, label, rank: cat * 10 + g + (on ? 5 : 0),
       style: { color: cssColors[cat === 2 ? '--tk' : cat === 1 ? '--ta' : track ? '--tt' : '--tw'], weight: (track ? 1.8 : 2.6) + (on ? 1.6 : 0), opacity: .95, dashArray: !g && !cat && !track && !on ? '5 5' : null } });
   }
   lines.sort((x, y) => x.rank - y.rank);
@@ -225,15 +247,41 @@ async function loadTrails(i) {
   lines.forEach(l => L.polyline(l.ll, l.style).bindTooltip(l.label, { sticky: true }).addTo(trailLayer));
   const el = $('tlegend'); el.hidden = false;
   el.innerHTML = lines.length ? `<span><i class="ln" style="background:var(--tw)"></i>Wandern</span><span><i class="ln" style="background:var(--ta)"></i>Hochalpin T4–T6</span>` +
-    `<span><i class="ln" style="background:var(--tk)"></i>Klettersteig</span><span><i class="ln" style="background:var(--tt)"></i>Fahrweg</span><span>dick = markierte Route</span>` : 'Im Umkreis von 2 km ist kein Weg erfasst.';
+    `<span><i class="ln" style="background:var(--tk)"></i>Klettersteig</span><span><i class="ln" style="background:var(--tt)"></i>Fahrweg</span><span>${data.marked ? 'dick = markierte Route' : 'markierte Routen werden geladen …'}</span>` : 'Im Umkreis von 2 km ist kein Weg erfasst.';
+}
+async function loadTrails(i) {
+  if (!HOSTED || !map || trailsFor === i || !$('map').clientWidth) return;      // on phones the map loads once it is opened
+  trailsFor = i; trailLayer.clearLayers(); hiLayer.clearLayers(); trailMsg('Wege um den Gipfel werden geladen …');
+  let data = trailCache.get(i);
+  if (!data) {
+    try { data = await fetchTrails(i); trailCache.set(i, data); }
+    catch (err) { if (trailsFor === i) { trailsFor = -1; trailMsg('Die Wege um den Gipfel konnten gerade nicht geladen werden.'); } return; }
+  }
+  const current = () => trailsFor === i && selected === i;
+  if (!current()) return;
+  drawTrails(data);
+  if (!data.marked && data.ways.length) {            // second, slower step: which of these paths carry a signposted route
+    const id = D.peaks.id[i];
+    try {
+      const rows = await qlever(nearQuery(id, 2000, '?w', '?w', inDistricts(id) + WAYS + ' ?rm osmrel:member_id ?w . ?r osmrel:member ?rm ; osmkey:route ?rt . FILTER(?rt = "hiking" || ?rt = "foot")'));
+      data.marked = new Set(rows.map(r => wayId(r[0])));
+    } catch (err) { data.marked = new Set(); }
+    if (current()) drawTrails(data);
+  }
 }
 async function showRouteOnMap(rel, btn) {
   const i = selected; if (i < 0 || !map) return;
   const P = D.peaks, la = P.la[i], lo = P.lo[i];
   btn.disabled = true; btn.textContent = 'Lädt …';
   try {
-    const d = await overpass(`[out:json][timeout:25];rel(${+rel});way(r)(${la - 0.15},${lo - 0.22},${la + 0.15},${lo + 0.22});out geom qt;`);
-    const ll = d.elements.filter(e => e.geometry).map(e => e.geometry.map(p => [p.lat, p.lon]));
+    let ll = [];
+    try {
+      ll = (await qlever(nearQuery(P.id[i], 15000, '?w ?g', '?w', `osmrel:${+rel} osmrel:member ?m . ?m osmrel:member_id ?w . ?w geo:hasGeometry/geo:asWKT ?g`))).map(r => wktLine(r[1])).filter(l => l.length > 1);
+    } catch (err) { /* second source below */ }
+    if (!ll.length) {
+      const d = await overpass(`[out:json][timeout:25];rel(${+rel});way(r)(${la - 0.15},${lo - 0.22},${la + 0.15},${lo + 0.22});out geom qt;`);
+      ll = d.elements.filter(e => e.geometry).map(e => e.geometry.map(p => [p.lat, p.lon]));
+    }
     if (!ll.length) throw new Error('empty');
     setView('map'); hiLayer.clearLayers();
     L.polyline(ll, { color: cssColors['--surface'], weight: 9, opacity: .9, interactive: false }).addTo(hiLayer);
@@ -563,6 +611,19 @@ function initMap() {
         ctx.lineWidth = 1.8; ctx.strokeStyle = cssColors['--ink'];
         for (let k = 0; k < vis.length; k++) if (book.done[P.id[vis[k]]] != null) { ctx.beginPath(); ctx.arc(this._pts[k * 2], this._pts[k * 2 + 1], r + 2.5, 0, 6.2832); ctx.stroke(); }
       }
+      this._huts = [];
+      if (GEO && GEO.huts && showHuts && z >= 9.5) {  // huts: small squares, names once zoomed in
+        ctx.fillStyle = cssColors['--hut']; ctx.strokeStyle = cssColors['--surface']; ctx.lineWidth = 1.5;
+        const hs = z >= 12 ? 4.5 : 3.2, named = [];
+        GEO.huts.forEach((h, k) => {
+          if (h[1] < s || h[1] > n || h[0] < w || h[0] > e) return;
+          const p = m.latLngToContainerPoint([h[1], h[0]]);
+          ctx.beginPath(); ctx.rect(p.x - hs, p.y - hs, hs * 2, hs * 2); ctx.fill(); ctx.stroke();
+          this._huts.push([p.x, p.y, k]); if (z >= 12.5 && named.length < 40) named.push([p.x, p.y, h[2]]);
+        });
+        ctx.font = '500 11.5px "Barlow", system-ui, sans-serif';
+        named.forEach(([x, y, t]) => label(ctx, t, x, y + hs + 12, cssColors['--hut']));
+      }
       if (me) {
         const p = m.latLngToContainerPoint([me.la, me.lo]);
         ctx.fillStyle = cssColors['--accent']; ctx.strokeStyle = cssColors['--surface']; ctx.lineWidth = 2;
@@ -576,6 +637,11 @@ function initMap() {
         ctx.font = '600 13px "Barlow", system-ui, sans-serif';
         label(ctx, P.n[selected], p.x, p.y - Math.max(r + 5, 8) - 5, cssColors['--accent']);
       }
+    },
+    nearestHut(pt, maxd) {
+      let best = -1, bd = maxd * maxd;
+      for (const [x, y, k] of this._huts || []) { const d = (x - pt.x) ** 2 + (y - pt.y) ** 2; if (d < bd) { bd = d; best = k; } }
+      return best;
     },
     nearest(pt, maxd) {
       let best = -1, bd = maxd * maxd; const pts = this._pts;
@@ -591,12 +657,22 @@ function initMap() {
   trailLayer = L.layerGroup().addTo(map); hiLayer = L.layerGroup().addTo(map);
   peakLayer = new PeakLayer().addTo(map);
   const tip = $('tip');
-  map.on('click', ev => { const i = peakLayer.nearest(ev.containerPoint, 14); if (i >= 0) showDetail(i, true); });
+  map.on('click', ev => {
+    const i = peakLayer.nearest(ev.containerPoint, 14);
+    if (i >= 0) return showDetail(i, true);
+    const k = peakLayer.nearestHut(ev.containerPoint, 12);
+    if (k < 0) return;
+    const h = GEO.huts[k], osm = { n: 'node', w: 'way', r: 'relation' }[h[5][0]] + '/' + h[5].slice(1);
+    L.popup().setLatLng([h[1], h[0]]).setContent(`<b>${esc(h[2])}</b><br>${h[3] ? fmt.format(h[3]) + ' m · ' : ''}${h[4] ? 'Biwak oder Selbstversorgerhütte' : 'Berghütte'}<br>` +
+      `<a href="https://www.openstreetmap.org/${osm}" target="_blank" rel="noopener">OpenStreetMap</a>${h[6] ? ` · <a href="${esc(h[6])}" target="_blank" rel="noopener">Website</a>` : ''}`).openOn(map);
+  });
   map.on('mousemove', ev => {
     const i = peakLayer.nearest(ev.containerPoint, 9);
     $('map').style.cursor = i >= 0 ? 'pointer' : '';
-    if (i < 0) { tip.hidden = true; return; }
-    tip.textContent = D.peaks.n[i] + (D.peaks.e[i] != null ? ` · ${fmt.format(D.peaks.e[i])} m` : '');
+    const k = i < 0 ? peakLayer.nearestHut(ev.containerPoint, 9) : -1;
+    if (k >= 0) $('map').style.cursor = 'pointer';
+    if (i < 0 && k < 0) { tip.hidden = true; return; }
+    tip.textContent = i >= 0 ? D.peaks.n[i] + (D.peaks.e[i] != null ? ` · ${fmt.format(D.peaks.e[i])} m` : '') : GEO.huts[k][2] + (GEO.huts[k][3] ? ` · ${fmt.format(GEO.huts[k][3])} m` : '') + ' (Hütte)';
     tip.style.left = ev.containerPoint.x + 'px'; tip.style.top = ev.containerPoint.y + 'px'; tip.hidden = false;
   });
   map.on('mouseout movestart', () => { tip.hidden = true; });
@@ -641,6 +717,8 @@ async function boot() {
   $('radius').addEventListener('change', () => { apply(); fitToFilter(); });
   $('near').addEventListener('click', locate);
   $('openbook').addEventListener('click', showBook);
+  $('huts').checked = showHuts;
+  $('huts').addEventListener('change', () => { showHuts = $('huts').checked; try { localStorage.setItem('alpengipfel.huts', showHuts ? '1' : '0'); } catch (err) { /* not remembered */ } if (map) map.closePopup(); if (peakLayer) peakLayer.redraw(); });
   $('reset').addEventListener('click', () => {
     ['q', 'hmin', 'hmax'].forEach(k => $(k).value = ''); $('country').value = ''; fillStates(); $('state').value = ''; $('group').value = ''; $('kind').value = ''; $('book').value = ''; $('radius').value = '';
     apply(); if (map) map.fitBounds([[43.4, 5.0], [48.4, 16.6]]);

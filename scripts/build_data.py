@@ -315,5 +315,15 @@ merged = linemerge(lines) if lines else None
 for part in getattr(merged, 'geoms', [merged] if merged is not None else []):
     s = part.simplify(0.003)
     if s.length > 0.02: geo['borders'].append([[round(x, 3), round(y, 3)] for x, y in s.coords])
+# mountain huts: [lon, lat, name, height or 0, 0 = staffed hut / 1 = shelter, OSM reference, website or 0]
+geo['huts'] = []
+for row in tsv(f'{RAW}/q/huts.tsv'):
+    g = shapely.from_wkt(row['wkt'])
+    if g is None or g.is_empty or not row['name']: continue
+    c = g if g.geom_type == 'Point' else g.centroid
+    kind, oid = row['h'].rsplit('/', 2)[-2:]
+    web = row['web'] if re.match(r'https?://[^\s"<>]+$', row['web']) else 0
+    geo['huts'].append([round(c.x, 5), round(c.y, 5), row['name'], parse_num(row['ele'], 0, 4900) or 0, int(row['type'] == 'wilderness_hut'), kind[0] + oid, web])
+print('huts', len(geo['huts']))
 json.dump(geo, open(f'{OUT}/geo.json', 'w'), ensure_ascii=False, separators=(',', ':'))
 print('geo.json', os.path.getsize(f'{OUT}/geo.json') // 1024, 'KB')
