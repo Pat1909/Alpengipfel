@@ -28,7 +28,8 @@ Die öffentliche Adresse steht als `SITE_URL` in `scripts/build_page.py`; bei ei
 Angemeldete Nutzer bekommen ihr Gipfelbuch aus einem Supabase-Projekt. Registrierung mit Benutzername, E-Mail-Adresse und Passwort, Bestätigung über einen Code aus der E-Mail, Anmeldung mit E-Mail-Adresse und Passwort. Projektadresse und öffentlicher Schlüssel stehen in `src/app.js` (`SB_URL`, `SB_KEY`). Einmalig im Supabase-Projekt nötig:
 
 1. `supabase/gipfelbuch.sql` im SQL Editor ausführen (Gipfelbücher, eindeutige Benutzernamen).
-2. Unter Authentication → Emails die Vorlagen „Confirm signup“ und „Reset password“ so ändern, dass sie den Code `{{ .Token }}` enthalten.
+2. Unter Authentication → URL Configuration die Site URL auf die Adresse der App setzen und dieselbe Adresse mit `**` am Ende bei Redirect URLs eintragen. Damit führen die Links in den Standard-E-Mails zurück in die App.
+3. Für einen Code statt eines Links: eigenen E-Mail-Versand (SMTP) hinterlegen und in den Vorlagen „Confirm signup“ und „Reset password“ `{{ .Token }}` einsetzen. Neue Gratis-Projekte können die Vorlagen ohne eigenen SMTP-Versand nicht ändern. Die App kommt mit beidem zurecht.
 
 ## Impressum und Datenschutzerklärung
 

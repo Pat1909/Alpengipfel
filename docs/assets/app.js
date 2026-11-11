@@ -439,6 +439,7 @@ function initAccount() {
   sb.auth.onAuthStateChange((event, session) => {
     const user = session ? session.user : null, changed = (user && user.id) !== (sbUser && sbUser.id);
     sbUser = user;
+    if (event === 'PASSWORD_RECOVERY') { acctMode = 'newpass'; acctMsg = ''; setTimeout(showBook, 0); }
     if (user && changed) setTimeout(pullBook, 0);
     if (changed && !$('bookpanel').hidden) showBook();
   });
@@ -473,18 +474,21 @@ function accountHtml() {
   const head = `<h3 class="h3">Konto</h3>`, msg = `<p class="note" id="acctmsg" role="status">${esc(acctMsg)}</p>`;
   const mail = `<label>E-Mail-Adresse<input type="email" id="amail" autocomplete="email" required value="${esc(acctMail)}"></label>`;
   const sw = (mode, text) => `<button type="button" class="linkbtn" data-mode="${mode}">${text}</button>`;
+  if (sbUser && acctMode === 'newpass') return `<form class="acct" id="acctform">${head}<p>Lege ein neues Passwort für dein Konto fest.</p>` +
+    `<label>Neues Passwort (mindestens 8 Zeichen)<input type="password" id="apass" autocomplete="new-password" required minlength="8"></label>` +
+    `<div class="links"><button type="submit" id="asubmit">Passwort speichern</button></div>${msg}</form>`;
   if (sbUser) return `<div class="acct">${head}<p>Angemeldet als <b>${esc((sbUser.user_metadata && sbUser.user_metadata.username) || sbUser.email || '')}</b><small class="note"> · ${esc(sbUser.email || '')}</small></p>` +
     `<p class="note" id="syncmsg">${esc(syncMsg)}</p><div class="links"><button type="button" id="logout">Abmelden</button></div></div>`;
   if (acctMode === 'register') return `<form class="acct" id="acctform">${head}<p class="note">Lege ein Konto an, damit dein Gipfelbuch gespeichert bleibt und auf jedem Gerät dasselbe ist.${privacyHint()}</p>` +
     `<label>Benutzername<input type="text" id="aname" autocomplete="username" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_.\-]{3,20}" title="3 bis 20 Zeichen: Buchstaben ohne Umlaute, Ziffern, Punkt, Binde- und Unterstrich"></label>${mail}` +
     `<label>Passwort (mindestens 8 Zeichen)<input type="password" id="apass" autocomplete="new-password" required minlength="8"></label>` +
     `<div class="links"><button type="submit" id="asubmit">Konto anlegen</button></div>${msg}<p class="note">Schon ein Konto? ${sw('login', 'Anmelden')}</p></form>`;
-  if (acctMode === 'verify') return `<form class="acct" id="acctform">${head}<p>Wir haben einen Bestätigungscode an <b>${esc(acctMail)}</b> geschickt. Gib ihn hier ein.</p>` +
+  if (acctMode === 'verify') return `<form class="acct" id="acctform">${head}<p>Wir haben eine E-Mail an <b>${esc(acctMail)}</b> geschickt. Gib den Code daraus hier ein. Enthält die E-Mail stattdessen einen Bestätigungslink, öffne ihn auf diesem Gerät.</p>` +
     `<label>Bestätigungscode<input type="text" id="acode" inputmode="numeric" autocomplete="one-time-code" required pattern="[0-9]{6,8}" maxlength="8"></label>` +
     `<div class="links"><button type="submit" id="asubmit">Bestätigen</button><button type="button" id="aresend">Code erneut senden</button></div>${msg}<p class="note">${sw('login', 'Zurück zur Anmeldung')}</p></form>`;
-  if (acctMode === 'forgot') return `<form class="acct" id="acctform">${head}<p class="note">Gib deine E-Mail-Adresse ein. Du bekommst einen Code, mit dem du ein neues Passwort festlegst.</p>${mail}` +
+  if (acctMode === 'forgot') return `<form class="acct" id="acctform">${head}<p class="note">Gib deine E-Mail-Adresse ein. Du bekommst eine E-Mail, mit der du ein neues Passwort festlegst.</p>${mail}` +
     `<div class="links"><button type="submit" id="asubmit">Code senden</button></div>${msg}<p class="note">${sw('login', 'Zurück zur Anmeldung')}</p></form>`;
-  if (acctMode === 'reset') return `<form class="acct" id="acctform">${head}<p>Wir haben einen Code an <b>${esc(acctMail)}</b> geschickt.</p>` +
+  if (acctMode === 'reset') return `<form class="acct" id="acctform">${head}<p>Wir haben eine E-Mail an <b>${esc(acctMail)}</b> geschickt. Gib den Code daraus hier ein. Enthält die E-Mail stattdessen einen Link, öffne ihn auf diesem Gerät und lege dort das neue Passwort fest.</p>` +
     `<label>Code aus der E-Mail<input type="text" id="acode" inputmode="numeric" autocomplete="one-time-code" required pattern="[0-9]{6,8}" maxlength="8"></label>` +
     `<label>Neues Passwort (mindestens 8 Zeichen)<input type="password" id="apass" autocomplete="new-password" required minlength="8"></label>` +
     `<div class="links"><button type="submit" id="asubmit">Passwort ändern</button></div>${msg}<p class="note">${sw('login', 'Zurück zur Anmeldung')}</p></form>`;
@@ -503,7 +507,7 @@ function wireAccount() {
   };
   document.querySelectorAll('#bookpanel .linkbtn').forEach(btn => { btn.onclick = () => { if ($('amail')) acctMail = $('amail').value.trim(); go(btn.dataset.mode); }; });
   if ($('aresend')) $('aresend').onclick = async () => {
-    const { error } = await sb.auth.resend({ type: 'signup', email: acctMail });
+    const { error } = await sb.auth.resend({ type: 'signup', email: acctMail, options: { emailRedirectTo: location.origin + ROOT } });
     say(error ? tooMany(error) || 'Der Code konnte nicht gesendet werden. Versuch es später noch einmal.' : 'Ein neuer Code ist unterwegs.');
   };
   if (!$('acctform')) return;
@@ -513,12 +517,17 @@ function wireAccount() {
     if ($('amail')) acctMail = val('amail');
     const btn = $('asubmit'); btn.disabled = true; say('Einen Moment …');
     try {
+      if (acctMode === 'newpass') {
+        const { error } = await sb.auth.updateUser({ password: $('apass').value });
+        if (error) return say('Das Passwort wurde nicht gespeichert. Es muss mindestens 8 Zeichen haben.');
+        return go('login');
+      }
       if (acctMode === 'register') {
         const name = val('aname');
         const free = await sb.rpc('username_frei', { name });
         if (free.error) return say('Die Anmeldung ist noch nicht fertig eingerichtet. Versuch es später noch einmal.');
         if (!free.data) return say('Dieser Benutzername ist schon vergeben. Wähle einen anderen.');
-        const { error } = await sb.auth.signUp({ email: acctMail, password: $('apass').value, options: { data: { username: name } } });
+        const { error } = await sb.auth.signUp({ email: acctMail, password: $('apass').value, options: { data: { username: name }, emailRedirectTo: location.origin + ROOT } });
         if (error) return say(tooMany(error) || (/password/i.test(error.message) ? 'Das Passwort ist zu schwach. Nimm mindestens 8 Zeichen.' : 'Das Konto konnte nicht angelegt werden. Prüfe Benutzername und E-Mail-Adresse.'));
         return go('verify');
       }
@@ -528,7 +537,7 @@ function wireAccount() {
         acctMode = 'login'; acctMsg = ''; return;        // signed in: the panel redraws through onAuthStateChange
       }
       if (acctMode === 'forgot') {
-        const { error } = await sb.auth.resetPasswordForEmail(acctMail);
+        const { error } = await sb.auth.resetPasswordForEmail(acctMail, { redirectTo: location.origin + ROOT });
         if (error) return say(tooMany(error) || 'Der Code konnte nicht gesendet werden. Prüfe die Adresse.');
         return go('reset');
       }
