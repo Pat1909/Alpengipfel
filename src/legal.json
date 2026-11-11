@@ -6,5 +6,6 @@
   "email": "kontakt@alpen-gipfel.de",
   "phone": "",
   "purpose": "Private, nicht kommerzielle Website über die Gipfel der Alpen.",
-  "supabase_region": "Central EU (Frankfurt)"
+  "supabase_region": "Central EU (Frankfurt)",
+  "support_url": ""
 }

@@ -54,6 +54,10 @@ def datenschutz(d):
                  else 'einer Datenschutz-Aufsichtsbehörde, zum Beispiel der Ihres Bundeslandes')
     region = E(d.get('supabase_region') or 'EU')
     stand = datetime.date.today().strftime('%d.%m.%Y')
+    support = ('<h2>Unterstützen über PayPal</h2><p>Über den Link „Unterstützen“ können Sie freiwillig einen Betrag senden. Der Link führt zu PayPal (PayPal (Europe) S.à r.l. et Cie, S.C.A., '
+               '22-24 Boulevard Royal, L-2449 Luxemburg). Erst dort werden Daten verarbeitet, nach der <a href="https://www.paypal.com/de/legalhub/privacy-full">Datenschutzerklärung von PayPal</a>. '
+               'Wir erhalten von PayPal Ihren Namen, Ihre E-Mail-Adresse und den Betrag und speichern diese Angaben nur, soweit steuerliche Aufbewahrungspflichten es verlangen. '
+               'Eine Gegenleistung ist mit der Zahlung nicht verbunden; eine Spendenbescheinigung können wir nicht ausstellen.</p>') if d.get('support_url') else ''
     return f'''<h1>Datenschutzerklärung</h1>
 <p>Diese Erklärung beschreibt, welche personenbezogenen Daten beim Besuch dieser Website verarbeitet werden. Rechtsgrundlage ist die Datenschutz-Grundverordnung (DSGVO).</p>
 <h2>Verantwortlicher</h2>{contact(d)}
@@ -85,7 +89,7 @@ Rechtsgrundlage ist unser berechtigtes Interesse, Karte, Wetter und Wege anzuzei
 <li><b>Wettervorhersage:</b> Open-Meteo, Bischofszell, Schweiz (<a href="https://open-meteo.com/en/terms">Bedingungen und Datenschutz</a>)</li>
 <li><b>Wegverläufe:</b> QLever, Lehrstuhl für Algorithmen und Datenstrukturen der Albert-Ludwigs-Universität Freiburg, Deutschland; ersatzweise die Overpass-Schnittstellen von FOSSGIS e.V., Deutschland (overpass-api.de), und Private.coffee, Österreich</li></ul>
 <p>Schriften und Programmbibliotheken werden von dieser Website selbst ausgeliefert, nicht von Dritten.</p>
-<h2>Links zu anderen Websites</h2>
+{support}<h2>Links zu anderen Websites</h2>
 <p>Die Website verlinkt unter anderem auf OpenStreetMap, Wikipedia, Camptocamp, Waymarked Trails, OpenTopoMap und Windy. Erst wenn Sie einen solchen Link öffnen, gelten die Datenschutzbestimmungen des jeweiligen Anbieters.</p>
 <h2>Ihre Rechte</h2>
 <p>Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit und Widerspruch gegen Verarbeitungen, die auf berechtigtem Interesse beruhen.

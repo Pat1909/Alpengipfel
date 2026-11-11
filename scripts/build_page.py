@@ -67,7 +67,7 @@ def slug(i):
     return f"{s or 'gipfel'}-{P['id'][i]}"
 
 def page(base, title, desc, canonical, static, extra_head='', peak=None):
-    boot = f"<script>window.AG_BASE={json.dumps(base)};" + (f"window.AG_PEAK={peak};" if peak else '') + ('window.AG_LEGAL=1;' if LEGAL else '') + "</script>"
+    boot = f"<script>window.AG_BASE={json.dumps(base)};" + (f"window.AG_PEAK={peak};" if peak else '') + ('window.AG_LEGAL=1;' if LEGAL else '') + (f"window.AG_SUPPORT={json.dumps(LEGAL['support_url'])};" if LEGAL and LEGAL.get('support_url') else '') + "</script>"
     return ('<!doctype html>\n<html lang="de">\n<head>\n<meta charset="utf-8">\n'
             '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
             f'<title>{E(title)}</title>\n<meta name="description" content="{E(desc)}">\n<link rel="canonical" href="{canonical}">\n'
