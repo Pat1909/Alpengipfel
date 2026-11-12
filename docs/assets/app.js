@@ -356,6 +356,7 @@ function startHtml(d) {
     `<p class="note">Die nächsten Punkte nach Luftlinie, auf der Karte mit P und H markiert. Der Weg von dort zum Gipfel kann deutlich länger sein oder auf der anderen Talseite beginnen; prüfe ihn auf der Karte.</p></section>`;
 }
 function showDetail(i, fromMap, noPush) {
+  count('gipfel:' + D.peaks.id[i]);
   if (pageMode) setPage(null);
   if (selected !== i) close3d();
   selected = i;
@@ -527,6 +528,7 @@ function loadMaplibre() {
 }
 function close3d() { if (gl3d) { gl3d.remove(); gl3d = null; } if ($('view3d')) $('view3d').hidden = true; }
 async function open3d(i) {
+  count('3d');
   const P = D.peaks, la = P.la[i], lo = P.lo[i], wrap = $('view3d'), msg = $('v3msg');
   setView('map'); wrap.hidden = false; msg.hidden = false; msg.textContent = '3D-Ansicht wird geladen …';
   const fail = () => { msg.hidden = false; msg.textContent = 'Die 3D-Ansicht lässt sich auf diesem Gerät oder gerade nicht laden. Die flache Karte funktioniert weiter.'; };
@@ -738,12 +740,13 @@ function renderProfile() {
     const name = (sbUser.user_metadata && sbUser.user_metadata.username) || sbUser.email || '', since = sbUser.created_at ? new Date(sbUser.created_at).toLocaleDateString('de-DE') : '';
     headHtml = `<div class="phead"><div class="avatar" aria-hidden="true">${esc(name.slice(0, 1).toUpperCase())}</div><div><h2>${esc(name)}</h2><p class="note">${esc(sbUser.email || '')}${since ? ' · dabei seit ' + since : ''}</p></div></div>`;
   } else headHtml = `<div class="phead"><div class="avatar" aria-hidden="true">?</div><div><h2>Profil</h2><p class="note">${sb ? 'Du bist nicht angemeldet. Dein Gipfelbuch liegt nur in diesem Browser.' : 'Konten gibt es nur auf alpen-gipfel.de. Hier liegt dein Gipfelbuch in diesem Browser.'}</p></div></div>`;
-  page.innerHTML = `<div class="home profile">${headHtml}<section><h3 class="h3">Deine Gipfel</h3>${stats}${actions}</section><section class="pacct">${accountHtml()}</section>${theme}</div>`;
+  page.innerHTML = `<div class="home profile">${headHtml}<section><h3 class="h3">Deine Gipfel</h3>${stats}${actions}</section><section class="pacct">${accountHtml()}</section>${sbUser ? '<section id="pstatsadmin"></section>' : ''}${theme}</div>`;
   $('pbook').onclick = showBook;
   if ($('pdone')) { $('pdone').onclick = () => preset({ book: 'done' }); $('pwish').onclick = () => preset({ book: 'wish' }); }
   if ($('pexp')) $('pexp').onclick = () => showHome();
   page.querySelectorAll('.seg3 button').forEach(b => { b.onclick = () => { setTheme(b.dataset.t); page.querySelectorAll('.seg3 button').forEach(x => x.setAttribute('aria-checked', String(x === b))); }; });
   wireAccount();
+  loadStats();
 }
 
 /* ---------- Gipfelbuch (kept in this browser) ---------- */
@@ -757,6 +760,44 @@ function saveBook() { storeBook(); if (sbUser) { clearTimeout(pushTimer); pushTi
 const SB_URL = 'https://jhkzxneztgpezidgfhah.supabase.co', SB_KEY = 'sb_publishable_ITvFoKOEjH8mBzWuxhWOlQ_haTXZXmW';   // publishable key, safe in page code
 const SYNC_KEY = 'alpengipfel.konto';               // remembers which account this browser's book was already merged into
 let sb = null, sbUser = null, pushTimer = 0, syncMsg = '';
+/* ---------- visitor counter: page loads per day, where visitors come from, opened summits.
+   No cookies, nothing stored in the browser, no identifiers; Supabase only keeps daily totals. ---------- */
+const counted = new Set();
+function count(seite) {
+  if (location.hostname !== 'alpen-gipfel.de' || counted.has(seite)) return;
+  counted.add(seite);
+  fetch(SB_URL + '/rest/v1/rpc/aufruf_zaehlen', { method: 'POST', keepalive: true, headers: { apikey: SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ seite }) }).catch(() => { /* counting is optional */ });
+}
+function countVisit() {
+  count('seitenaufruf');
+  count('einstieg:' + (/-\d+\.html$/.test(location.pathname) ? 'gipfelseite' : location.hash === '#profil' ? 'profil' : location.hash === '#karte' ? 'karte' : 'start'));
+  let ref = ''; try { ref = document.referrer ? new URL(document.referrer).hostname : ''; } catch (err) { /* no referrer */ }
+  const src = !ref ? 'direkt' : /tiktok/.test(ref) ? 'tiktok' : /google\./.test(ref) ? 'google' : /instagram|facebook|fb\.com/.test(ref) ? 'instagram' : /bing|duckduckgo|ecosia|yahoo/.test(ref) ? 'suche' : ref.endsWith('alpen-gipfel.de') ? 'intern' : 'andere';
+  if (src !== 'intern') count('von:' + src);
+}
+async function loadStats() {                            // only for accounts listed as admins
+  const box = $('pstatsadmin'); if (!box || !sb || !sbUser) return;
+  const adm = await sb.rpc('ist_admin'); if (adm.error || !adm.data) { box.remove(); return; }
+  const { data, error } = await sb.rpc('aufrufe_statistik', { tage: 30 });
+  if (error) { box.innerHTML = '<h3 class="h3">Besucher</h3><p class="note">Die Statistik konnte nicht geladen werden.</p>'; return; }
+  const days = {}, src = {}, peaks = {}; let total = 0;
+  for (const r of data) {
+    if (r.seite === 'seitenaufruf') { days[r.tag] = (days[r.tag] || 0) + r.anzahl; total += r.anzahl; }
+    else if (r.seite.startsWith('von:')) src[r.seite.slice(4)] = (src[r.seite.slice(4)] || 0) + r.anzahl;
+    else if (r.seite.startsWith('gipfel:')) peaks[r.seite.slice(7)] = (peaks[r.seite.slice(7)] || 0) + r.anzahl;
+  }
+  const list = []; for (let k = 29; k >= 0; k--) { const d = new Date(Date.now() - k * 864e5); const key = d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' }); list.push([key, days[key] || 0]); }
+  const max = Math.max(1, ...list.map(x => x[1])), today = list[list.length - 1][1], week = list.slice(-7).reduce((s, x) => s + x[1], 0);
+  const SRC = { tiktok: 'TikTok', google: 'Google', instagram: 'Instagram/Facebook', suche: 'andere Suchmaschinen', direkt: 'direkt oder App', andere: 'andere Seiten' };
+  const top = Object.entries(peaks).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  box.innerHTML = `<h3 class="h3">Besucher · nur für dich sichtbar</h3>` +
+    `<div class="pstats"><div><span class="lab">Heute</span><b>${fmt.format(today)}</b></div><div><span class="lab">Letzte 7 Tage</span><b>${fmt.format(week)}</b></div><div><span class="lab">Letzte 30 Tage</span><b>${fmt.format(total)}</b></div></div>` +
+    `<div class="sbars" role="img" aria-label="Seitenaufrufe der letzten 30 Tage">${list.map(([d, n]) => `<i style="height:${Math.max(2, n / max * 100)}%" title="${d.split('-').reverse().join('.')}: ${n}"></i>`).join('')}</div>` +
+    `<p class="note">Seitenaufrufe pro Tag, letzte 30 Tage (höchster Tag: ${fmt.format(max)}).</p>` +
+    `<div class="two"><div><h3 class="h3">Herkunft</h3><ul class="slist">${Object.entries(src).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<li><span>${SRC[k] || k}</span><b>${fmt.format(n)}</b></li>`).join('') || '<li class="note">noch keine Daten</li>'}</ul></div>` +
+    `<div><h3 class="h3">Meistgeöffnete Gipfel</h3><ul class="slist">${top.map(([id, n]) => { const i = indexOfId(+id); return `<li><span>${i >= 0 ? esc(D.peaks.n[i]) : id}</span><b>${fmt.format(n)}</b></li>`; }).join('') || '<li class="note">noch keine Daten</li>'}</ul></div></div>` +
+    `<p class="note">Gezählt wird jeder Seitenaufruf, ohne Cookies und ohne Wiedererkennung. Mehrere Aufrufe derselben Person zählen deshalb mehrfach. Die Herkunft fehlt oft, wenn jemand den Link in der TikTok-App öffnet; dann steht er unter „direkt“.</p>`;
+}
 function initAccount() {
   if (!HOSTED || !window.supabase) return;
   sb = window.supabase.createClient(SB_URL, SB_KEY);
@@ -1228,6 +1269,7 @@ async function boot() {
   apply();
   $('loading').hidden = true;
   initAccount();
+  if (HOSTED) countVisit();
   if (HOSTED) { addEventListener('popstate', route); route(); } else showHome(true);
   if (HOSTED && 'serviceWorker' in navigator) navigator.serviceWorker.register(ROOT + 'sw.js').catch(() => { /* the app works without it */ });
   if (window.AG_LEGAL) { $('foot').hidden = false; $('foot').innerHTML = `${window.AG_SUPPORT ? `<a class="support" href="${esc(window.AG_SUPPORT)}" target="_blank" rel="noopener">Unterstützen</a>` : ''}<a href="${ROOT}impressum.html">Impressum</a><a href="${ROOT}datenschutz.html">Datenschutz</a><a href="${ROOT}nutzungsbedingungen.html">Nutzungsbedingungen</a><span>Daten: © OpenStreetMap-Mitwirkende, Camptocamp, Open-Meteo</span>`; }
