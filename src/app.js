@@ -2,6 +2,8 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const SHELL = /*__SHELL__*/'';
+// the summit page's own text (written for search engines) stays visible in the summit's overview tab
+const SEO_TEXT = (() => { const a = document.querySelector('#app-root article.seo'); return a ? { id: window.AG_PEAK, html: a.innerHTML.replace(/<h1>[\s\S]*?<\/h1>/, '') } : null; })();
 if ($('app-root')) $('app-root').innerHTML = SHELL;
 // Hosted on a web server each summit has its own address; the single-file build keeps everything on one page.
 const HOSTED = !$('data-peaks') && location.protocol.startsWith('http');
@@ -961,7 +963,8 @@ function renderDetail(i, fromMap, d) {
     `</dl>` +
     `<div class="links"><button type="button" id="zoomto">Auf Karte zeigen</button>${HOSTED ? '<button type="button" id="show3d">3D-Ansicht</button><button type="button" id="share">Link kopieren</button>' : ''}` +
     `<a href="https://www.openstreetmap.org/node/${P.id[i]}" target="_blank" rel="noopener">OpenStreetMap</a>${wpLink}` +
-    `<a href="https://www.opentopomap.org/#marker=15/${la}/${lo}" target="_blank" rel="noopener">Topokarte</a></div></section>` +
+    `<a href="https://www.opentopomap.org/#marker=15/${la}/${lo}" target="_blank" rel="noopener">Topokarte</a></div>` +
+    (SEO_TEXT && SEO_TEXT.id === P.id[i] ? `<section class="about">${SEO_TEXT.html}</section>` : '') + `</section>` +
     `<section class="dpanel" role="tabpanel" id="dp-routes" aria-labelledby="dt-routes">${routesHtml(i, d)}</section>` +
     `<section class="dpanel" role="tabpanel" id="dp-wx" aria-labelledby="dt-wx"><section class="wx" id="wx"><h3>Wetter am Gipfel, nächste 7 Tage</h3><div id="wxbody" class="note">Vorhersage wird geladen …</div></section></section>` +
     `<section class="dpanel" role="tabpanel" id="dp-go" aria-labelledby="dt-go">${startHtml(d)}</section>`;
@@ -972,6 +975,7 @@ function renderDetail(i, fromMap, d) {
     const to = ev.key === 'ArrowRight' ? keys[(k + 1) % keys.length] : ev.key === 'ArrowLeft' ? keys[(k + keys.length - 1) % keys.length] : ev.key === 'Home' ? keys[0] : ev.key === 'End' ? keys[keys.length - 1] : null;
     if (to) { ev.preventDefault(); setTab(to, true); $('dt-' + to).focus(); }
   };
+  el.querySelectorAll('.about a[href*="gipfel/"]').forEach(a => { a.onclick = ev => { const m = a.getAttribute('href').match(/-(\d+)\.html$/), k = m ? indexOfId(+m[1]) : -1; if (k >= 0) { ev.preventDefault(); showDetail(k); } }; });
   el.querySelectorAll('[data-goto]').forEach(btn => { btn.onclick = () => setTab(btn.dataset.goto, true); });
   $('wxnow').onclick = () => setTab('wx', true);
   el.hidden = false; el.scrollTop = 0;
@@ -1307,7 +1311,7 @@ function renderHome() {
         : `<p class="hempty">Noch kein Gipfel eingetragen</p><p class="note">Öffne einen Gipfel und trage ihn als bestiegen ein, zum Beispiel die Zugspitze. Dein Fortschritt erscheint dann hier.</p>`}
         <div class="links"><button type="button" id="hbook">Gipfelbuch öffnen</button>${sb ? `<button type="button" id="hprof">${sbUser ? 'Profil' : 'Anmelden'}</button>` : ''}</div></div></section>
     <section class="fbcard">${svgIcon('msg')}<div><h3>Fehlt etwas oder stimmt etwas nicht?</h3><p>Schreib mir deine Idee, einen Fehler oder eine falsche Route. Jede Nachricht wird gelesen.</p></div><button type="button" class="primary" id="hfb">Feedback geben</button></section>
-    <footer class="hfoot">${window.AG_SUPPORT ? `<a class="support" href="${esc(window.AG_SUPPORT)}" target="_blank" rel="noopener">Unterstützen</a>` : ''}<button type="button" class="linkbtn" id="hfb2">Feedback</button>${window.AG_LEGAL ? `<a href="${ROOT}impressum.html">Impressum</a><a href="${ROOT}datenschutz.html">Datenschutz</a><a href="${ROOT}nutzungsbedingungen.html">Nutzungsbedingungen</a>` : ''}<span>Daten: © OpenStreetMap-Mitwirkende, Camptocamp, Open-Meteo · Stand ${D.meta.date}</span></footer></div>`;
+    <footer class="hfoot">${window.AG_SUPPORT ? `<a class="support" href="${esc(window.AG_SUPPORT)}" target="_blank" rel="noopener">Unterstützen</a>` : ''}<button type="button" class="linkbtn" id="hfb2">Feedback</button>${HOSTED ? `<a href="${ROOT}gebirge/">Gebirgsgruppen</a><a href="${ROOT}land/">Länder</a><a href="${ROOT}listen/viertausender.html">Viertausender</a>` : ''}${window.AG_LEGAL ? `<a href="${ROOT}impressum.html">Impressum</a><a href="${ROOT}datenschutz.html">Datenschutz</a><a href="${ROOT}nutzungsbedingungen.html">Nutzungsbedingungen</a>` : ''}<span>Daten: © OpenStreetMap-Mitwirkende, Camptocamp, Open-Meteo · Stand ${D.meta.date}</span></footer></div>`;
   drawHero();
   $('hmap').onclick = () => explore();
   $('hnear').onclick = () => { explore(); locate(); };
