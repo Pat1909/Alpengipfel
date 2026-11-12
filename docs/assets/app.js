@@ -185,7 +185,7 @@ function deTitle(t) {
 /* ---------- ways and routes to the summit ---------- */
 const KINDS = ['Wandern', 'Hochalpin', 'Klettersteig', 'Skitour'];
 const KIND_HINT = ['Wanderwege und -routen bis T3 oder ohne Schwierigkeitsangabe', 'Alpinwanderwege T4–T6, Hochtouren und Klettereien', 'Gesicherte Steige mit Drahtseil, Klettersteigset nötig', 'Skitouren und Schneeschuhrouten im Winter'];
-const gradeLabel = (cat, grade, vf) => [grade ? 'T' + grade : '', vf ? 'Klettersteig-Skala ' + vf + ' von 6' : ''].filter(Boolean).join(' · ');
+const gradeLabel = (cat, grade, vf) => [grade ? 'T' + grade : '', vf === '0' ? 'gesicherter Steig' : vf ? 'Klettersteig-Skala ' + vf + ' von 6' : ''].filter(Boolean).join(' · ');
 function routesHtml(i, d) {
   if (HOSTED) return routesHostedHtml(i, d);
   const P = D.peaks, osm = [[], [], [], []], c2c = [[], [], [], []];
@@ -354,12 +354,17 @@ async function showRouteOnMap(rel, btn) {
 const NET_H = ['path', 'footway', 'track', 'via_ferrata', 'steps', 'bridleway', 'pedestrian', 'service', 'unclassified', 'residential', 'living_street', 'tertiary', 'secondary', 'primary'];
 const ROADF = { service: 1.3, unclassified: 1.3, residential: 1.3, living_street: 1.2, tertiary: 2.5, secondary: 5, primary: 8, gap: 3 };   // cost factors per metre
 const inAreas = (id, ar, v) => ar ? `VALUES ?m { ${ar.map(a => 'osmrel:' + a).join(' ')} } ?m ogc:sfIntersects ${v} . ` : inDistricts(id).replace(/\?w \. $/, v + ' . ');
-const netQuery = (id, dist, ar) => nearQuery(id, dist, '?w ?h ?sac ?vf ?name ?foot ?g', '?w , ?h , ?sac , ?vf , ?name , ?foot',
-  inAreas(id, ar, '?w') + `?w osmkey:highway ?h ; geo:hasGeometry/geo:asWKT ?g . FILTER(${NET_H.map(h => `?h = "${h}"`).join(' || ')}) ` +
-  'OPTIONAL { ?w osmkey:sac_scale ?sac } OPTIONAL { ?w osmkey:via_ferrata_scale ?vf } OPTIONAL { ?w osmkey:name ?name } OPTIONAL { ?w osmkey:foot ?foot }');
-const parkQuery = (id, dist, ar) => nearQuery(id, dist, '?p ?name ?access ?g', '?p , ?name , ?access', inAreas(id, ar, '?p') +
-  '?p osmkey:amenity "parking" ; geo:hasGeometry/geo:asWKT ?g . OPTIONAL { ?p osmkey:name ?name } OPTIONAL { ?p osmkey:access ?access }');
-const memberQuery = rels => `SELECT ?r ?w WHERE { VALUES ?r { ${rels.map(r => 'osmrel:' + (+r)).join(' ')} } ?r osmrel:member ?m . ?m osmrel:member_id ?w }`;
+const atPoints = pts => `VALUES ?pg { ${pts.map(p => `"POINT(${p[1].toFixed(6)} ${p[0].toFixed(6)})"^^geo:wktLiteral`).join(' ')} } `;
+const nearPts = (pts, dist, select, payload, inner) => `SELECT DISTINCT ${select} WHERE { ${atPoints(pts)}` +
+  `SERVICE qlss: { _:c qlss:algorithm qlss:libspatialjoin ; qlss:joinType qlss:within-dist ; qlss:maxDistance ${dist} ; qlss:left ?pg ; qlss:right ?g ; qlss:payload ${payload} . { ${inner} } } }`;
+const NET_SEL = ['?w ?h ?sac ?vf ?name ?foot ?g', '?w , ?h , ?sac , ?vf , ?name , ?foot'];
+const netInner = (id, ar) => inAreas(id, ar, '?w') + `?w osmkey:highway ?h ; geo:hasGeometry/geo:asWKT ?g . FILTER(${NET_H.map(h => `?h = "${h}"`).join(' || ')}) ` +
+  'OPTIONAL { ?w osmkey:sac_scale ?sac } OPTIONAL { ?w osmkey:via_ferrata_scale ?vf } OPTIONAL { ?w osmkey:name ?name } OPTIONAL { ?w osmkey:foot ?foot }';
+const PARK_SEL = ['?p ?name ?access ?g', '?p , ?name , ?access'];
+const parkInner = (id, ar) => inAreas(id, ar, '?p') + '?p osmkey:amenity "parking" ; geo:hasGeometry/geo:asWKT ?g . OPTIONAL { ?p osmkey:name ?name } OPTIONAL { ?p osmkey:access ?access }';
+const netQuery = (id, dist, ar) => nearQuery(id, dist, ...NET_SEL, netInner(id, ar));
+const parkQuery = (id, dist, ar) => nearQuery(id, dist, ...PARK_SEL, parkInner(id, ar));
+const memberQuery = rels => `SELECT ?r ?w ?g WHERE { VALUES ?r { ${rels.map(r => 'osmrel:' + (+r)).join(' ')} } ?r osmrel:member ?m . ?m osmrel:member_id ?w . ?w geo:hasGeometry/geo:asWKT ?g }`;
 function metres(a, b) {
   const k = Math.PI / 180, x = (b[1] - a[1]) * k * Math.cos((a[0] + b[0]) / 2 * k), y = (b[0] - a[0]) * k;
   return Math.hypot(x, y) * 6371000;
@@ -465,7 +470,7 @@ function loadAscents(i, d) {
   p.then(r => { if (selected === i) renderAscents(i, d, r); }, () => { if (selected === i) renderAscError(i, d); });
 }
 const startName = (s, h) => s.name || (s.kind ? START_KIND[s.kind] : 'Parkplatz') + (h ? ' auf ' + fmt.format(Math.round(h / 10) * 10) + ' m' : ' ohne Namen');
-function ascTitle(x) { return x.type === 'normal' ? (x.name || 'Leichtester Weg') : x.type === 'rel' ? (x.name || 'Markierte Route ohne Namen') : (x.name || 'Klettersteig ohne Namen'); }
+function ascTitle(x) { return x.type === 'normal' ? x.name : x.type === 'rel' ? (x.name || 'Markierte Route ohne Namen') : (x.name || 'Klettersteig ohne Namen'); }
 function renderAscents(i, d, r) {
   const box = $('asclist'); if (!box) return;
   ascList = r.list; ascSel = -1;
@@ -532,75 +537,123 @@ function drawAscent(x) {
     map.fitBounds(line.getBounds(), { paddingTopLeft: [30, 30], paddingBottomRight: [30, 30 + cover], maxZoom: 15 });
   }, 60);
 }
+function ferGroups(net) {                         // connected via_ferrata sections: { ways, verts, len }
+  const parent = net.ways.map((_, k) => k), find = k => parent[k] === k ? k : (parent[k] = find(parent[k])), grp = new Map();
+  net.adj.forEach(a => { let first = -1; for (let j = 1; j < a.length; j += 3) if (net.ways[a[j]].fer) { if (first < 0) first = a[j]; else parent[find(a[j])] = find(first); } });
+  const byName = new Map();                       // secured stretches of one named path form one via ferrata (e.g. Georg Jäger-Steig, many short pieces)
+  net.ways.forEach((w, k) => { if (!w.fer || !w.name) return; if (byName.has(w.name)) parent[find(k)] = find(byName.get(w.name)); else byName.set(w.name, k); });
+  net.adj.forEach((a, v) => { for (let j = 1; j < a.length; j += 3) { const wi = a[j]; if (!net.ways[wi].fer) continue; const g = find(wi); const e = grp.get(g) || { ways: new Set(), verts: new Set(), len: 0 }; e.ways.add(wi); e.verts.add(v); grp.set(g, e); } });
+  for (const g of grp.values()) g.len = [...g.ways].reduce((s, wi) => s + net.ways[wi].len, 0);
+  return [...grp.values()];
+}
+function hutsAlong(ll, top) {                     // named huts on the way (within 80 m), in walking order, not the one at the summit
+  if (!GEO || !GEO.huts) return [];
+  let s = 90, n = -90, w = 180, e = -180; ll.forEach(p => { s = Math.min(s, p[0]); n = Math.max(n, p[0]); w = Math.min(w, p[1]); e = Math.max(e, p[1]); });
+  const found = [];
+  for (const h of GEO.huts) {
+    const p = [h[1], h[0]]; if (!h[2] || p[0] < s - .001 || p[0] > n + .001 || p[1] < w - .0015 || p[1] > e + .0015 || metres(p, top) < 300) continue;
+    let bd = 80, at = -1; ll.forEach((q, k) => { const dd = metres(p, q); if (dd < bd) { bd = dd; at = k; } });
+    if (at >= 0) found.push([at, h[2]]);
+  }
+  return found.sort((a, b) => a[0] - b[0]).map(x => x[1]);
+}
+const parkRows = (rows, kind = 0) => rows.filter(r => ['', 'yes', 'public', 'permissive', 'customers'].includes(r[2] || '')).map(r => {
+  const ll = wktLine(r[3]); return { name: r[1] || '', p: ll.reduce((s, p) => [s[0] + p[0] / ll.length, s[1] + p[1] / ll.length], [0, 0]), kind };
+});
 async function computeAscents(i, d) {
   const P = D.peaks, id = P.id[i], top = [P.la[i], P.lo[i]];
   const near = d.pk && d.pk[0] ? d.pk[0][1] : 5;
   const dist = Math.round(Math.min(d.ar ? 6.5 : 11, Math.max(6, near + 2.5)) * 1000);
   const rels = (d.rt || []).map(r => r[0]);
-  const rows = await qlever(netQuery(id, dist, d.ar));                     // one after the other: QLever refuses bursts
-  const prow = await qlever(parkQuery(id, dist, d.ar)).catch(() => []);
+  let rows = await qlever(netQuery(id, dist, d.ar));                     // one after the other: QLever refuses bursts
+  let prow = await qlever(parkQuery(id, dist, d.ar)).catch(() => []);
   const mrows = rels.length ? await qlever(memberQuery(rels)).catch(() => []) : [];
-  const net = buildNet(rows);
+  const members = new Map(), relRows = [];
+  for (const [r, w, g] of mrows) {
+    if (!/\/way\//.test(w)) continue;
+    const k = wayId(r); if (!members.has(k)) members.set(k, new Set()); members.get(k).add(wayId(w));
+    relRows.push([w, 'path', '', '', '', '', g]);    // the whole route, also where it leaves the loaded area
+  }
+  let net = buildNet(rows.concat(relRows));
   if (!net.pts.length) return { list: [], why: 'noway' };
+  // where do the marked routes and via ferratas begin? Far from the summit, load paths and car parks there too
+  const relStart = rel => { let best = null, bd = 0; net.ways.forEach((w, wi) => { if (!members.get(rel).has(w.id)) return; });
+    for (let v = 0; v < net.pts.length; v++) { const a = net.adj[v]; for (let j = 1; j < a.length; j += 3) if (members.get(rel).has(net.ways[a[j]].id)) { const dd = metres(net.pts[v], top); if (dd > bd) { bd = dd; best = v; } break; } }
+    return best; };
+  const ends = [];
+  for (const rel of rels) if (members.has(+rel)) { const v = relStart(+rel); if (v != null && metres(net.pts[v], top) > 2500) ends.push(net.pts[v]); }
+  for (const g of ferGroups(net)) if (g.len >= 150) { let bv = null, bd = 0; g.verts.forEach(v => { const dd = metres(net.pts[v], top); if (dd > bd) { bd = dd; bv = v; } }); if (bd > 2500) ends.push(net.pts[bv]); }
+  if (ends.length) {
+    const pts = ends.slice(0, 8);
+    rows = rows.concat(await qlever(nearPts(pts, 3500, ...NET_SEL, netInner(id, d.ar))).catch(() => []));
+    prow = prow.concat(await qlever(nearPts(pts, 3500, ...PARK_SEL, parkInner(id, d.ar))).catch(() => []));
+    net = buildNet(rows.concat(relRows));
+  }
   const [sv, sd] = nearestVert(net, top);
   if (sd > 250) return { list: [], why: 'noway' };
-  // starting points: public car parks in the area (centre of the area), else the stored ones, else stops
-  let starts = prow.filter(r => ['', 'yes', 'public', 'permissive', 'customers'].includes(r[2] || '')).map(r => {
-    const ll = wktLine(r[3]); const c = ll.reduce((s, p) => [s[0] + p[0] / ll.length, s[1] + p[1] / ll.length], [0, 0]);
-    return { name: r[1] || '', p: c, kind: 0 };
-  });
+  // starting points: public car parks (centre of the area), else the stored ones, else stops
+  let starts = parkRows(prow);
   if (!starts.length) starts = (d.pk || []).map(s => ({ name: s[0], p: [s[2], s[3]], kind: 0 }));
   if (!starts.length) starts = (d.st || []).map(s => ({ name: s[0], p: [s[2], s[3]], kind: s[4] }));
   const parks = [], usedV = new Set();
   for (const s of starts) { const [v, sn] = nearestVert(net, s.p); if (v >= 0 && sn < 250 && !usedV.has(v)) { usedV.add(v); parks.push({ ...s, v, sn }); } }
   if (!parks.length) return { list: [], why: 'nopark' };
   const linked = dijkstra(net, sv, () => 1); if (!parks.some(p => linked.dist[p.v] < Infinity)) return { list: [], why: 'island' };
-  const members = new Map();
-  for (const [r, w] of mrows) { const k = wayId(r); if (!members.has(k)) members.set(k, new Set()); members.get(k).add(wayId(w)); }
-
-  // via ferratas: connected groups of via_ferrata ways close to the summit, each tried as the way up
-  const grp = new Map();
-  const parent = net.ways.map((_, k) => k), find = k => parent[k] === k ? k : (parent[k] = find(parent[k]));
-  net.adj.forEach(a => { let first = -1; for (let j = 1; j < a.length; j += 3) if (net.ways[a[j]].fer) { if (first < 0) first = a[j]; else parent[find(a[j])] = find(first); } });
-  net.adj.forEach((a, v) => { for (let j = 1; j < a.length; j += 3) { const wi = a[j]; if (!net.ways[wi].fer) continue; const g = find(wi); const e = grp.get(g) || { ways: new Set(), len: 0, near: Infinity }; e.ways.add(wi); e.verts = e.verts || new Set(); e.verts.add(v); grp.set(g, e); } });
-  const shortFer = new Set();                      // a few metres of cable on an ordinary path do not make it a via ferrata
-  for (const g of grp.values()) { g.len = [...g.ways].reduce((s, wi) => s + net.ways[wi].len, 0); if (g.len < 150) g.ways.forEach(wi => shortFer.add(wi)); }
+  const groups = ferGroups(net), shortFer = new Set();     // a few metres of cable on an ordinary path do not make it a via ferrata
+  groups.forEach(g => { if (g.len < 150) g.ways.forEach(wi => shortFer.add(wi)); });
   const base = (w, k) => w.fer ? (shortFer.has(k) ? 2 : Infinity) : (ROADF[w.h] || 1) * (w.grade >= 6 ? 8 : w.grade === 5 ? 4 : w.grade === 4 ? 1.6 : 1);
-  const route = factor => {
-    const r = dijkstra(net, sv, factor); let best = null;
-    for (const p of parks) { const c = r.dist[p.v] + p.sn * 3; if (c < Infinity && (!best || c < best.c)) best = { p, c }; }
-    if (!best) return null;
-    const verts = [], wl = []; let v = best.p.v;
-    while (v !== -1) { verts.push(v); if (r.via[v] >= 0) wl.push(r.via[v]); v = r.prev[v]; }
-    return { park: best.p, cost: best.c, verts, wl };
+  const trace = (r, v) => { const verts = [], wl = []; while (v !== -1) { verts.push(v); if (r.via[v] >= 0) wl.push(r.via[v]); v = r.prev[v]; } return { verts, wl }; };
+  const bestPark = r => { let best = null; for (const p of parks) { const c = r.dist[p.v] + p.sn * 3; if (c < Infinity && (!best || c < best.c)) best = { p, c }; } return best; };
+  const fromBest = factor => {                    // the car park with the cheapest way to the summit
+    const r = dijkstra(net, sv, factor), b = bestPark(r); if (!b) return null;
+    const t = trace(r, b.p.v); return { park: b.p, cost: b.c, ...t };
   };
-  const share = (res, test) => { let a = 0, b = 0; res.wl.forEach((wi, k) => { const len = metres(net.pts[res.verts[k]], net.pts[res.verts[k + 1]]); b += len; if (test(wi)) a += len; }); return b ? a / b : 0; };
-  const out = [], normal = route(base);
+  const viaStart = (start, factor, own) => {      // from the car park closest (on foot) to where the route begins, then the route up
+    const up = dijkstra(net, sv, factor); if (start == null || up.dist[start] === Infinity) return null;
+    const down = dijkstra(net, start, (w, k) => w.fer && !(own && own.has(k)) ? (shortFer.has(k) ? 2 : 4) : base(w, k)), b = bestPark(down); if (!b) return null;
+    const a = trace(down, b.p.v), c = trace(up, start);
+    return { park: b.p, cost: b.c + up.dist[start], verts: a.verts.concat(c.verts.slice(1)), wl: a.wl.concat(c.wl) };
+  };
+  const usedOf = (res, test) => { let u = 0; res.wl.forEach((wi, k) => { if (test(wi)) u += metres(net.pts[res.verts[k]], net.pts[res.verts[k + 1]]); }); return u; };
+  const out = [], normal = fromBest(base);
   if (normal) out.push({ type: 'normal', res: normal });
   for (const rel of rels) {
     const set = members.get(+rel); if (!set) continue;
-    const res = route((w, k) => set.has(w.id) ? (w.fer ? 1 : base(w, k)) * 0.3 : base(w, k));
+    const f = (w, k) => set.has(w.id) ? (w.fer ? 1 : base(w, k)) * 0.3 : base(w, k);
+    const s = relStart(+rel), res = s != null && metres(net.pts[s], top) > 300 ? viaStart(s, f) : fromBest(f);
     if (!res) continue;
-    let relLen = 0, relUsed = 0; net.ways.forEach(w => { if (set.has(w.id)) relLen += w.len; });
-    res.wl.forEach((wi, k) => { if (set.has(net.ways[wi].id)) relUsed += metres(net.pts[res.verts[k]], net.pts[res.verts[k + 1]]); });
-    if (share(res, wi => set.has(net.ways[wi].id)) > 0.25 || (relLen && relUsed / relLen > 0.5)) out.push({ type: 'rel', rel: +rel, res, name: ((d.rt.find(x => x[0] === rel) || [])[1]) || '' });
+    let relLen = 0; net.ways.forEach(w => { if (set.has(w.id)) relLen += w.len; });
+    if (relLen && usedOf(res, wi => set.has(net.ways[wi].id)) / relLen > 0.3) out.push({ type: 'rel', rel: +rel, res, name: ((d.rt.find(x => x[0] === rel) || [])[1]) || '' });
   }
+  // via ferratas near the summit: start below the ferrata, climb it, on to the summit
   const free = dijkstra(net, sv, (w, k) => w.fer ? 1 : base(w, k));
-  for (const g of grp.values()) g.verts.forEach(v => { g.near = Math.min(g.near, free.dist[v]); });
-  const groups = [...grp.values()].filter(g => g.len >= 150 && g.near < 6000).sort((a, b) => a.near - b.near).slice(0, 4);
-  for (const g of groups) {
-    const res = route((w, k) => w.fer ? (g.ways.has(k) ? 0.25 : shortFer.has(k) ? 2 : 3) : base(w, k));
-    if (!res) continue;
-    let used = 0; res.wl.forEach((wi, k) => { if (g.ways.has(wi)) used += metres(net.pts[res.verts[k]], net.pts[res.verts[k + 1]]); });
-    if (used / g.len < 0.5 || (normal && res.cost > normal.cost * 3)) continue;
+  const cand = groups.filter(g => g.len >= 150).map(g => ({ ...g, near: Math.min(...[...g.verts].map(v => free.dist[v])) }))
+    .filter(g => g.near < 6000).sort((a, b) => a.near - b.near).slice(0, 4);
+  const pathEdge = v => { const a = net.adj[v]; for (let j = 1; j < a.length; j += 3) if (!net.ways[a[j]].fer) return true; return false; };
+  for (const g of cand) {
+    const f = (w, k) => w.fer ? (g.ways.has(k) ? 0.25 : shortFer.has(k) ? 2 : 3) : base(w, k);
+    const up = dijkstra(net, sv, f), vs = [...g.verts].filter(v => up.dist[v] < Infinity);
+    if (!vs.length) continue;
+    const topD = Math.min(...vs.map(v => up.dist[v]));
+    // the places where paths join the ferrata, lowest first: each can be its own way in (e.g. from two sides of a ridge)
+    const exits = vs.filter(v => pathEdge(v) && up.dist[v] - topD > 100).sort((a, b) => up.dist[b] - up.dist[a]);
     const names = {}; g.ways.forEach(wi => { const nm = net.ways[wi].name; if (nm) names[nm] = (names[nm] || 0) + net.ways[wi].len; });
-    out.push({ type: 'fer', res, name: Object.keys(names).sort((a, b) => names[b] - names[a])[0] || '' });
+    const name = Object.keys(names).sort((a, b) => names[b] - names[a])[0] || '';   // unnamed: titled after the huts on the way, like the normal way
+    const tried = [];
+    for (const s of exits) {
+      if (tried.length === 2 || tried.some(t => metres(net.pts[t], net.pts[s]) < 300)) continue;
+      tried.push(s);
+      const res = viaStart(s, f, g.ways); if (!res) continue;
+      if (usedOf(res, wi => g.ways.has(wi)) < Math.min(150, g.len * 0.3) || (normal && res.cost > normal.cost * 3)) continue;
+      out.push({ type: 'fer', res, name });
+    }
   }
   // drop near-identical results; a marked route that is the easiest way replaces the plain one
   const same = (a, b) => { const A = new Set(a.verts); let n = 0; b.verts.forEach(v => { if (A.has(v)) n++; }); return n / Math.min(a.verts.length, b.verts.length) > 0.7; };
+  const hasFer = r => r.wl.some(wi => net.ways[wi].fer && !shortFer.has(wi));
   const list = [];
   for (const x of out) {
-    const k = list.findIndex(y => same(x.res, y.res));
+    const k = list.findIndex(y => hasFer(x.res) === hasFer(y.res) && same(x.res, y.res));   // a via ferrata is never the same as a path
     if (k < 0) list.push(x);
     else if (list[k].type === 'normal' && x.type === 'rel') list[k] = { ...x, easiest: true };
   }
@@ -613,9 +666,9 @@ async function computeAscents(i, d) {
     x.fer = r.wl.map((wi, k) => net.ways[wi].fer && !shortFer.has(wi) ? [net.pts[r.verts[k]], net.pts[r.verts[k + 1]]] : null).filter(Boolean);
     r.wl.forEach(wi => { const w = net.ways[wi]; if (!ROADF[w.h]) grade = Math.max(grade, w.grade); if (w.fer && !shortFer.has(wi)) { fer = true; if (w.vf > vf) vf = w.vf; } if (w.name && !/^(tertiary|secondary|primary)$/.test(w.h)) names[w.name] = (names[w.name] || 0) + w.len; });
     x.grade = grade; x.vf = vf; x.cat = fer ? 2 : grade >= 4 ? 1 : 0;
-    x.via = Object.keys(names).sort((a, b) => names[b] - names[a]).filter(n => n !== x.name).slice(0, 3);
-    if (!x.name && x.via.length) x.name = (x.type === 'normal' ? 'Über ' : '') + x.via.shift();
-    x.via = x.via.slice(0, 2);
+    const ways = Object.keys(names).sort((a, b) => names[b] - names[a]).filter(n => n !== x.name), huts = hutsAlong(ll, top);
+    if (!x.name) x.name = huts.length ? 'Über ' + huts.slice(0, 2).join(' und ') : ways.length ? 'Über ' + ways.shift() : 'Normalweg';
+    x.via = (x.name.startsWith('Über ') ? (huts.length > 2 ? huts.slice(2) : ways) : huts.length ? huts : ways).filter(n => !x.name.includes(n)).slice(0, 2);
     try { Object.assign(x, await climb(ll)); } catch (err) { x.up = null; }
     x.h = dinHours(x.km, x.up || 0, x.down || 0);
   }
