@@ -16,6 +16,8 @@ Danach im Browser `http://localhost:8000` öffnen. Zum Veröffentlichen genügt 
 
 - Handy: Navigation am unteren Rand, Liste als ziehbares Blatt über der Karte, Filter einklappbar
 - Gipfel-Detail mit Reitern (Übersicht, Routen, Wetter, Anfahrt) und dem heutigen Gipfelwetter oben
+- Startseite mit Alpenpanorama (aus den Gipfelhöhen gezeichnet, Blick von Norden), Gipfel des Tages, Zahlen und Funktionsübersicht
+- Feedback-Formular (Kopfzeile, Startseite, Fußzeile); Nachrichten sieht nur ein Admin im Profil (einmal `supabase/feedback.sql` im SQL Editor ausführen)
 - Farbschema wählbar im Profil (automatisch, hell, dunkel); Camptocamp-Routentitel werden für häufige französische und italienische Begriffe übersetzt
 - Startseite mit Suche, Schnellzugriffen (Viertausender, Klettersteige, Länder …) und Gipfelbuch-Übersicht; Profilseite mit Konto und eigener Statistik
 - Liste mit Filtern (Name, Höhe, Land, Bundesland, Gebirgsgruppe), Karte und Detailansicht

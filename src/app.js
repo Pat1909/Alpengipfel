@@ -1204,25 +1204,72 @@ function preset(f) {                                 // set the filters for a sh
   if (f.kind != null) $('kind').value = f.kind; if (f.country != null) { $('country').value = f.country; fillStates(); } if (f.book) $('book').value = f.book;
   $('sort').value = 'hd'; explore(); apply(); setTimeout(fitToFilter, 60);
 }
-let heroOrder = null;
-function drawHero() {                                // all summits as dots, coloured by height, fitted into the hero
+let heroCache = null;
+const isDark = () => document.documentElement.dataset.theme === 'dark' || (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
+function drawHero() {                                // the Alps seen from the north: every summit as a cone, in five bands from far (south) to near (north)
   const cv = $('herocv'); if (!cv) return;
-  const r = cv.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1), W = Math.round(r.width * dpr), H = Math.round(r.height * dpr);
-  if (!W || !H) return;
-  cv.width = W; cv.height = H; readColors();
-  const c = cv.getContext('2d'), P = D.peaks, KX = Math.cos(46.3 * Math.PI / 180), LON0 = 5.0, LAT1 = 48.45, spanX = 11.7 * KX, spanY = 5.1;
-  const wide = W / H > 1.45, sc = wide ? Math.min(H * .92 / spanY, W * .58 / spanX) : Math.min(W * 1.02 / spanX, H * .62 / spanY);
-  const ox = wide ? W - spanX * sc - W * .01 : (W - spanX * sc) / 2, oy = wide ? (H - spanY * sc) / 2 : H * .03;
-  const pt = (lon, lat) => [ox + (lon - LON0) * KX * sc, oy + (LAT1 - lat) * sc];
-  if (GEO) {
-    c.beginPath(); GEO.alps.forEach(poly => poly.forEach(ring => { ring.forEach((p, k) => { const [x, y] = pt(p[0], p[1]); k ? c.lineTo(x, y) : c.moveTo(x, y); }); c.closePath(); }));
-    c.fillStyle = cssColors['--map-alps']; c.fill('evenodd');
-    c.beginPath(); GEO.lakes.forEach(poly => poly.forEach(ring => { ring.forEach((p, k) => { const [x, y] = pt(p[0], p[1]); k ? c.lineTo(x, y) : c.moveTo(x, y); }); c.closePath(); }));
-    c.fillStyle = cssColors['--map-water']; c.fill('evenodd');
+  const r = cv.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1), Wc = Math.round(r.width), Hc = Math.round(r.height);
+  if (!Wc || !Hc) return;
+  cv.width = Wc * dpr; cv.height = Hc * dpr;
+  const c = cv.getContext('2d'); c.scale(dpr, dpr);
+  const P = D.peaks, dark = isDark(), band = Math.min(Hc * .62, Math.max(130, Wc * .2)), base = Hc, LON0 = 5.3, LON1 = 16.5;
+  if (!heroCache) {                                 // peaks above 700 m, split by latitude into five depth bands
+    const list = []; for (let i = 0; i < N; i++) if (P.e[i] >= 700) list.push(i);
+    const lats = list.map(i => P.la[i]).sort((a, b) => a - b), cut = [1, 2, 3, 4].map(q => lats[Math.floor(lats.length * q / 5)]);
+    heroCache = [[], [], [], [], []]; list.forEach(i => { let b = 0; while (b < 4 && P.la[i] > cut[b]) b++; heroCache[b].push(i); });   // 0 = far south
   }
-  if (!heroOrder) heroOrder = [...Array(N).keys()].sort((a, b) => (P.e[a] ?? -1) - (P.e[b] ?? -1));
-  const s = Math.max(1.2, 1.5 * dpr * sc / (W * .58 / spanX));
-  for (const i of heroOrder) { const [x, y] = pt(P.lo[i], P.la[i]); c.fillStyle = colorOf(P.e[i]); c.fillRect(x - s / 2, y - s / 2, s, s); }
+  const X = lon => (LON1 - lon) / (LON1 - LON0) * Wc;           // seen from the north: east on the left
+  const Hpx = e => (e - 300) / (4810 - 300) * band;
+  // sky: stars at night, a low sun by day
+  if (dark) { let s = 7; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647; c.fillStyle = 'rgba(230,236,245,.75)'; for (let k = 0; k < 70; k++) { const x = rnd() * Wc, y = rnd() * (Hc - band) * .9, z = rnd() * 1.3 + .3; c.fillRect(x, y, z, z); } }
+  else { const g = c.createRadialGradient(Wc * .78, Hc - band * .7, 0, Wc * .78, Hc - band * .7, band * 1.4); g.addColorStop(0, 'rgba(255,214,150,.55)'); g.addColorStop(1, 'rgba(255,214,150,0)'); c.fillStyle = g; c.fillRect(0, 0, Wc, Hc); }
+  const far = dark ? [52, 70, 90] : [184, 200, 214], near = dark ? [16, 24, 33] : [52, 72, 88];
+  const env = [];
+  heroCache.forEach((ids, b) => {
+    const ys = new Float32Array(Wc + 1).fill(0);
+    for (const i of ids) {
+      const h = Hpx(P.e[i]), x0 = X(P.lo[i]), w = h * 1.45;
+      const a = Math.max(0, Math.floor(x0 - w)), z = Math.min(Wc, Math.ceil(x0 + w));
+      for (let x = a; x <= z; x++) { const t = 1 - Math.abs(x - x0) / w; if (t > 0) { const v = h * Math.pow(t, 1.5); if (v > ys[x]) ys[x] = v; } }
+    }
+    env.push(ys);
+    const f = b / 4, col = far.map((v, k) => Math.round(v + (near[k] - v) * f));
+    c.beginPath(); c.moveTo(0, base);
+    for (let x = 0; x <= Wc; x++) c.lineTo(x, base - ys[x] * (1 - b * .04));
+    c.lineTo(Wc, base); c.closePath();
+    c.fillStyle = `rgb(${col})`; c.fill();
+    if (b < 3) {                                   // snow caps above about 2800 m, following the ridge
+      const k = 1 - b * .04, sh = Hpx(2800); let on = false;
+      c.beginPath();
+      for (let x = 0; x <= Wc; x++) {
+        if (ys[x] > sh) { const top = base - ys[x] * k; if (!on) { c.moveTo(x, top); on = true; } else c.lineTo(x, top); }
+        else if (on) { for (let z = x - 1; z >= 0 && ys[z] > sh; z--) c.lineTo(z, base - Math.max(sh, ys[z] - (ys[z] - sh) * .55 - 6) * k); c.closePath(); on = false; }
+      }
+      if (on) { for (let z = Wc; z >= 0 && ys[z] > sh; z--) c.lineTo(z, base - Math.max(sh, ys[z] - (ys[z] - sh) * .55 - 6) * k); c.closePath(); }
+      c.fillStyle = dark ? 'rgba(205,218,232,.4)' : 'rgba(255,255,255,.9)'; c.fill();
+    }
+  });
+  // a few names on the skyline
+  c.font = `600 ${Wc < 500 ? 10.5 : 12}px ${getComputedStyle(document.body).fontFamily}`; c.textAlign = 'center';
+  const names = Wc < 500 ? ['Mont Blanc / Monte Bianco', 'Großglockner'] : ['Mont Blanc / Monte Bianco', 'Matterhorn', 'Piz Bernina', 'Ortler', 'Großglockner', 'Zugspitze'];
+  names.forEach(n => {
+    const i = P.n.indexOf(n); if (i < 0) return;
+    const b = heroCache.findIndex(l => l.includes(i)), x = X(P.lo[i]), y = base - Hpx(P.e[i]) * (1 - b * .04);
+    c.fillStyle = dark ? 'rgba(230,236,245,.8)' : 'rgba(29,38,35,.75)'; c.fillRect(x - .5, y - 12, 1, 7);
+    c.fillText(n.split(' / ')[0], Math.max(30, Math.min(Wc - 30, x)), y - 16);
+  });
+}
+const ICON = {
+  route: '<path d="M6 19c3 0 3-5 6-5s3-4 6-4"/><circle cx="6" cy="19" r="2"/><path d="M18 4v6m0-6 4 2-4 2"/>',
+  wx: '<path d="M7 18h10a4 4 0 0 0 .5-7.97A6 6 0 0 0 6 11a3.5 3.5 0 0 0 1 7z"/>',
+  book: '<path d="M5 4.5h11a2 2 0 0 1 2 2v13H7a2 2 0 0 1-2-2z"/><path d="M5 17.5a2 2 0 0 1 2-2h11"/><path d="m9 9.5 2 2 3.5-3.5"/>',
+  cube: '<path d="M3 17 9 7l3.5 5.5L15 9l6 8z"/><path d="M3 17h18"/>',
+  msg: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>'
+};
+const svgIcon = k => `<svg viewBox="0 0 24 24" aria-hidden="true" class="ico">${ICON[k]}</svg>`;
+function peakOfDay() {                              // the same summit for everybody on one day: one with a way to the top, above 2000 m
+  const P = D.peaks, cand = []; for (let i = 0; i < N; i++) if (P.e[i] >= 2000 && (P.k[i] & 7)) cand.push(i);
+  const day = Math.floor((Date.now() + 36e5) / 864e5); return cand.length ? cand[(day * 7919) % cand.length] : 0;
 }
 function renderHome() {
   const P = D.peaks, cnt = fn => { let n = 0; for (let i = 0; i < N; i++) if (fn(i)) n++; return n; };
@@ -1235,26 +1282,42 @@ function renderHome() {
     ['Skitouren', cnt(i => P.k[i] & 8), 'Gipfel mit erfasster Skiroute', { kind: '3' }, '--ski']];
   const lands = D.countries.map((c, i) => [i, c.n, c.count]).filter(x => x[2]).sort((a, b) => b[2] - a[2]);
   const st = bookStats(), name = sbUser ? (sbUser.user_metadata && sbUser.user_metadata.username) || '' : '';
+  const pd = peakOfDay(), pl = placeNames(pd), kinds = [0, 1, 2, 3].filter(k => P.k[pd] & (1 << k));
+  const feats = [['route', 'Aufstiege vom Parkplatz', 'Mit Höhenprofil, Gehzeit und GPX-Download', 'exp'], ['wx', 'Bergwetter', '7 Tage Vorhersage für die Gipfelhöhe', 'exp'],
+    ['book', 'Gipfelbuch', 'Bestiegene Gipfel und Wunschliste, auf allen Geräten', 'book'], ['cube', '3D-Ansicht', 'Jeden Gipfel im Gelände drehen und ansehen', 'exp']];
   $('page').innerHTML = `<div class="home">
-    <section class="hero"><div class="herobg"><canvas id="herocv" aria-hidden="true"></canvas></div><div class="herotxt"><p class="eyebrow">${fmt.format(N)} benannte Gipfel · Daten vom ${D.meta.date}</p>
+    <section class="hero"><div class="herobg"><canvas id="herocv" aria-hidden="true"></canvas></div><div class="herotxt">
+      <p class="eyebrow">${fmt.format(N)} benannte Gipfel · von Nizza bis Wien</p>
       <h2>${name ? `Servus ${esc(name)}, wohin geht es als Nächstes?` : 'Finde deinen nächsten Gipfel in den Alpen'}</h2>
+      <p class="lede">Höhe, Aufstieg vom Parkplatz, Bergwetter und dein Gipfelbuch – für jeden Gipfel der Alpen.</p>
       <div class="hsearch"><input id="hq" type="search" placeholder="Gipfel suchen, z. B. Watzmann" autocomplete="off" aria-label="Gipfel suchen"><div class="hres" id="hres" hidden></div></div>
       <div class="hact"><button type="button" class="primary" id="hmap">Karte und Liste öffnen</button><button type="button" id="hnear">Gipfel in meiner Nähe</button></div></div></section>
-    <section><h3 class="h3">Schnell entdecken</h3><div class="tiles">${tiles.map((t, k) => `<button type="button" class="tile" data-k="${k}" style="--c:var(${t[4]})"><b>${t[0]}</b><span class="tn">${fmt.format(t[1])}</span><small>${t[2]}</small></button>`).join('')}</div></section>
+    <section class="kpis" aria-label="Alpengipfel in Zahlen"><div><b>${fmt.format(N)}</b><span>Gipfel</span></div><div><b>${fmt.format(tiles[0][1])}</b><span>Viertausender</span></div>
+      <div><b>${fmt.format(GEO && GEO.huts ? GEO.huts.length : 0)}</b><span>Hütten</span></div><div><b>${lands.length}</b><span>Länder</span></div></section>
+    <section class="potd"><div class="potdtxt"><p class="eyebrow">Gipfel des Tages</p><h3>${esc(P.n[pd])}</h3>
+      <p class="potdmeta">${P.e[pd] != null ? `<b>${fmt.format(P.e[pd])} m</b>` : ''}${esc([pl.g, pl.s || pl.c].filter(Boolean).join(' · '))}</p>
+      <div class="potdk">${kinds.map(k => `<span class="kb k${k}">${KINDS[k]}</span>`).join('')}</div></div>
+      <button type="button" class="primary" id="hpotd">Gipfel ansehen</button></section>
+    <section><h3 class="h3">Schnell entdecken</h3><div class="tiles">${tiles.map((t, k) => `<button type="button" class="tile" data-k="${k}" style="--c:var(${t[4]})"><span class="tn">${fmt.format(t[1])}</span><b>${t[0]}</b><small>${t[2]}</small></button>`).join('')}</div></section>
+    <section><h3 class="h3">Was du hier findest</h3><div class="feats">${feats.map(f => `<button type="button" class="feat" data-go="${f[3]}">${svgIcon(f[0])}<b>${f[1]}</b><small>${f[2]}</small></button>`).join('')}</div></section>
     <section><h3 class="h3">Nach Land</h3><div class="lands">${lands.map(l => `<button type="button" data-c="${l[0]}">${esc(l[1])} <span>${fmt.format(l[2])}</span></button>`).join('')}</div></section>
-    <section class="two"><div><h3 class="h3">Die höchsten Gipfel</h3><ol class="toplist">${[0, 1, 2, 3, 4].map(i => `<li><button type="button" data-i="${i}"><b>${esc(P.n[i])}</b><span>${fmt.format(P.e[i])} m</span></button></li>`).join('')}</ol></div>
+    <section class="two"><div><h3 class="h3">Die höchsten Gipfel</h3><ol class="toplist">${[0, 1, 2, 3, 4].map(i => `<li><button type="button" data-i="${i}"><i>${i + 1}</i><b>${esc(P.n[i])}</b><span>${fmt.format(P.e[i])} m</span></button></li>`).join('')}</ol></div>
       <div class="hcard"><h3 class="h3">Dein Gipfelbuch</h3>${st.done.length || st.wish ? `<p class="hbig">${fmt.format(st.done.length)}<span> bestiegen · ${fmt.format(st.wish)} auf der Wunschliste</span></p>
         <p class="note">${st.done.length ? `Höchster bisher: ${esc(P.n[st.top] || '–')}${st.top >= 0 ? ', ' + fmt.format(P.e[st.top]) + ' m' : ''}.` : 'Noch kein Gipfel als bestiegen eingetragen.'}</p>`
         : `<p class="hempty">Noch kein Gipfel eingetragen</p><p class="note">Öffne einen Gipfel und trage ihn als bestiegen ein, zum Beispiel die Zugspitze. Dein Fortschritt erscheint dann hier.</p>`}
         <div class="links"><button type="button" id="hbook">Gipfelbuch öffnen</button>${sb ? `<button type="button" id="hprof">${sbUser ? 'Profil' : 'Anmelden'}</button>` : ''}</div></div></section>
-    <footer class="hfoot">${window.AG_SUPPORT ? `<a class="support" href="${esc(window.AG_SUPPORT)}" target="_blank" rel="noopener">Unterstützen</a>` : ''}${window.AG_LEGAL ? `<a href="${ROOT}impressum.html">Impressum</a><a href="${ROOT}datenschutz.html">Datenschutz</a><a href="${ROOT}nutzungsbedingungen.html">Nutzungsbedingungen</a>` : ''}<span>Daten: © OpenStreetMap-Mitwirkende, Camptocamp, Open-Meteo</span></footer></div>`;
+    <section class="fbcard">${svgIcon('msg')}<div><h3>Fehlt etwas oder stimmt etwas nicht?</h3><p>Schreib mir deine Idee, einen Fehler oder eine falsche Route. Jede Nachricht wird gelesen.</p></div><button type="button" class="primary" id="hfb">Feedback geben</button></section>
+    <footer class="hfoot">${window.AG_SUPPORT ? `<a class="support" href="${esc(window.AG_SUPPORT)}" target="_blank" rel="noopener">Unterstützen</a>` : ''}<button type="button" class="linkbtn" id="hfb2">Feedback</button>${window.AG_LEGAL ? `<a href="${ROOT}impressum.html">Impressum</a><a href="${ROOT}datenschutz.html">Datenschutz</a><a href="${ROOT}nutzungsbedingungen.html">Nutzungsbedingungen</a>` : ''}<span>Daten: © OpenStreetMap-Mitwirkende, Camptocamp, Open-Meteo · Stand ${D.meta.date}</span></footer></div>`;
   drawHero();
   $('hmap').onclick = () => explore();
   $('hnear').onclick = () => { explore(); locate(); };
   $('hbook').onclick = showBook; if ($('hprof')) $('hprof').onclick = () => showProfile();
+  $('hfb').onclick = $('hfb2').onclick = () => openFeedback();
   $('page').querySelectorAll('.tile').forEach(b => { b.onclick = () => preset(tiles[+b.dataset.k][3]); });
   $('page').querySelectorAll('.lands button').forEach(b => { b.onclick = () => preset({ country: b.dataset.c }); });
+  $('page').querySelectorAll('.feat').forEach(b => { b.onclick = () => b.dataset.go === 'book' ? showBook() : explore(); });
   const open = i => { explore(true); showDetail(i, false); };
+  $('hpotd').onclick = () => open(pd);
   $('page').querySelectorAll('.toplist button').forEach(b => { b.onclick = () => open(+b.dataset.i); });
   const hq = $('hq'), hres = $('hres');
   hq.oninput = () => {
@@ -1325,6 +1388,53 @@ function countVisit() {
   const src = !ref ? 'direkt' : /tiktok/.test(ref) ? 'tiktok' : /google\./.test(ref) ? 'google' : /instagram|facebook|fb\.com/.test(ref) ? 'instagram' : /bing|duckduckgo|ecosia|yahoo/.test(ref) ? 'suche' : ref.endsWith('alpen-gipfel.de') ? 'intern' : 'andere';
   if (src !== 'intern') count('von:' + src);
 }
+/* ---------- feedback: visitors write, only admins read (Supabase table feedback) ---------- */
+const FB_ART = [['idee', 'Idee oder Wunsch'], ['fehler', 'Fehler auf der Seite'], ['daten', 'Gipfel oder Route stimmt nicht'], ['sonstiges', 'Sonstiges']];
+function openFeedback() {
+  let dlg = $('fbdlg');
+  if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'fbdlg'; dlg.className = 'fbdlg'; dlg.setAttribute('aria-labelledby', 'fbtitle'); document.body.appendChild(dlg); }
+  const here = selected >= 0 ? D.peaks.n[selected] : '';
+  dlg.innerHTML = `<form id="fbform" class="upf"><div class="fbhead"><h2 id="fbtitle">Feedback</h2><button type="button" class="fbx" id="fbx" aria-label="Schließen">×</button></div>` +
+    `<p class="note">Was gefällt dir, was fehlt, was stimmt nicht? Deine Nachricht liest nur der Betreiber von Alpengipfel.${here ? ` Sie bezieht sich auf <b>${esc(here)}</b>, falls du nichts anderes schreibst.` : ''}</p>` +
+    `<fieldset class="fbart"><legend>Worum geht es?</legend>${FB_ART.map(([v, t], k) => `<label><input type="radio" name="fbart" value="${v}"${k === (here ? 2 : 0) ? ' checked' : ''}><span>${t}</span></label>`).join('')}</fieldset>` +
+    `<label>Nachricht<textarea id="fbtext" required minlength="5" maxlength="2000" rows="5" placeholder="Schreib einfach drauf los …"></textarea></label>` +
+    `<label>E-Mail, falls du eine Antwort möchtest (freiwillig)<input id="fbmail" type="email" maxlength="200" autocomplete="email"></label>` +
+    `<p class="note small">Gespeichert werden deine Nachricht, die freiwillige E-Mail-Adresse und die Seite, auf der du gerade bist${sbUser ? ', dazu dein Benutzername' : ''}.` +
+    (window.AG_LEGAL ? ` Mehr in der <a href="${ROOT}datenschutz.html" target="_blank">Datenschutzerklärung</a>.` : '') + `</p>` +
+    `<div class="ascbtns"><button type="submit" class="primary">Senden</button><button type="button" class="onmap" id="fbcancel">Abbrechen</button></div><p id="fbmsg" class="note" role="status"></p></form>`;
+  const close = () => dlg.close();
+  $('fbx').onclick = $('fbcancel').onclick = close;
+  dlg.onclick = ev => { if (ev.target === dlg) close(); };
+  $('fbform').onsubmit = async ev => {
+    ev.preventDefault();
+    const text = $('fbtext').value.trim(), art = (dlg.querySelector('input[name=fbart]:checked') || {}).value || 'sonstiges', mail = $('fbmail').value.trim();
+    if (text.length < 5) { $('fbmsg').textContent = 'Bitte schreib mindestens ein paar Worte.'; return; }
+    if (!sb) { location.href = 'mailto:kontakt@alpen-gipfel.de?subject=' + encodeURIComponent('Feedback Alpengipfel') + '&body=' + encodeURIComponent(text); return; }
+    $('fbmsg').textContent = 'Wird gesendet …'; dlg.querySelector('button[type=submit]').disabled = true;
+    const { data, error } = await sb.rpc('feedback_senden', { art, nachricht: text, kontakt: mail, seite: (location.pathname + location.hash).slice(0, 200) });
+    if (error || data === false) { $('fbmsg').textContent = 'Das hat leider nicht geklappt. Versuch es später noch einmal oder schreib an kontakt@alpen-gipfel.de.'; dlg.querySelector('button[type=submit]').disabled = false; return; }
+    dlg.querySelector('form').innerHTML = `<div class="fbhead"><h2>Danke!</h2><button type="button" class="fbx" id="fbx2" aria-label="Schließen">×</button></div><p>Deine Nachricht ist angekommen.${mail ? ' Falls nötig, melde ich mich per E-Mail.' : ''}</p>`;
+    $('fbx2').onclick = close; setTimeout(() => { if (dlg.open) close(); }, 2500);
+  };
+  dlg.showModal(); $('fbtext').focus();
+}
+async function loadFeedback(box) {                 // all feedback, for admins
+  const sec = document.createElement('div'); box.appendChild(sec);
+  const { data, error } = await sb.rpc('feedback_liste');
+  if (error) { sec.innerHTML = '<h3 class="h3">Feedback</h3><p class="note">Noch nicht eingerichtet (supabase/feedback.sql ausführen).</p>'; return; }
+  const ART = Object.fromEntries(FB_ART);
+  const draw = rows => {
+    const open = rows.filter(r => !r.erledigt).length;
+    sec.innerHTML = `<h3 class="h3">Feedback · ${open} offen</h3>` + (rows.length ? `<ul class="fblist">${rows.map((r, k) => `<li class="${r.erledigt ? 'done' : ''}"><div class="fbmeta"><span class="fbtag">${esc(ART[r.art] || r.art)}</span>` +
+      `<span>${new Date(r.created_at).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })}</span>${r.autor ? `<span>von ${esc(r.autor)}</span>` : ''}${r.seite ? `<a href="${esc(r.seite)}" target="_blank">${esc(decodeURIComponent(r.seite.replace(/^\/gipfel\//, '').replace(/-\d+\.html$/, '')) || 'Startseite')}</a>` : ''}</div>` +
+      `<p>${esc(r.nachricht)}</p>${r.kontakt ? `<p class="note">Antwort an: <a href="mailto:${esc(r.kontakt)}">${esc(r.kontakt)}</a></p>` : ''}` +
+      `<div class="ascbtns"><button type="button" class="onmap" data-done="${k}">${r.erledigt ? 'Wieder öffnen' : 'Erledigt'}</button><button type="button" class="onmap" data-del="${k}">Löschen</button></div></li>`).join('')}</ul>`
+      : '<p class="note">Noch kein Feedback.</p>');
+    sec.querySelectorAll('[data-done]').forEach(b => { b.onclick = async () => { const r = rows[+b.dataset.done]; await sb.rpc('feedback_erledigt', { eintrag: r.id, wert: !r.erledigt }); r.erledigt = !r.erledigt; draw(rows); }; });
+    sec.querySelectorAll('[data-del]').forEach(b => { b.onclick = async () => { const r = rows[+b.dataset.del]; if (!confirm('Dieses Feedback löschen?')) return; await sb.rpc('feedback_loeschen', { eintrag: r.id }); draw(rows.filter(x => x !== r)); }; });
+  };
+  draw(data || []);
+}
 async function loadReports(box) {                // reported user tracks, for admins
   const sec = document.createElement('div'); box.appendChild(sec);
   const { data, error } = await sb.rpc('track_meldungen_liste');
@@ -1363,7 +1473,7 @@ async function loadStats() {                            // only for accounts lis
     `<div class="two"><div><h3 class="h3">Herkunft</h3><ul class="slist">${Object.entries(src).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<li><span>${SRC[k] || k}</span><b>${fmt.format(n)}</b></li>`).join('') || '<li class="note">noch keine Daten</li>'}</ul></div>` +
     `<div><h3 class="h3">Meistgeöffnete Gipfel</h3><ul class="slist">${top.map(([id, n]) => { const i = indexOfId(+id); return `<li><span>${i >= 0 ? esc(D.peaks.n[i]) : id}</span><b>${fmt.format(n)}</b></li>`; }).join('') || '<li class="note">noch keine Daten</li>'}</ul></div></div>` +
     `<p class="note">Gezählt wird jeder Seitenaufruf, ohne Cookies und ohne Wiedererkennung. Mehrere Aufrufe derselben Person zählen deshalb mehrfach. Deine eigenen Aufrufe zählen nicht, solange du mit diesem Konto angemeldet bist. Die Herkunft fehlt oft, wenn jemand den Link in der TikTok-App öffnet; dann steht er unter „direkt“.</p>`;
-  loadReports(box);
+  loadFeedback(box); loadReports(box);
 }
 function initAccount() {
   if (!HOSTED || !window.supabase) return;
@@ -1816,6 +1926,7 @@ async function boot() {
   $('radius').addEventListener('change', () => { apply(); fitToFilter(); });
   $('near').addEventListener('click', locate);
   $('openbook').addEventListener('click', showBook);
+  if ($('openfb')) $('openfb').addEventListener('click', () => openFeedback());
   $('navhome').addEventListener('click', () => showHome()); $('navstart').addEventListener('click', () => showHome());
   $('ftoggle').onclick = () => { const f = $('filters'), open = !f.classList.contains('open'); f.classList.toggle('open', open); $('ftoggle').setAttribute('aria-expanded', String(open)); if (open && MOBILE()) setSheet('full'); };
   let legOpen = !MOBILE(); try { const v = localStorage.getItem('alpengipfel.legende'); if (v) legOpen = v === '1'; } catch (err) { /* default */ }
@@ -1841,7 +1952,7 @@ async function boot() {
   if (HOSTED) countVisit();
   if (HOSTED) { addEventListener('popstate', route); route(); } else showHome(true);
   if (HOSTED && 'serviceWorker' in navigator) navigator.serviceWorker.register(ROOT + 'sw.js').catch(() => { /* the app works without it */ });
-  if (window.AG_LEGAL) { $('foot').hidden = false; $('foot').innerHTML = `${window.AG_SUPPORT ? `<a class="support" href="${esc(window.AG_SUPPORT)}" target="_blank" rel="noopener">Unterstützen</a>` : ''}<a href="${ROOT}impressum.html">Impressum</a><a href="${ROOT}datenschutz.html">Datenschutz</a><a href="${ROOT}nutzungsbedingungen.html">Nutzungsbedingungen</a><span>Daten: © OpenStreetMap-Mitwirkende, Camptocamp, Open-Meteo</span>`; }
+  if (window.AG_LEGAL) { $('foot').hidden = false; $('foot').innerHTML = `${window.AG_SUPPORT ? `<a class="support" href="${esc(window.AG_SUPPORT)}" target="_blank" rel="noopener">Unterstützen</a>` : ''}<button type="button" class="linkbtn" id="footfb">Feedback</button><a href="${ROOT}impressum.html">Impressum</a><a href="${ROOT}datenschutz.html">Datenschutz</a><a href="${ROOT}nutzungsbedingungen.html">Nutzungsbedingungen</a><span>Daten: © OpenStreetMap-Mitwirkende, Camptocamp, Open-Meteo</span>`; $('footfb').onclick = () => openFeedback(); }
 }
 boot();
 })();
