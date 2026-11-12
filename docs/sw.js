@@ -1,6 +1,6 @@
 // Service worker: makes the app installable and keeps it usable without a connection.
 // Fresh content from the network wins; the cache is the fallback when the network is slow or missing.
-const CACHE = 'alpengipfel-dcc9a7224877';
+const CACHE = 'alpengipfel-7b646c8b90e6';
 const SHELL = ["./", "manifest.webmanifest", "data/peaks.json", "data/geo.json", "assets/app.css", "assets/app.js", "assets/fonts.css", "assets/fonts/barlow-condensed-latin-500-normal.woff2", "assets/fonts/barlow-condensed-latin-600-normal.woff2", "assets/fonts/barlow-condensed-latin-ext-500-normal.woff2", "assets/fonts/barlow-condensed-latin-ext-600-normal.woff2", "assets/fonts/barlow-latin-400-normal.woff2", "assets/fonts/barlow-latin-500-normal.woff2", "assets/fonts/barlow-latin-600-normal.woff2", "assets/fonts/barlow-latin-ext-400-normal.woff2", "assets/fonts/barlow-latin-ext-500-normal.woff2", "assets/fonts/barlow-latin-ext-600-normal.woff2", "assets/icon-180.png", "assets/icon-192.png", "assets/icon-512.png", "assets/leaflet.js", "assets/supabase.js"];
 
 self.addEventListener('install', event => {

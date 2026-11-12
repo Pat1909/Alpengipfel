@@ -763,12 +763,16 @@ let sb = null, sbUser = null, pushTimer = 0, syncMsg = '';
 /* ---------- visitor counter: page loads per day, where visitors come from, opened summits.
    No cookies, nothing stored in the browser, no identifiers; Supabase only keeps daily totals. ---------- */
 const counted = new Set();
+let countGate = Promise.resolve(), noCount = false;     // admins (see public.admins) are not counted
 function count(seite) {
   if (location.hostname !== 'alpen-gipfel.de' || counted.has(seite)) return;
   counted.add(seite);
-  fetch(SB_URL + '/rest/v1/rpc/aufruf_zaehlen', { method: 'POST', keepalive: true, headers: { apikey: SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ seite }) }).catch(() => { /* counting is optional */ });
+  countGate.then(() => { if (!noCount) fetch(SB_URL + '/rest/v1/rpc/aufruf_zaehlen', { method: 'POST', keepalive: true, headers: { apikey: SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ seite }) }).catch(() => { /* counting is optional */ }); });
 }
 function countVisit() {
+  if (sb) countGate = (async () => {                   // signed in as an admin? then this browser is not counted
+    try { const { data } = await sb.auth.getSession(); if (data && data.session) { const adm = await sb.rpc('ist_admin'); noCount = adm.data === true; } } catch (err) { /* count normally */ }
+  })();
   count('seitenaufruf');
   count('einstieg:' + (/-\d+\.html$/.test(location.pathname) ? 'gipfelseite' : location.hash === '#profil' ? 'profil' : location.hash === '#karte' ? 'karte' : 'start'));
   let ref = ''; try { ref = document.referrer ? new URL(document.referrer).hostname : ''; } catch (err) { /* no referrer */ }
@@ -778,6 +782,7 @@ function countVisit() {
 async function loadStats() {                            // only for accounts listed as admins
   const box = $('pstatsadmin'); if (!box || !sb || !sbUser) return;
   const adm = await sb.rpc('ist_admin'); if (adm.error || !adm.data) { box.remove(); return; }
+  noCount = true;
   const { data, error } = await sb.rpc('aufrufe_statistik', { tage: 30 });
   if (error) { box.innerHTML = '<h3 class="h3">Besucher</h3><p class="note">Die Statistik konnte nicht geladen werden.</p>'; return; }
   const days = {}, src = {}, peaks = {}; let total = 0;
@@ -796,7 +801,7 @@ async function loadStats() {                            // only for accounts lis
     `<p class="note">Seitenaufrufe pro Tag, letzte 30 Tage (höchster Tag: ${fmt.format(max)}).</p>` +
     `<div class="two"><div><h3 class="h3">Herkunft</h3><ul class="slist">${Object.entries(src).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<li><span>${SRC[k] || k}</span><b>${fmt.format(n)}</b></li>`).join('') || '<li class="note">noch keine Daten</li>'}</ul></div>` +
     `<div><h3 class="h3">Meistgeöffnete Gipfel</h3><ul class="slist">${top.map(([id, n]) => { const i = indexOfId(+id); return `<li><span>${i >= 0 ? esc(D.peaks.n[i]) : id}</span><b>${fmt.format(n)}</b></li>`; }).join('') || '<li class="note">noch keine Daten</li>'}</ul></div></div>` +
-    `<p class="note">Gezählt wird jeder Seitenaufruf, ohne Cookies und ohne Wiedererkennung. Mehrere Aufrufe derselben Person zählen deshalb mehrfach. Die Herkunft fehlt oft, wenn jemand den Link in der TikTok-App öffnet; dann steht er unter „direkt“.</p>`;
+    `<p class="note">Gezählt wird jeder Seitenaufruf, ohne Cookies und ohne Wiedererkennung. Mehrere Aufrufe derselben Person zählen deshalb mehrfach. Deine eigenen Aufrufe zählen nicht, solange du mit diesem Konto angemeldet bist. Die Herkunft fehlt oft, wenn jemand den Link in der TikTok-App öffnet; dann steht er unter „direkt“.</p>`;
 }
 function initAccount() {
   if (!HOSTED || !window.supabase) return;
