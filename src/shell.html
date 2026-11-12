@@ -1,13 +1,15 @@
 <div class="app" id="app" data-view="list">
   <header class="top">
-    <h1>Alpengipfel</h1>
+    <h1><button type="button" id="navhome" class="brand" aria-label="Alpengipfel, zur Startseite">Alpengipfel</button></h1>
     <span class="sub" id="sub">Alle benannten Gipfel der Alpen aus OpenStreetMap</span>
-    <button class="bookbtn" id="openbook" type="button">Gipfelbuch</button>
+    <nav class="nav" aria-label="Bereiche"><button id="navexp" type="button">Gipfel</button><button id="openbook" type="button">Gipfelbuch</button><button id="openprofile" type="button">Profil</button></nav>
     <div class="tabs" role="group" aria-label="Ansicht">
       <button id="tab-list" type="button" aria-pressed="true">Liste</button>
       <button id="tab-map" type="button" aria-pressed="false">Karte</button>
     </div>
   </header>
+
+  <main class="page" id="page" hidden></main>
 
   <section class="side">
     <div class="filters">

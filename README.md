@@ -14,6 +14,7 @@ Danach im Browser `http://localhost:8000` öffnen. Zum Veröffentlichen genügt 
 
 ## Funktionen
 
+- Startseite mit Suche, Schnellzugriffen (Viertausender, Klettersteige, Länder …) und Gipfelbuch-Übersicht; Profilseite mit Konto und eigener Statistik
 - Liste mit Filtern (Name, Höhe, Land, Bundesland, Gebirgsgruppe), Karte und Detailansicht
 - Eigene Adresse je Gipfel unter `docs/gipfel/<name>-<OSM-ID>.html`, dazu `docs/sitemap.xml` für Suchmaschinen
 - „In meiner Nähe“: Gipfel nach Entfernung zum eigenen Standort

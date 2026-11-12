@@ -318,6 +318,7 @@ function startHtml(d) {
     `<p class="note">Die nächsten Punkte nach Luftlinie, auf der Karte mit P und H markiert. Der Weg von dort zum Gipfel kann deutlich länger sein oder auf der anderen Talseite beginnen; prüfe ihn auf der Karte.</p></section>`;
 }
 function showDetail(i, fromMap, noPush) {
+  if (pageMode) setPage(null);
   if (selected !== i) close3d();
   selected = i;
   $('bookpanel').hidden = true;
@@ -507,7 +508,7 @@ async function open3d(i) {
 }
 function closeDetail(noPush) {
   $('detail').hidden = true; selected = -1; startPts = []; clearTrails(); close3d();
-  if (HOSTED) { if (!noPush && location.pathname !== ROOT) history.pushState({}, '', ROOT); document.title = 'Alpengipfel'; }
+  if (HOSTED) { if (!noPush && location.pathname !== ROOT) history.pushState({}, '', ROOT + '#karte'); document.title = 'Alpengipfel'; }
   renderList(); if (peakLayer) peakLayer.redraw();
 }
 function indexOfId(id) {
@@ -516,7 +517,91 @@ function indexOfId(id) {
 }
 function route() {                                  // show what the current address names
   const m = location.pathname.match(/-(\d+)\.html$/), i = m ? indexOfId(+m[1]) : -1;
-  if (i >= 0) showDetail(i, false, true); else if (selected >= 0) closeDetail(true);
+  if (i >= 0) { setPage(null); return showDetail(i, false, true); }
+  if (selected >= 0) closeDetail(true);
+  if (location.hash === '#profil') showProfile(true); else if (location.hash === '#karte') { $('bookpanel').hidden = true; setPage(null); } else showHome(true);
+}
+
+/* ---------- start page and profile: full-width pages above the list and the map ---------- */
+let pageMode = null;                                 // null = list and map, 'home', 'profile'
+function setPage(mode) {
+  pageMode = mode; $('page').hidden = !mode; $('app').dataset.page = mode || '';
+  $('navhome').setAttribute('aria-current', String(mode === 'home')); $('navexp').setAttribute('aria-current', String(!mode)); $('openprofile').setAttribute('aria-current', String(mode === 'profile'));
+  if (mode) { $('page').scrollTop = 0; document.title = mode === 'profile' ? 'Profil – Alpengipfel' : 'Alpengipfel'; }
+  else if (map) setTimeout(() => map.invalidateSize(), 0);
+}
+const pushUrl = url => { if (HOSTED && location.pathname + location.hash !== url) history.pushState({}, '', url); };
+function explore(noPush) { setPage(null); if (!noPush && selected < 0) pushUrl(ROOT + '#karte'); }
+function showHome(noPush) { if (selected >= 0) closeDetail(true); $('bookpanel').hidden = true; setPage('home'); renderHome(); if (!noPush) pushUrl(ROOT); }
+function showProfile(noPush) { if (selected >= 0) closeDetail(true); $('bookpanel').hidden = true; setPage('profile'); renderProfile(); if (!noPush) pushUrl(ROOT + '#profil'); }
+function refreshAccount() { if (pageMode === 'profile') renderProfile(); }
+function bookStats() {
+  const P = D.peaks, done = []; for (let i = 0; i < N; i++) if (book.done[P.id[i]] != null) done.push(i);
+  const withEle = done.filter(i => P.e[i] != null), top = withEle.length ? withEle.reduce((a, b) => P.e[a] >= P.e[b] ? a : b) : -1;
+  const countries = new Set(), groups = new Set(); done.forEach(i => { arr(P.c[i]).forEach(c => countries.add(c)); arr(P.g[i]).forEach(g => groups.add(g)); });
+  return { done, top, sum: withEle.reduce((s, i) => s + P.e[i], 0), countries: countries.size, groups: groups.size, wish: Object.keys(book.wish).filter(id => indexOfId(+id) >= 0).length };
+}
+function preset(f) {                                 // set the filters for a shortcut and open list and map
+  ['q', 'hmin', 'hmax'].forEach(k => $(k).value = ''); $('country').value = ''; fillStates(); $('state').value = ''; $('group').value = ''; $('kind').value = ''; $('book').value = ''; $('radius').value = '';
+  if (f.hmin != null) $('hmin').value = f.hmin; if (f.hmax != null) $('hmax').value = f.hmax;
+  if (f.kind != null) $('kind').value = f.kind; if (f.country != null) { $('country').value = f.country; fillStates(); } if (f.book) $('book').value = f.book;
+  $('sort').value = 'hd'; explore(); apply(); setTimeout(fitToFilter, 60);
+}
+function renderHome() {
+  const P = D.peaks, cnt = fn => { let n = 0; for (let i = 0; i < N; i++) if (fn(i)) n++; return n; };
+  const tiles = [
+    ['Viertausender', cnt(i => P.e[i] >= 4000), 'Die höchsten Gipfel der Alpen', { hmin: 4000 }, '--h5'],
+    ['Dreitausender', cnt(i => P.e[i] >= 3000 && P.e[i] < 4000), 'Hochgebirge zwischen 3000 und 4000 m', { hmin: 3000, hmax: 3999 }, '--h3'],
+    ['Wandergipfel', cnt(i => P.k[i] & 1), 'Mit Wanderweg bis T3 zum Gipfel', { kind: '0' }, '--tw'],
+    ['Klettersteige', cnt(i => P.k[i] & 4), 'Gipfel mit gesichertem Steig', { kind: '2' }, '--tk'],
+    ['Hochalpine Routen', cnt(i => P.k[i] & 2), 'Alpinwege, Hochtouren, Klettereien', { kind: '1' }, '--ta'],
+    ['Skitouren', cnt(i => P.k[i] & 8), 'Gipfel mit erfasster Skiroute', { kind: '3' }, '--ski']];
+  const lands = D.countries.map((c, i) => [i, c.n, c.count]).filter(x => x[2]).sort((a, b) => b[2] - a[2]);
+  const st = bookStats(), name = sbUser ? (sbUser.user_metadata && sbUser.user_metadata.username) || '' : '';
+  $('page').innerHTML = `<div class="home">
+    <section class="hero"><p class="eyebrow">${fmt.format(N)} benannte Gipfel · Daten vom ${D.meta.date}</p>
+      <h2>${name ? `Servus ${esc(name)}, wohin geht es als Nächstes?` : 'Finde deinen nächsten Gipfel in den Alpen'}</h2>
+      <div class="hsearch"><input id="hq" type="search" placeholder="Gipfel suchen, z. B. Watzmann" autocomplete="off" aria-label="Gipfel suchen"><div class="hres" id="hres" hidden></div></div>
+      <div class="hact"><button type="button" class="primary" id="hmap">Karte und Liste öffnen</button><button type="button" id="hnear">Gipfel in meiner Nähe</button></div></section>
+    <section><h3 class="h3">Schnell entdecken</h3><div class="tiles">${tiles.map((t, k) => `<button type="button" class="tile" data-k="${k}" style="--c:var(${t[4]})"><b>${t[0]}</b><span class="tn">${fmt.format(t[1])}</span><small>${t[2]}</small></button>`).join('')}</div></section>
+    <section><h3 class="h3">Nach Land</h3><div class="lands">${lands.map(l => `<button type="button" data-c="${l[0]}">${esc(l[1])} <span>${fmt.format(l[2])}</span></button>`).join('')}</div></section>
+    <section class="two"><div><h3 class="h3">Die höchsten Gipfel</h3><ol class="toplist">${[0, 1, 2, 3, 4].map(i => `<li><button type="button" data-i="${i}"><b>${esc(P.n[i])}</b><span>${fmt.format(P.e[i])} m</span></button></li>`).join('')}</ol></div>
+      <div class="hcard"><h3 class="h3">Dein Gipfelbuch</h3><p class="hbig">${fmt.format(st.done.length)}<span> bestiegen · ${fmt.format(st.wish)} auf der Wunschliste</span></p>
+        <p class="note">${st.done.length ? `Höchster bisher: ${esc(P.n[st.top] || '–')}${st.top >= 0 ? ', ' + fmt.format(P.e[st.top]) + ' m' : ''}.` : 'Öffne einen Gipfel und trage ihn als bestiegen ein.'}</p>
+        <div class="links"><button type="button" id="hbook">Gipfelbuch öffnen</button>${sb ? `<button type="button" id="hprof">${sbUser ? 'Profil' : 'Anmelden'}</button>` : ''}</div></div></section>
+    <footer class="hfoot">${window.AG_SUPPORT ? `<a class="support" href="${esc(window.AG_SUPPORT)}" target="_blank" rel="noopener">Unterstützen</a>` : ''}${window.AG_LEGAL ? `<a href="${ROOT}impressum.html">Impressum</a><a href="${ROOT}datenschutz.html">Datenschutz</a><a href="${ROOT}nutzungsbedingungen.html">Nutzungsbedingungen</a>` : ''}<span>Daten: © OpenStreetMap-Mitwirkende, Camptocamp, Open-Meteo</span></footer></div>`;
+  $('hmap').onclick = () => explore();
+  $('hnear').onclick = () => { explore(); locate(); };
+  $('hbook').onclick = showBook; if ($('hprof')) $('hprof').onclick = () => showProfile();
+  $('page').querySelectorAll('.tile').forEach(b => { b.onclick = () => preset(tiles[+b.dataset.k][3]); });
+  $('page').querySelectorAll('.lands button').forEach(b => { b.onclick = () => preset({ country: b.dataset.c }); });
+  const open = i => { explore(true); showDetail(i, false); };
+  $('page').querySelectorAll('.toplist button').forEach(b => { b.onclick = () => open(+b.dataset.i); });
+  const hq = $('hq'), hres = $('hres');
+  hq.oninput = () => {
+    const q = norm(hq.value.trim()), hits = [];
+    if (q.length >= 2) for (let i = 0; i < N && hits.length < 7; i++) if (P.nn[i].includes(q)) hits.push(i);
+    hres.hidden = q.length < 2;
+    hres.innerHTML = hits.length ? hits.map(i => { const pl = placeNames(i); return `<button type="button" data-i="${i}"><b>${esc(P.n[i])}</b><small>${esc([pl.g, pl.s || pl.c].filter(Boolean).join(' · '))}</small><span>${P.e[i] == null ? '–' : fmt.format(P.e[i]) + ' m'}</span></button>`; }).join('')
+      : '<p class="note">Kein Gipfel mit diesem Namen gefunden.</p>';
+    hres.querySelectorAll('button').forEach(b => { b.onclick = () => open(+b.dataset.i); });
+  };
+  hq.onkeydown = ev => { if (ev.key === 'Enter') { const first = hres.querySelector('button'); if (first) first.click(); else if (hq.value.trim()) { preset({}); $('q').value = hq.value.trim(); apply(); } } };
+}
+function renderProfile() {
+  const P = D.peaks, st = bookStats(), page = $('page');
+  const stats = `<div class="pstats">${[['Bestiegen', fmt.format(st.done.length)], ['Wunschliste', fmt.format(st.wish)], ['Höchster Gipfel', st.top >= 0 ? `${esc(P.n[st.top])}<small>${fmt.format(P.e[st.top])} m</small>` : '–'],
+    ['Gipfelhöhe gesamt', fmt.format(st.sum) + ' m'], ['Länder', st.countries], ['Gebirgsgruppen', st.groups]].map(s => `<div><span class="lab">${s[0]}</span><b>${s[1]}</b></div>`).join('')}</div>`;
+  const actions = `<div class="links"><button type="button" id="pbook">Gipfelbuch öffnen</button><button type="button" id="pdone">Bestiegene auf der Karte</button><button type="button" id="pwish">Wunschliste zeigen</button></div>`;
+  let headHtml;
+  if (sbUser) {
+    const name = (sbUser.user_metadata && sbUser.user_metadata.username) || sbUser.email || '', since = sbUser.created_at ? new Date(sbUser.created_at).toLocaleDateString('de-DE') : '';
+    headHtml = `<div class="phead"><div class="avatar" aria-hidden="true">${esc(name.slice(0, 1).toUpperCase())}</div><div><h2>${esc(name)}</h2><p class="note">${esc(sbUser.email || '')}${since ? ' · dabei seit ' + since : ''}</p></div></div>`;
+  } else headHtml = `<div class="phead"><div class="avatar" aria-hidden="true">?</div><div><h2>Profil</h2><p class="note">${sb ? 'Du bist nicht angemeldet. Dein Gipfelbuch liegt nur in diesem Browser.' : 'Konten gibt es nur auf alpen-gipfel.de. Hier liegt dein Gipfelbuch in diesem Browser.'}</p></div></div>`;
+  page.innerHTML = `<div class="home profile">${headHtml}<section><h3 class="h3">Deine Gipfel</h3>${stats}${actions}</section><section class="pacct">${accountHtml()}</section></div>`;
+  $('pbook').onclick = showBook;
+  $('pdone').onclick = () => preset({ book: 'done' }); $('pwish').onclick = () => preset({ book: 'wish' });
+  wireAccount();
 }
 
 /* ---------- Gipfelbuch (kept in this browser) ---------- */
@@ -536,9 +621,9 @@ function initAccount() {
   sb.auth.onAuthStateChange((event, session) => {
     const user = session ? session.user : null, changed = (user && user.id) !== (sbUser && sbUser.id);
     sbUser = user;
-    if (event === 'PASSWORD_RECOVERY') { acctMode = 'newpass'; acctMsg = ''; setTimeout(showBook, 0); }
+    if (event === 'PASSWORD_RECOVERY') { acctMode = 'newpass'; acctMsg = ''; setTimeout(() => showProfile(), 0); }
     if (user && changed) setTimeout(pullBook, 0);
-    if (changed && !$('bookpanel').hidden) showBook();
+    if (changed) { refreshAccount(); if (!$('bookpanel').hidden) showBook(); if (pageMode === 'home') renderHome(); }
   });
 }
 function setSync(text) { syncMsg = text; if ($('syncmsg')) $('syncmsg').textContent = text; }
@@ -556,7 +641,7 @@ async function pullBook() {
     await pushBook();
   }
   storeBook(); setSync('Gespeichert im Konto.');
-  apply(); if (selected >= 0) renderBookRow(selected); if (!$('bookpanel').hidden) showBook();
+  apply(); if (selected >= 0) renderBookRow(selected); if (!$('bookpanel').hidden) showBook(); refreshAccount(); if (pageMode === 'home') renderHome();
 }
 async function pushBook() {
   if (!sbUser) return;
@@ -577,7 +662,7 @@ function accountHtml() {
   if (sbUser && acctMode === 'delete') return `<div class="acct">${head}<p><b>Konto wirklich löschen?</b> Dein Konto, dein Benutzername und dein gespeichertes Gipfelbuch werden sofort und endgültig gelöscht. Das lässt sich nicht rückgängig machen.</p>` +
     `<div class="links"><button type="button" id="delyes" class="danger">Endgültig löschen</button><button type="button" id="delno">Abbrechen</button></div>${msg}</div>`;
   if (sbUser) return `<div class="acct">${head}<p>Angemeldet als <b>${esc((sbUser.user_metadata && sbUser.user_metadata.username) || sbUser.email || '')}</b><small class="note"> · ${esc(sbUser.email || '')}</small></p>` +
-    `<p class="note" id="syncmsg">${esc(syncMsg)}</p><div class="links"><button type="button" id="logout">Abmelden</button><button type="button" id="delask">Konto löschen</button></div></div>`;
+    `<p class="note" id="syncmsg">${esc(syncMsg)}</p><div class="links"><button type="button" id="logout">Abmelden</button><button type="button" id="chpass">Passwort ändern</button><button type="button" id="delask">Konto löschen</button></div></div>`;
   if (acctMode === 'register') return `<form class="acct" id="acctform">${head}<p class="note">Lege ein Konto an, damit dein Gipfelbuch gespeichert bleibt und auf jedem Gerät dasselbe ist.${privacyHint()}</p>` +
     `<label>Benutzername<input type="text" id="aname" autocomplete="username" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_.\-]{3,20}" title="3 bis 20 Zeichen: Buchstaben ohne Umlaute, Ziffern, Punkt, Binde- und Unterstrich"></label>${mail}` +
     `<label>Passwort (mindestens 8 Zeichen)<input type="password" id="apass" autocomplete="new-password" required minlength="8"></label>` +
@@ -597,15 +682,16 @@ function accountHtml() {
     `<div class="links"><button type="submit" id="asubmit">Anmelden</button></div>${msg}<p class="note">Noch kein Konto? ${sw('register', 'Konto anlegen')} · ${sw('forgot', 'Passwort vergessen')}</p></form>`;
 }
 function wireAccount() {
-  const go = (mode, text) => { acctMode = mode; acctMsg = text || ''; showBook(); };
+  const go = (mode, text) => { acctMode = mode; acctMsg = text || ''; refreshAccount(); };
   const say = text => { acctMsg = text; if ($('acctmsg')) $('acctmsg').textContent = text; };
   const tooMany = err => err && err.status === 429 ? 'Zu viele Versuche: Der E-Mail-Versand ist gerade gesperrt. Warte bis zu einer Stunde und versuch es dann noch einmal.' : '';
   if ($('logout')) $('logout').onclick = async () => {
     clearTimeout(pushTimer); await pushBook(); await sb.auth.signOut();
     book = { done: {}, wish: {} }; storeBook(); try { localStorage.removeItem(SYNC_KEY); } catch (err) { /* nothing to forget */ }
-    syncMsg = ''; acctMode = 'login'; acctMsg = ''; apply(); showBook();
+    syncMsg = ''; acctMode = 'login'; acctMsg = ''; apply(); refreshAccount();
   };
   if ($('delask')) $('delask').onclick = () => go('delete');
+  if ($('chpass')) $('chpass').onclick = () => go('newpass');
   if ($('delno')) $('delno').onclick = () => go('login');
   if ($('delyes')) $('delyes').onclick = async () => {
     $('delyes').disabled = true; clearTimeout(pushTimer);
@@ -613,9 +699,9 @@ function wireAccount() {
     if (error) { $('delyes').disabled = false; return say('Das Konto konnte nicht gelöscht werden. Versuch es noch einmal oder schreib an die Adresse im Impressum.'); }
     await sb.auth.signOut({ scope: 'local' });
     book = { done: {}, wish: {} }; storeBook(); try { localStorage.removeItem(SYNC_KEY); } catch (err) { /* nothing to forget */ }
-    syncMsg = ''; acctMode = 'login'; acctMsg = 'Dein Konto und dein Gipfelbuch wurden gelöscht.'; apply(); showBook();
+    syncMsg = ''; acctMode = 'login'; acctMsg = 'Dein Konto und dein Gipfelbuch wurden gelöscht.'; apply(); refreshAccount();
   };
-  document.querySelectorAll('#bookpanel .linkbtn').forEach(btn => { btn.onclick = () => { if ($('amail')) acctMail = $('amail').value.trim(); go(btn.dataset.mode); }; });
+  document.querySelectorAll('#page .acct .linkbtn').forEach(btn => { btn.onclick = () => { if ($('amail')) acctMail = $('amail').value.trim(); go(btn.dataset.mode); }; });
   if ($('aresend')) $('aresend').onclick = async () => {
     const { error } = await sb.auth.resend({ type: 'signup', email: acctMail, options: { emailRedirectTo: location.origin + ROOT } });
     say(error ? tooMany(error) || 'Die E-Mail konnte nicht gesendet werden. Versuch es später noch einmal.' : 'Eine neue E-Mail ist unterwegs.');
@@ -681,6 +767,7 @@ function renderBookRow(i) {
 }
 function bookChanged(i) { saveBook(); renderBookRow(i); if ($('book').value) apply(); else { renderList(); if (peakLayer) peakLayer.redraw(); } }
 function showBook() {
+  if (pageMode) explore();
   const P = D.peaks, doneIdx = [], el = $('bookpanel');
   for (let i = 0; i < N; i++) if (book.done[P.id[i]] != null) doneIdx.push(i);
   const wishN = Object.keys(book.wish).filter(id => indexOfId(+id) >= 0).length;
@@ -703,11 +790,11 @@ function showBook() {
     (recent.length ? `<div><h3 class="h3">Zuletzt eingetragen</h3><ul class="rts">${recent.map(i => `<li><a href="${HOSTED ? peakUrl(i) : '#'}" data-i="${i}">${esc(P.n[i])}</a> · ${dateDe(book.done[P.id[i]])}</li>`).join('')}</ul></div>` : '') +
     `<div class="links"><button type="button" id="bshowdone">Bestiegene in der Liste zeigen</button><button type="button" id="bshowwish">Wunschliste zeigen</button>` +
     (HOSTED ? `<button type="button" id="bexport">Sichern (Datei)</button><button type="button" id="bimport">Wiederherstellen</button><input type="file" id="bfile" accept="application/json,.json" hidden>` : '') + `</div>` +
-    accountHtml() +
+    `<div class="acct"><h3 class="h3">Konto</h3><p class="note">${sbUser ? 'Angemeldet als ' + esc((sbUser.user_metadata && sbUser.user_metadata.username) || sbUser.email || '') + '.' : 'Mit einem Konto bleibt dein Gipfelbuch gespeichert und ist auf jedem Gerät dasselbe.'}</p><div class="links"><button type="button" id="toprofile">${sbUser ? 'Zum Profil' : 'Anmelden oder Konto anlegen'}</button></div></div>` +
     `<p class="note" id="bookmsg">${sbUser ? 'Dein Gipfelbuch liegt in deinem Konto und zusätzlich in diesem Browser.' : 'Ohne Anmeldung wird das Gipfelbuch nur in diesem Browser auf diesem Gerät gespeichert.'}${HOSTED ? ' Mit „Sichern“ kannst du es als Datei ablegen und auf einem anderen Gerät wiederherstellen.' : ''}</p>`;
   el.hidden = false; el.scrollTop = 0; setView('list');
   $('bookback').onclick = () => { el.hidden = true; };
-  wireAccount();
+  $('toprofile').onclick = () => showProfile();
   const show = v => { el.hidden = true; if (selected >= 0) closeDetail(); $('book').value = v; apply(); fitToFilter(); };
   $('bshowdone').onclick = () => show('done'); $('bshowwish').onclick = () => show('wish');
   el.querySelectorAll('a[data-i]').forEach(a => { a.onclick = ev => { ev.preventDefault(); showDetail(+a.dataset.i, false); }; });
@@ -972,6 +1059,7 @@ async function boot() {
   $('radius').addEventListener('change', () => { apply(); fitToFilter(); });
   $('near').addEventListener('click', locate);
   $('openbook').addEventListener('click', showBook);
+  $('navhome').addEventListener('click', () => showHome()); $('navexp').addEventListener('click', () => explore()); $('openprofile').addEventListener('click', () => showProfile());
   $('v3close').addEventListener('click', close3d);
   $('huts').checked = showHuts;
   $('huts').addEventListener('change', () => { showHuts = $('huts').checked; try { localStorage.setItem('alpengipfel.huts', showHuts ? '1' : '0'); } catch (err) { /* not remembered */ } if (map) map.closePopup(); if (peakLayer) peakLayer.redraw(); });
@@ -987,7 +1075,7 @@ async function boot() {
   $('tab-map').onclick = () => setView('map');
   apply();
   $('loading').hidden = true;
-  if (HOSTED) { addEventListener('popstate', route); route(); }
+  if (HOSTED) { addEventListener('popstate', route); route(); } else showHome(true);
   initAccount();
   if (HOSTED && 'serviceWorker' in navigator) navigator.serviceWorker.register(ROOT + 'sw.js').catch(() => { /* the app works without it */ });
   if (window.AG_LEGAL) { $('foot').hidden = false; $('foot').innerHTML = `${window.AG_SUPPORT ? `<a class="support" href="${esc(window.AG_SUPPORT)}" target="_blank" rel="noopener">Unterstützen</a>` : ''}<a href="${ROOT}impressum.html">Impressum</a><a href="${ROOT}datenschutz.html">Datenschutz</a><a href="${ROOT}nutzungsbedingungen.html">Nutzungsbedingungen</a><span>Daten: © OpenStreetMap-Mitwirkende, Camptocamp, Open-Meteo</span>`; }
