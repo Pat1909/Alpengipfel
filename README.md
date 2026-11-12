@@ -14,6 +14,9 @@ Danach im Browser `http://localhost:8000` öffnen. Zum Veröffentlichen genügt 
 
 ## Funktionen
 
+- Handy: Navigation am unteren Rand, Liste als ziehbares Blatt über der Karte, Filter einklappbar
+- Gipfel-Detail mit Reitern (Übersicht, Routen, Wetter, Anfahrt) und dem heutigen Gipfelwetter oben
+- Farbschema wählbar im Profil (automatisch, hell, dunkel); Camptocamp-Routentitel werden für häufige französische und italienische Begriffe übersetzt
 - Startseite mit Suche, Schnellzugriffen (Viertausender, Klettersteige, Länder …) und Gipfelbuch-Übersicht; Profilseite mit Konto und eigener Statistik
 - Liste mit Filtern (Name, Höhe, Land, Bundesland, Gebirgsgruppe), Karte und Detailansicht
 - Eigene Adresse je Gipfel unter `docs/gipfel/<name>-<OSM-ID>.html`, dazu `docs/sitemap.xml` für Suchmaschinen

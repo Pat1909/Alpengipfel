@@ -1,8 +1,8 @@
-<div class="app" id="app" data-view="list">
+<div class="app" id="app" data-view="list" data-sheet="half">
   <header class="top">
     <h1><button type="button" id="navhome" class="brand" aria-label="Alpengipfel, zur Startseite">Alpengipfel</button></h1>
     <span class="sub" id="sub">Alle benannten Gipfel der Alpen aus OpenStreetMap</span>
-    <nav class="nav" aria-label="Bereiche"><button id="navexp" type="button">Gipfel</button><button id="openbook" type="button">Gipfelbuch</button><button id="openprofile" type="button">Profil</button></nav>
+    <nav class="nav" aria-label="Bereiche"><button id="navstart" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/></svg><span>Start</span></button><button id="navexp" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 19.5 9 8l3.5 6 2.5-4 6.5 9.5z"/></svg><span>Gipfel</span></button><button id="openbook" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h11a2 2 0 0 1 2 2v13H7a2 2 0 0 1-2-2z"/><path d="M5 17.5a2 2 0 0 1 2-2h11"/><path d="m9 9.5 2 2 3.5-3.5"/></svg><span>Gipfelbuch</span></button><button id="openprofile" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/></svg><span>Profil</span></button></nav>
     <div class="tabs" role="group" aria-label="Ansicht">
       <button id="tab-list" type="button" aria-pressed="true">Liste</button>
       <button id="tab-map" type="button" aria-pressed="false">Karte</button>
@@ -11,9 +11,10 @@
 
   <main class="page" id="page" hidden></main>
 
-  <section class="side">
-    <div class="filters">
-      <div class="f wide"><label for="q">Name</label><input id="q" type="search" placeholder="z. B. Großglockner, Piz, Aiguille …" autocomplete="off"></div>
+  <section class="side" id="side">
+    <div class="grab" id="grab" aria-hidden="true"><span></span></div>
+    <div class="filters" id="filters">
+      <div class="f wide fq"><label for="q">Name</label><div class="qrow"><input id="q" type="search" placeholder="Gipfel suchen, z. B. Großglockner" autocomplete="off"><button type="button" class="ftoggle" id="ftoggle" aria-expanded="false" aria-controls="filters">Filter<b id="fcount" hidden></b></button></div></div>
       <div class="f wide">
         <span class="lab">Höhe in Metern</span>
         <div class="hrow"><input id="hmin" type="number" inputmode="numeric" min="0" max="4900" step="50" placeholder="von" aria-label="Mindesthöhe"><span>bis</span><input id="hmax" type="number" inputmode="numeric" min="0" max="4900" step="50" placeholder="bis" aria-label="Maximalhöhe"></div>
@@ -44,9 +45,9 @@
     <div class="loading" id="loading">Gipfeldaten werden geladen …</div>
   </section>
 
-  <section class="mapwrap">
+  <section class="mapwrap" id="mapwrap">
     <div id="map"></div>
-    <div class="legend"><div class="lrow" id="legend"></div><div class="lrow" id="tlegend" hidden></div><label class="lrow hutrow"><input type="checkbox" id="huts" checked><i class="sq"></i>Hütten anzeigen (ab mittlerer Zoomstufe)</label></div>
+    <div class="legend" id="legendbox" data-open="true"><button type="button" class="legtoggle" id="legtoggle" aria-expanded="true" aria-controls="legbody">Legende</button><div class="lrow note" id="tmsg" role="status" hidden></div><div class="legbody" id="legbody"><div class="lrow" id="legend"></div><div class="lrow" id="tlegend" hidden></div><label class="lrow hutrow"><input type="checkbox" id="huts" checked><i class="sq"></i>Hütten anzeigen (ab mittlerer Zoomstufe)</label></div></div>
     <div class="tip" id="tip" hidden></div>
     <div class="view3d" id="view3d" hidden><div id="v3map"></div><button class="back" id="v3close" type="button">← Zur flachen Karte</button><div class="v3hint">Ziehen: verschieben · rechte Maustaste oder zwei Finger: drehen und kippen</div><div class="v3msg" id="v3msg" role="status"></div></div>
   </section>

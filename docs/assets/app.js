@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 const $ = id => document.getElementById(id);
-const SHELL = "<div class=\"app\" id=\"app\" data-view=\"list\">\n  <header class=\"top\">\n    <h1><button type=\"button\" id=\"navhome\" class=\"brand\" aria-label=\"Alpengipfel, zur Startseite\">Alpengipfel<\/button><\/h1>\n    <span class=\"sub\" id=\"sub\">Alle benannten Gipfel der Alpen aus OpenStreetMap<\/span>\n    <nav class=\"nav\" aria-label=\"Bereiche\"><button id=\"navexp\" type=\"button\">Gipfel<\/button><button id=\"openbook\" type=\"button\">Gipfelbuch<\/button><button id=\"openprofile\" type=\"button\">Profil<\/button><\/nav>\n    <div class=\"tabs\" role=\"group\" aria-label=\"Ansicht\">\n      <button id=\"tab-list\" type=\"button\" aria-pressed=\"true\">Liste<\/button>\n      <button id=\"tab-map\" type=\"button\" aria-pressed=\"false\">Karte<\/button>\n    <\/div>\n  <\/header>\n\n  <main class=\"page\" id=\"page\" hidden><\/main>\n\n  <section class=\"side\">\n    <div class=\"filters\">\n      <div class=\"f wide\"><label for=\"q\">Name<\/label><input id=\"q\" type=\"search\" placeholder=\"z. B. Großglockner, Piz, Aiguille …\" autocomplete=\"off\"><\/div>\n      <div class=\"f wide\">\n        <span class=\"lab\">Höhe in Metern<\/span>\n        <div class=\"hrow\"><input id=\"hmin\" type=\"number\" inputmode=\"numeric\" min=\"0\" max=\"4900\" step=\"50\" placeholder=\"von\" aria-label=\"Mindesthöhe\"><span>bis<\/span><input id=\"hmax\" type=\"number\" inputmode=\"numeric\" min=\"0\" max=\"4900\" step=\"50\" placeholder=\"bis\" aria-label=\"Maximalhöhe\"><\/div>\n        <div class=\"bands\" id=\"bands\"><\/div>\n      <\/div>\n      <div class=\"f\"><label for=\"country\">Land<\/label><select id=\"country\"><\/select><\/div>\n      <div class=\"f\"><label for=\"state\">Bundesland / Region<\/label><select id=\"state\"><\/select><\/div>\n      <div class=\"f wide\"><label for=\"group\">Gebirgsgruppe<\/label><select id=\"group\"><\/select><\/div>\n      <div class=\"f wide\"><label for=\"kind\">Weg zum Gipfel<\/label><select id=\"kind\"><option value=\"\">Alle Gipfel<\/option><option value=\"0\">Wandern (bis T3)<\/option><option value=\"1\">Hochalpin (T4–T6)<\/option><option value=\"2\">Klettersteig<\/option><option value=\"3\">Skitour<\/option><option value=\"4\">Nur Weg in Gipfelnähe<\/option><option value=\"none\">Kein Weg, keine Route erfasst<\/option><\/select><\/div>\n      <div class=\"f\"><label for=\"book\">Gipfelbuch<\/label><select id=\"book\"><option value=\"\">Alle Gipfel<\/option><option value=\"done\">Bestiegen<\/option><option value=\"todo\">Noch nicht bestiegen<\/option><option value=\"wish\">Wunschliste<\/option><\/select><\/div>\n      <div class=\"f\"><span class=\"lab\">In meiner Nähe<\/span><div class=\"hrow\"><button class=\"nearbtn\" id=\"near\" type=\"button\">Standort verwenden<\/button><select id=\"radius\" aria-label=\"Umkreis\" hidden><option value=\"\">beliebig weit<\/option><option value=\"10\">10 km<\/option><option value=\"25\">25 km<\/option><option value=\"50\">50 km<\/option><option value=\"100\">100 km<\/option><\/select><\/div><\/div>\n      <div class=\"f wide note\" id=\"nearmsg\" hidden><\/div>\n    <\/div>\n    <div class=\"status\">\n      <span><strong id=\"count\">–<\/strong> Gipfel<\/span>\n      <button class=\"reset\" id=\"reset\" type=\"button\" hidden>Filter zurücksetzen<\/button>\n      <select id=\"sort\" aria-label=\"Sortierung\">\n        <option value=\"hd\">Höchste zuerst<\/option>\n        <option value=\"ha\">Niedrigste zuerst<\/option>\n        <option value=\"na\">Name A–Z<\/option>\n        <option value=\"near\">Nächste zuerst<\/option>\n      <\/select>\n    <\/div>\n    <div class=\"list\" id=\"list\" tabindex=\"0\"><div class=\"spacer\" id=\"spacer\"><\/div><\/div>\n    <footer class=\"foot\" id=\"foot\" hidden><\/footer>\n    <div class=\"detail\" id=\"detail\" hidden><\/div>\n    <div class=\"detail\" id=\"bookpanel\" hidden><\/div>\n    <div class=\"loading\" id=\"loading\">Gipfeldaten werden geladen …<\/div>\n  <\/section>\n\n  <section class=\"mapwrap\">\n    <div id=\"map\"><\/div>\n    <div class=\"legend\"><div class=\"lrow\" id=\"legend\"><\/div><div class=\"lrow\" id=\"tlegend\" hidden><\/div><label class=\"lrow hutrow\"><input type=\"checkbox\" id=\"huts\" checked><i class=\"sq\"><\/i>Hütten anzeigen (ab mittlerer Zoomstufe)<\/label><\/div>\n    <div class=\"tip\" id=\"tip\" hidden><\/div>\n    <div class=\"view3d\" id=\"view3d\" hidden><div id=\"v3map\"><\/div><button class=\"back\" id=\"v3close\" type=\"button\">← Zur flachen Karte<\/button><div class=\"v3hint\">Ziehen: verschieben · rechte Maustaste oder zwei Finger: drehen und kippen<\/div><div class=\"v3msg\" id=\"v3msg\" role=\"status\"><\/div><\/div>\n  <\/section>\n<\/div>\n";
+const SHELL = "<div class=\"app\" id=\"app\" data-view=\"list\" data-sheet=\"half\">\n  <header class=\"top\">\n    <h1><button type=\"button\" id=\"navhome\" class=\"brand\" aria-label=\"Alpengipfel, zur Startseite\">Alpengipfel<\/button><\/h1>\n    <span class=\"sub\" id=\"sub\">Alle benannten Gipfel der Alpen aus OpenStreetMap<\/span>\n    <nav class=\"nav\" aria-label=\"Bereiche\"><button id=\"navstart\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 11.5 12 4l9 7.5\"/><path d=\"M5.5 10v9.5h13V10\"/><\/svg><span>Start<\/span><\/button><button id=\"navexp\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M2.5 19.5 9 8l3.5 6 2.5-4 6.5 9.5z\"/><\/svg><span>Gipfel<\/span><\/button><button id=\"openbook\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 4.5h11a2 2 0 0 1 2 2v13H7a2 2 0 0 1-2-2z\"/><path d=\"M5 17.5a2 2 0 0 1 2-2h11\"/><path d=\"m9 9.5 2 2 3.5-3.5\"/><\/svg><span>Gipfelbuch<\/span><\/button><button id=\"openprofile\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"8.5\" r=\"3.5\"/><path d=\"M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5\"/><\/svg><span>Profil<\/span><\/button><\/nav>\n    <div class=\"tabs\" role=\"group\" aria-label=\"Ansicht\">\n      <button id=\"tab-list\" type=\"button\" aria-pressed=\"true\">Liste<\/button>\n      <button id=\"tab-map\" type=\"button\" aria-pressed=\"false\">Karte<\/button>\n    <\/div>\n  <\/header>\n\n  <main class=\"page\" id=\"page\" hidden><\/main>\n\n  <section class=\"side\" id=\"side\">\n    <div class=\"grab\" id=\"grab\" aria-hidden=\"true\"><span><\/span><\/div>\n    <div class=\"filters\" id=\"filters\">\n      <div class=\"f wide fq\"><label for=\"q\">Name<\/label><div class=\"qrow\"><input id=\"q\" type=\"search\" placeholder=\"Gipfel suchen, z. B. Großglockner\" autocomplete=\"off\"><button type=\"button\" class=\"ftoggle\" id=\"ftoggle\" aria-expanded=\"false\" aria-controls=\"filters\">Filter<b id=\"fcount\" hidden><\/b><\/button><\/div><\/div>\n      <div class=\"f wide\">\n        <span class=\"lab\">Höhe in Metern<\/span>\n        <div class=\"hrow\"><input id=\"hmin\" type=\"number\" inputmode=\"numeric\" min=\"0\" max=\"4900\" step=\"50\" placeholder=\"von\" aria-label=\"Mindesthöhe\"><span>bis<\/span><input id=\"hmax\" type=\"number\" inputmode=\"numeric\" min=\"0\" max=\"4900\" step=\"50\" placeholder=\"bis\" aria-label=\"Maximalhöhe\"><\/div>\n        <div class=\"bands\" id=\"bands\"><\/div>\n      <\/div>\n      <div class=\"f\"><label for=\"country\">Land<\/label><select id=\"country\"><\/select><\/div>\n      <div class=\"f\"><label for=\"state\">Bundesland / Region<\/label><select id=\"state\"><\/select><\/div>\n      <div class=\"f wide\"><label for=\"group\">Gebirgsgruppe<\/label><select id=\"group\"><\/select><\/div>\n      <div class=\"f wide\"><label for=\"kind\">Weg zum Gipfel<\/label><select id=\"kind\"><option value=\"\">Alle Gipfel<\/option><option value=\"0\">Wandern (bis T3)<\/option><option value=\"1\">Hochalpin (T4–T6)<\/option><option value=\"2\">Klettersteig<\/option><option value=\"3\">Skitour<\/option><option value=\"4\">Nur Weg in Gipfelnähe<\/option><option value=\"none\">Kein Weg, keine Route erfasst<\/option><\/select><\/div>\n      <div class=\"f\"><label for=\"book\">Gipfelbuch<\/label><select id=\"book\"><option value=\"\">Alle Gipfel<\/option><option value=\"done\">Bestiegen<\/option><option value=\"todo\">Noch nicht bestiegen<\/option><option value=\"wish\">Wunschliste<\/option><\/select><\/div>\n      <div class=\"f\"><span class=\"lab\">In meiner Nähe<\/span><div class=\"hrow\"><button class=\"nearbtn\" id=\"near\" type=\"button\">Standort verwenden<\/button><select id=\"radius\" aria-label=\"Umkreis\" hidden><option value=\"\">beliebig weit<\/option><option value=\"10\">10 km<\/option><option value=\"25\">25 km<\/option><option value=\"50\">50 km<\/option><option value=\"100\">100 km<\/option><\/select><\/div><\/div>\n      <div class=\"f wide note\" id=\"nearmsg\" hidden><\/div>\n    <\/div>\n    <div class=\"status\">\n      <span><strong id=\"count\">–<\/strong> Gipfel<\/span>\n      <button class=\"reset\" id=\"reset\" type=\"button\" hidden>Filter zurücksetzen<\/button>\n      <select id=\"sort\" aria-label=\"Sortierung\">\n        <option value=\"hd\">Höchste zuerst<\/option>\n        <option value=\"ha\">Niedrigste zuerst<\/option>\n        <option value=\"na\">Name A–Z<\/option>\n        <option value=\"near\">Nächste zuerst<\/option>\n      <\/select>\n    <\/div>\n    <div class=\"list\" id=\"list\" tabindex=\"0\"><div class=\"spacer\" id=\"spacer\"><\/div><\/div>\n    <footer class=\"foot\" id=\"foot\" hidden><\/footer>\n    <div class=\"detail\" id=\"detail\" hidden><\/div>\n    <div class=\"detail\" id=\"bookpanel\" hidden><\/div>\n    <div class=\"loading\" id=\"loading\">Gipfeldaten werden geladen …<\/div>\n  <\/section>\n\n  <section class=\"mapwrap\" id=\"mapwrap\">\n    <div id=\"map\"><\/div>\n    <div class=\"legend\" id=\"legendbox\" data-open=\"true\"><button type=\"button\" class=\"legtoggle\" id=\"legtoggle\" aria-expanded=\"true\" aria-controls=\"legbody\">Legende<\/button><div class=\"lrow note\" id=\"tmsg\" role=\"status\" hidden><\/div><div class=\"legbody\" id=\"legbody\"><div class=\"lrow\" id=\"legend\"><\/div><div class=\"lrow\" id=\"tlegend\" hidden><\/div><label class=\"lrow hutrow\"><input type=\"checkbox\" id=\"huts\" checked><i class=\"sq\"><\/i>Hütten anzeigen (ab mittlerer Zoomstufe)<\/label><\/div><\/div>\n    <div class=\"tip\" id=\"tip\" hidden><\/div>\n    <div class=\"view3d\" id=\"view3d\" hidden><div id=\"v3map\"><\/div><button class=\"back\" id=\"v3close\" type=\"button\">← Zur flachen Karte<\/button><div class=\"v3hint\">Ziehen: verschieben · rechte Maustaste oder zwei Finger: drehen und kippen<\/div><div class=\"v3msg\" id=\"v3msg\" role=\"status\"><\/div><\/div>\n  <\/section>\n<\/div>\n";
 if ($('app-root')) $('app-root').innerHTML = SHELL;
 // Hosted on a web server each summit has its own address; the single-file build keeps everything on one page.
 const HOSTED = !$('data-peaks') && location.protocol.startsWith('http');
@@ -96,6 +96,8 @@ function apply() {
   idx = out;
   $('count').textContent = fmt.format(out.length) + (out.length === N ? '' : ' von ' + fmt.format(N));
   $('reset').hidden = !(q || hmin != null || hmax != null || c != null || s != null || g != null || kind !== '' || bk || rad != null);
+  const nAct = [hmin != null || hmax != null, c != null, s != null, g != null, kind !== '', !!bk, rad != null].filter(Boolean).length;
+  $('fcount').hidden = !nAct; $('fcount').textContent = nAct;
   [...$('bands').children].forEach(btn => {
     const b = BANDS[+btn.dataset.i];
     btn.setAttribute('aria-pressed', String((hmin ?? 0) === b[0] && (hmax ?? 9999) === b[1]));
@@ -108,7 +110,8 @@ function fitToFilter() {
   if (!map || !idx.length || idx.length === N) return;
   const P = D.peaks; let a = 90, b = 180, c = -90, d = -180;
   for (const i of idx) { const la = P.la[i], lo = P.lo[i]; if (la < a) a = la; if (la > c) c = la; if (lo < b) b = lo; if (lo > d) d = lo; }
-  map.fitBounds([[a, b], [c, d]], { padding: [30, 30], maxZoom: 13 });
+  const cover = MOBILE() ? Math.min(sheetPx($('app').dataset.sheet || 'half'), $('mapwrap').clientHeight - 120) : 0;
+  map.fitBounds([[a, b], [c, d]], { paddingTopLeft: [30, 30], paddingBottomRight: [30, 30 + Math.max(0, cover)], maxZoom: 13 });
 }
 
 /* ---------- list (windowed) ---------- */
@@ -144,6 +147,41 @@ function dms(v, pos, neg) {
   const a = Math.abs(v), d = Math.floor(a), m = Math.floor((a - d) * 60), s = ((a - d) * 60 - m) * 60;
   return `${d}° ${String(m).padStart(2, '0')}′ ${s.toFixed(1).padStart(4, '0')}″ ${v >= 0 ? pos : neg}`;
 }
+/* ---------- Camptocamp route titles: common French, Italian and English terms in German ---------- */
+// Translates the common French, Italian and English terms in Camptocamp route titles into German.
+const DIRS = { N: 'Nord', S: 'Süd', E: 'Ost', W: 'West', O: 'West', NE: 'Nordost', NO: 'Nordwest', NW: 'Nordwest', SE: 'Südost', SO: 'Südwest', SW: 'Südwest' };
+const NOUNS = { face: ['wand', 'die'], paroi: ['wand', 'die'], parete: ['wand', 'die'], 'arête': ['grat', 'den'], arete: ['grat', 'den'], 'crête': ['grat', 'den'], cresta: ['grat', 'den'], ridge: ['grat', 'den'],
+  versant: ['flanke', 'die'], versante: ['flanke', 'die'], flanc: ['flanke', 'die'], couloir: ['rinne', 'die'], canale: ['rinne', 'die'], canalone: ['rinne', 'die'], gully: ['rinne', 'die'],
+  pilier: ['pfeiler', 'den'], pilastro: ['pfeiler', 'den'], 'éperon': ['sporn', 'den'], sperone: ['sporn', 'den'], spigolo: ['kante', 'die'], glacier: ['gletscher', 'den'], ghiacciaio: ['gletscher', 'den'] };
+const NOUN = Object.keys(NOUNS).join('|'), DIR = Object.keys(DIRS).sort((a, b) => b.length - a.length).join('|');
+const ART = "(?:le |la |les |l'|l’|il |lo |i |gli |the )?";
+function deTitle(t) {
+  let s = ' ' + t.trim() + ' ';
+  const compound = (noun, dir) => DIRS[dir] + NOUNS[noun.toLowerCase()][0];
+  // "par le versant SE" -> "über die Südostflanke"
+  s = s.replace(new RegExp(`\\b(?:par|per|via)\\s+${ART}(${NOUN})\\s+(${DIR})(?![\\wÀ-ÿ])`, 'giu'), (m, n, d) => DIRS[d] ? ` über ${NOUNS[n.toLowerCase()][1]} ${compound(n, d)}` : m);
+  // "Face N", "l'arête SW" -> "Nordwand", "Südwestgrat"
+  s = s.replace(new RegExp(`(^|[\\s(\\-–>])${ART}(${NOUN})\\s+(${DIR})(?![\\wÀ-ÿ])`, 'giu'), (m, pre, n, d) => DIRS[d] ? pre + compound(n, d) : m);
+  // English "SW ridge", "N face"
+  s = s.replace(new RegExp(`(^|\\s)(${DIR})\\s+(face|ridge|gully|couloir)\\b`, 'gu'), (m, pre, d, n) => pre + compound(n, d));
+  // "Arête du Hörnli" -> "Hörnligrat", "Couloir Coolidge" -> "Coolidge-Rinne"
+  s = s.replace(/(^|[\s(])(?:l'|l’)?([Aa]rête|[Cc]resta|[Cc]rête)\s+(?:du |de la |des |de l'|del |della |dei )([A-ZÄÖÜ][\wäöüß]+)(?=[\s,.)]|$)/gu, (m, pre, n, x) => pre + x + 'grat');
+  s = s.replace(/(^|\s)([Cc]ouloir|[Cc]anale)\s+([A-Z][\wäöüß]+)(?=[\s,.)]|$)/gu, (m, pre, n, x) => DIRS[x] ? m : pre + x + '-Rinne');
+  const rep = [
+    [/\b(?:voie|via) normale\b/giu, 'Normalweg'], [/\bitinéraire normal(?:e)?\b/giu, 'Normalweg'], [/\b(?:normal|standard) (?:route|ascent)\b/giu, 'Normalweg'],
+    [/\btravers(?:ée|ata|e)\b/giu, 'Überschreitung'], [/\btravers(?:ées|ate)\b/giu, 'Überschreitungen'],
+    [/(^|\s)en boucle\b/giu, '$1Rundtour'], [/\b(?:boucle|giro ad anello|anello|circuit|loop)\b/giu, 'Rundtour'],
+    [/\bretour par\b/giu, 'Rückweg über'], [/\b(?:descente par|discesa per|discesa da)\b/giu, 'Abstieg über'], [/\b(?:montée par|salita per|salita da)\b/giu, 'Aufstieg über'],
+    [/\bdepuis (?:le |la |les |l'|l’)?/giu, 'von '], [/\b(?:dalla|dallo|dal|dai|dagli|dall'|dall’) ?/gu, 'von '], [/(^|\s)da (?=[A-ZÄÖÜ])/gu, '$1von '], [/\bfrom\b/giu, 'von'],
+    [/\bpar (?:le |la |les |l'|l’)?/giu, 'über '], [/\bper (?:il |la |lo |le |i |gli |l'|l’)?/giu, 'über '],
+    [/\b(?:hiver|inverno)\b/giu, 'Winter'], [/(^|\s)été(?=\s|$)/giu, '$1Sommer'], [/\bdirecte\b/giu, 'Direkte'], [/\bintégrale\b/giu, 'Integrale'],
+    [/ (?:et|ed) /gu, ' und '], [/\s+/g, ' ']
+  ];
+  for (const [re, to] of rep) s = s.replace(re, to);
+  s = s.trim();
+  return s ? s[0].toUpperCase() + s.slice(1) : t;
+}
+
 /* ---------- ways and routes to the summit ---------- */
 const KINDS = ['Wandern', 'Hochalpin', 'Klettersteig', 'Skitour'];
 const KIND_HINT = ['Wanderwege und -routen bis T3 oder ohne Schwierigkeitsangabe', 'Alpinwanderwege T4–T6, Hochtouren und Klettereien', 'Gesicherte Steige mit Drahtseil, Klettersteigset nötig', 'Skitouren und Schneeschuhrouten im Winter'];
@@ -160,7 +198,7 @@ function routesHtml(i, d) {
     osm[cat].push(`<li>${esc(name || (cat === 2 ? 'Klettersteig ohne Namen' : 'Weg ohne Namen'))}<small>${gradeLabel(cat, grade, vf) || 'ohne Schwierigkeitsangabe'}</small></li>`);
   });
   (d.cc || []).forEach(([id, title, cat, act, rating, up]) => {
-    c2c[cat].push(`<li><a href="https://www.camptocamp.org/routes/${id}" target="_blank" rel="noopener">${esc(title || 'Route ohne Namen')}</a>` +
+    c2c[cat].push(`<li><a href="https://www.camptocamp.org/routes/${id}" target="_blank" rel="noopener"${title && deTitle(title) !== title.trim() ? ` title="Originaltitel: ${esc(title)}"` : ''}>${esc(title ? deTitle(title) : 'Route ohne Namen')}</a>` +
       `<small>${[D.c2cActs[act], rating, up ? fmt.format(up) + ' Hm Aufstieg' : ''].filter(Boolean).map(esc).join(' · ')}</small></li>`);
   });
   const near = d.nr || [], total = osm.concat(c2c).reduce((s, g) => s + g.length, 0);
@@ -215,8 +253,8 @@ async function qlever(query) {                      // rows of a SPARQL result, 
 }
 const wktLine = wkt => { const ll = []; wkt.replace(/(-?\d+\.?\d*) (-?\d+\.?\d*)/g, (m, lon, lat) => { ll.push([+lat, +lon]); }); return ll; };
 const wayId = iri => +iri.slice(iri.lastIndexOf('/') + 1);
-function trailMsg(text) { const el = $('tlegend'); el.hidden = !text; el.textContent = text; }
-function clearTrails() { trailsFor = -1; if (trailLayer) { trailLayer.clearLayers(); hiLayer.clearLayers(); } if ($('tlegend')) trailMsg(''); }
+function trailMsg(text) { const el = $('tmsg'); el.hidden = !text; el.textContent = text; }
+function clearTrails() { trailsFor = -1; if (trailLayer) { trailLayer.clearLayers(); hiLayer.clearLayers(); } if ($('tlegend')) { trailMsg(''); $('tlegend').hidden = true; } }
 async function fetchTrails(i) {                     // -> { ways: [{ id, t: tags, ll }], marked: Set of way ids, or null while still loading }
   const P = D.peaks, id = P.id[i];
   let empty = false;
@@ -245,7 +283,7 @@ function drawTrails(data) {
   lines.sort((x, y) => x.rank - y.rank);
   lines.forEach(l => { if (!l.track) L.polyline(l.ll, { color: cssColors['--surface'], weight: l.style.weight + 2.4, opacity: .85, interactive: false }).addTo(trailLayer); });
   lines.forEach(l => L.polyline(l.ll, l.style).bindTooltip(l.label, { sticky: true }).addTo(trailLayer));
-  const el = $('tlegend'); el.hidden = false;
+  trailMsg(''); const el = $('tlegend'); el.hidden = false;
   el.innerHTML = lines.length ? `<span><i class="ln" style="background:var(--tw)"></i>Wandern</span><span><i class="ln" style="background:var(--ta)"></i>Hochalpin T4–T6</span>` +
     `<span><i class="ln" style="background:var(--tk)"></i>Klettersteig</span><span><i class="ln" style="background:var(--tt)"></i>Fahrweg</span><span>${data.marked ? 'dick = markierte Route' : 'markierte Routen werden geladen …'}</span>` : 'Im Umkreis von 2 km ist kein Weg erfasst.';
 }
@@ -311,7 +349,7 @@ function startHtml(d) {
     `<a class="onmap" href="https://www.google.com/maps/dir/?api=1&destination=${la},${lo}" target="_blank" rel="noopener">Anfahrt</a>` +
     `<small>${kind ? START_KIND[kind] + ' · ' : ''}${n1(dist)} km Luftlinie zum Gipfel</small></li>`;
   const pk = d.pk || [], st = d.st || [];
-  if (!pk.length && !st.length) return '';
+  if (!pk.length && !st.length) return `<p class="note">Im Umkreis von 12 km ist kein öffentlicher Parkplatz und keine Haltestelle erfasst.</p>`;
   return `<section class="ways"><h3 class="h3">Ausgangspunkte in der Nähe</h3>` +
     (pk.length ? `<div class="kind"><div class="kh"><span class="kb kp">P</span><small>Nächste öffentliche Parkplätze</small></div><ul class="rts">${pk.map(item).join('')}</ul></div>` : '') +
     (st.length ? `<div class="kind"><div class="kh"><span class="kb kh2">H</span><small>Nächste Haltestellen</small></div><ul class="rts">${st.map(item).join('')}</ul></div>` : '') +
@@ -334,6 +372,13 @@ function showDetail(i, fromMap, noPush) {
   detailOf(i).then(d => { if (selected === i) renderDetail(i, fromMap, d); },
     () => { if (selected === i && $('dload')) $('dload').textContent = 'Die Angaben zu diesem Gipfel konnten nicht geladen werden. Prüfe die Verbindung und öffne den Gipfel noch einmal.'; });
 }
+let detailTab = 'over';
+function setTab(k, user) {
+  detailTab = k;
+  document.querySelectorAll('#detail .dtabs button').forEach(b => { const on = b.dataset.k === k; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; });
+  document.querySelectorAll('#detail .dpanel').forEach(p => { p.hidden = p.id !== 'dp-' + k; });
+  if (user) { const el = $('detail'), t = el.querySelector('.dtabs'), top = t.offsetTop - parseFloat(getComputedStyle(el).paddingTop); if (el.scrollTop > top) el.scrollTop = top; }
+}
 function renderDetail(i, fromMap, d) {
   const P = D.peaks, e = P.e[i], la = P.la[i], lo = P.lo[i];
   const pl = placeNames(i);
@@ -347,12 +392,16 @@ function renderDetail(i, fromMap, d) {
   const wp = d.wp;
   let wpLink = '';
   if (wp) { const k = wp.indexOf(':'); wpLink = `<a href="https://${esc(wp.slice(0, k))}.wikipedia.org/wiki/${encodeURIComponent(wp.slice(k + 1).replace(/ /g, '_'))}" target="_blank" rel="noopener">Wikipedia</a>`; }
-  const el = $('detail');
+  const el = $('detail'), nR = (d.rt || []).length + (d.ap || []).length + (d.cc || []).length, nS = (d.pk || []).length + (d.st || []).length;
+  const tabs = [['over', 'Übersicht', ''], ['routes', 'Routen', nR || ''], ['wx', 'Wetter', ''], ['go', 'Anfahrt', nS || '']];
   el.innerHTML =
     `<button class="back" id="back" type="button">← Zur Liste</button>` +
     `<div><h2>${esc(P.n[i])}</h2>${P.an[i] ? `<div class="alt">auch: ${esc(P.an[i])}</div>` : ''}</div>` +
     `<div class="summit"><span class="big">${e == null ? '–' : fmt.format(e)}</span><span class="unit">m Höhe</span>` +
     (e != null ? `<span class="rank">Rang ${fmt.format(rankByEle[i])}<br>von ${fmt.format(N)} Gipfeln</span>` : `<span class="rank">Höhe in OpenStreetMap<br>nicht eingetragen</span>`) + `</div>` +
+    `<button type="button" class="wxnow" id="wxnow"><span class="lab">Heute am Gipfel</span><span id="wxnowt">Wetter wird geladen …</span></button>` +
+    `<div class="dtabs" role="tablist" aria-label="Angaben zum Gipfel">${tabs.map(([k, t, n]) => `<button type="button" role="tab" id="dt-${k}" aria-controls="dp-${k}" data-k="${k}">${t}${n ? `<span>${n}</span>` : ''}</button>`).join('')}</div>` +
+    `<section class="dpanel" role="tabpanel" id="dp-over" aria-labelledby="dt-over">` +
     `<div class="bookrow" id="bookrow"></div>` +
     `<dl class="facts">` +
     (me ? `<dt>Entfernung</dt><dd>${km(distKm[i])} Luftlinie von deinem Standort</dd>` : '') +
@@ -361,12 +410,23 @@ function renderDetail(i, fromMap, d) {
     `<dt>Bundesland / Region</dt><dd>${esc(pl.s || '–')}</dd>` +
     `<dt>Gebirgsgruppe</dt><dd>${esc(pl.g || 'Ohne Zuordnung')}${sub ? `<small>Untergruppe: ${esc(sub)}</small>` : ''}</dd>` +
     (d.p ? `<dt>Schartenhöhe</dt><dd>${fmt.format(d.p)} m</dd>` : '') +
+    `<dt>Wege und Routen</dt><dd>${nR ? `${nR} erfasst · <button type="button" class="linkbtn" data-goto="routes">ansehen</button>` : 'keine erfasst'}</dd>` +
     `</dl>` +
     `<div class="links"><button type="button" id="zoomto">Auf Karte zeigen</button>${HOSTED ? '<button type="button" id="show3d">3D-Ansicht</button><button type="button" id="share">Link kopieren</button>' : ''}` +
     `<a href="https://www.openstreetmap.org/node/${P.id[i]}" target="_blank" rel="noopener">OpenStreetMap</a>${wpLink}` +
-    `<a href="https://www.opentopomap.org/#marker=15/${la}/${lo}" target="_blank" rel="noopener">Topokarte</a></div>` +
-    routesHtml(i, d) + startHtml(d) +
-    `<section class="wx" id="wx"><h3>Wetter am Gipfel, nächste 7 Tage</h3><div id="wxbody" class="note">Vorhersage wird geladen …</div></section>`;
+    `<a href="https://www.opentopomap.org/#marker=15/${la}/${lo}" target="_blank" rel="noopener">Topokarte</a></div></section>` +
+    `<section class="dpanel" role="tabpanel" id="dp-routes" aria-labelledby="dt-routes">${routesHtml(i, d)}</section>` +
+    `<section class="dpanel" role="tabpanel" id="dp-wx" aria-labelledby="dt-wx"><section class="wx" id="wx"><h3>Wetter am Gipfel, nächste 7 Tage</h3><div id="wxbody" class="note">Vorhersage wird geladen …</div></section></section>` +
+    `<section class="dpanel" role="tabpanel" id="dp-go" aria-labelledby="dt-go">${startHtml(d)}</section>`;
+  setTab(detailTab, false);
+  el.querySelectorAll('.dtabs button').forEach(btn => { btn.onclick = () => setTab(btn.dataset.k, true); });
+  el.querySelector('.dtabs').onkeydown = ev => {
+    const keys = tabs.map(t => t[0]), k = keys.indexOf(detailTab);
+    const to = ev.key === 'ArrowRight' ? keys[(k + 1) % keys.length] : ev.key === 'ArrowLeft' ? keys[(k + keys.length - 1) % keys.length] : ev.key === 'Home' ? keys[0] : ev.key === 'End' ? keys[keys.length - 1] : null;
+    if (to) { ev.preventDefault(); setTab(to, true); $('dt-' + to).focus(); }
+  };
+  el.querySelectorAll('[data-goto]').forEach(btn => { btn.onclick = () => setTab(btn.dataset.goto, true); });
+  $('wxnow').onclick = () => setTab('wx', true);
   el.hidden = false; el.scrollTop = 0;
   loadWeather(i);
   $('back').onclick = () => closeDetail();
@@ -376,12 +436,12 @@ function renderDetail(i, fromMap, d) {
     const done = () => { ev.target.textContent = 'Link kopiert'; setTimeout(() => { ev.target.textContent = 'Link kopieren'; }, 1800); };
     navigator.clipboard.writeText(location.origin + peakUrl(i)).then(done).catch(() => { ev.target.textContent = location.origin + peakUrl(i); });
   };
-  $('zoomto').onclick = () => { close3d(); setView('map'); map.setView([la, lo], Math.max(map.getZoom(), 13)); };
-  if (!fromMap && map) map.setView([la, lo], Math.max(map.getZoom(), HOSTED ? 13 : 12));
+  $('zoomto').onclick = () => { close3d(); setView('map'); centerOn(la, lo, Math.max(map.getZoom(), 13)); };
+  if (MOBILE()) setSheet(fromMap ? 'half' : 'full');
+  if (map && (!fromMap || MOBILE())) centerOn(la, lo, fromMap ? map.getZoom() : Math.max(map.getZoom(), HOSTED ? 13 : 12));
   el.querySelectorAll('.onmap').forEach(b => { b.onclick = () => showRouteOnMap(b.dataset.rel, b); });
   if (trailsFor !== i) clearTrails();
   loadTrails(i);
-  if (fromMap && innerWidth <= 760) setView('list');
   if (peakLayer) peakLayer.redraw();
   renderList();
 }
@@ -410,12 +470,21 @@ async function loadWeather(i) {
       if (!r.ok) throw new Error(r.status);
       data = await r.json(); wxCache.set(i, data);
     } catch (err) {
+      if (selected === i && $('wxnowt')) $('wxnowt').textContent = 'Wetter gerade nicht verfügbar';
       if (selected === i && $('wxbody')) $('wxbody').innerHTML = (HOSTED ? 'Der Wetterdienst ist gerade nicht erreichbar. Öffne den Gipfel in ein paar Minuten noch einmal. ' : 'Die Vorhersage konnte nicht geladen werden. Innerhalb von claude.ai darf die Seite keine Wetterdaten abrufen; auf der eigenen Webadresse erscheint sie hier. ') + windy;
       return;
     }
   }
   if (selected !== i || !$('wxbody')) return;
   const d = data.daily, h = data.hourly;
+  if ($('wxnowt')) {
+    const warn = [];
+    if (h.weather_code.slice(0, 24).some(c => c >= 95)) warn.push('Gewitter');
+    if (d.wind_gusts_10m_max[0] >= 75) warn.push('Sturmböen');
+    if (d.snowfall_sum[0] >= 10) warn.push('viel Neuschnee');
+    $('wxnowt').innerHTML = `<b>${WMO[d.weather_code[0]] || '–'}</b> · ${n0(d.temperature_2m_min[0])} / ${n0(d.temperature_2m_max[0])} °C · Böen ${n0(d.wind_gusts_10m_max[0])} km/h` +
+      warn.map(w => `<em class="warn">${w}</em>`).join('') + `<span class="more">7 Tage ›</span>`;
+  }
   const days = d.time.map((t, k) => {
     const hs = []; for (let x = k * 24; x < k * 24 + 24 && x < h.time.length; x++) hs.push(x);
     const fl = hs.map(x => h.freezing_level_height[x]).filter(v => v != null);
@@ -524,14 +593,54 @@ function route() {                                  // show what the current add
 
 /* ---------- start page and profile: full-width pages above the list and the map ---------- */
 let pageMode = null;                                 // null = list and map, 'home', 'profile'
+function markNav() {
+  const cur = pageMode === 'home' ? 'navstart' : pageMode === 'profile' ? 'openprofile' : !$('bookpanel').hidden ? 'openbook' : 'navexp';
+  ['navstart', 'navexp', 'openbook', 'openprofile'].forEach(id => $(id).setAttribute('aria-current', String(id === cur)));
+}
+/* ---------- phone layout: the list is a sheet over the map (peek, half, full) ---------- */
+const MOBILE = () => matchMedia('(max-width: 760px)').matches;
+function sheetPx(st) { const a = $('mapwrap').clientHeight; return st === 'peek' ? Math.min(132, a) : st === 'half' ? Math.round(a * .52) : a; }
+function setSheet(st) {
+  const app = $('app'); app.dataset.sheet = st; $('side').style.height = '';
+  app.style.setProperty('--cover', MOBILE() ? sheetPx(st) + 'px' : '0px');
+  setTimeout(renderList, 320);
+}
+function centerOn(la, lo, z) {                       // centre a point in the part of the map the sheet leaves free
+  map.setView([la, lo], z, { animate: false });
+  const c = MOBILE() ? Math.min(sheetPx($('app').dataset.sheet || 'half'), $('mapwrap').clientHeight - 80) : 0;
+  if (c > 0) map.panBy([0, c / 2], { animate: false });
+}
+function initSheet() {
+  const grab = $('grab'), side = $('side'), app = $('app'); let y0 = 0, h0 = 0, t0 = 0, moved = false, drag = false;
+  grab.addEventListener('pointerdown', ev => { if (!MOBILE()) return; drag = true; moved = false; y0 = ev.clientY; t0 = Date.now(); h0 = side.offsetHeight; side.classList.add('dragging'); grab.setPointerCapture(ev.pointerId); });
+  grab.addEventListener('pointermove', ev => {
+    if (!drag) return; const dy = ev.clientY - y0; if (Math.abs(dy) > 5) moved = true;
+    const h = Math.max(96, Math.min($('mapwrap').clientHeight, h0 - dy)); side.style.height = h + 'px'; app.style.setProperty('--cover', h + 'px');
+  });
+  const end = ev => {
+    if (!drag) return; drag = false; side.classList.remove('dragging');
+    const h = side.offsetHeight, v = (ev.clientY - y0) / Math.max(1, Date.now() - t0), cur = app.dataset.sheet; let st;
+    if (!moved) st = cur === 'peek' ? 'half' : cur === 'half' ? 'full' : 'half';          // a tap steps up, from full back to half
+    else if (v > .5) st = h > sheetPx('half') ? 'half' : 'peek';                          // quick swipe down
+    else if (v < -.5) st = h < sheetPx('half') ? 'half' : 'full';                         // quick swipe up
+    else st = ['peek', 'half', 'full'].reduce((x, y) => Math.abs(sheetPx(y) - h) < Math.abs(sheetPx(x) - h) ? y : x);
+    setSheet(st);
+  };
+  grab.addEventListener('pointerup', end); grab.addEventListener('pointercancel', end);
+  addEventListener('resize', () => setSheet(app.dataset.sheet || 'half'));
+  setSheet(app.dataset.sheet || 'half');
+}
 function setPage(mode) {
   pageMode = mode; $('page').hidden = !mode; $('app').dataset.page = mode || '';
-  $('navhome').setAttribute('aria-current', String(mode === 'home')); $('navexp').setAttribute('aria-current', String(!mode)); $('openprofile').setAttribute('aria-current', String(mode === 'profile'));
+  markNav();
   if (mode) { $('page').scrollTop = 0; document.title = mode === 'profile' ? 'Profil – Alpengipfel' : 'Alpengipfel'; }
   else if (map) setTimeout(() => map.invalidateSize(), 0);
 }
 const pushUrl = url => { if (HOSTED && location.pathname + location.hash !== url) history.pushState({}, '', url); };
-function explore(noPush) { setPage(null); if (!noPush && selected < 0) pushUrl(ROOT + '#karte'); }
+let explored = false;
+function explore(noPush) { setPage(null);
+  if (MOBILE() && !explored && map && selected < 0 && idx.length === N) setTimeout(() => map.fitBounds(ALPS_BOUNDS, { paddingTopLeft: [10, 10], paddingBottomRight: [10, 10 + Math.min(sheetPx('half'), $('mapwrap').clientHeight - 120)] }), 0);
+  explored = true; if (MOBILE() && selected < 0 && $('bookpanel').hidden && $('app').dataset.sheet === 'full') setSheet('half'); if (!noPush && selected < 0) pushUrl(ROOT + '#karte'); }
 function showHome(noPush) { if (selected >= 0) closeDetail(true); $('bookpanel').hidden = true; setPage('home'); renderHome(); if (!noPush) pushUrl(ROOT); }
 function showProfile(noPush) { if (selected >= 0) closeDetail(true); $('bookpanel').hidden = true; setPage('profile'); renderProfile(); if (!noPush) pushUrl(ROOT + '#profil'); }
 function refreshAccount() { if (pageMode === 'profile') renderProfile(); }
@@ -547,6 +656,26 @@ function preset(f) {                                 // set the filters for a sh
   if (f.kind != null) $('kind').value = f.kind; if (f.country != null) { $('country').value = f.country; fillStates(); } if (f.book) $('book').value = f.book;
   $('sort').value = 'hd'; explore(); apply(); setTimeout(fitToFilter, 60);
 }
+let heroOrder = null;
+function drawHero() {                                // all summits as dots, coloured by height, fitted into the hero
+  const cv = $('herocv'); if (!cv) return;
+  const r = cv.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1), W = Math.round(r.width * dpr), H = Math.round(r.height * dpr);
+  if (!W || !H) return;
+  cv.width = W; cv.height = H; readColors();
+  const c = cv.getContext('2d'), P = D.peaks, KX = Math.cos(46.3 * Math.PI / 180), LON0 = 5.0, LAT1 = 48.45, spanX = 11.7 * KX, spanY = 5.1;
+  const wide = W / H > 1.45, sc = wide ? Math.min(H * .92 / spanY, W * .58 / spanX) : Math.min(W * 1.02 / spanX, H * .62 / spanY);
+  const ox = wide ? W - spanX * sc - W * .01 : (W - spanX * sc) / 2, oy = wide ? (H - spanY * sc) / 2 : H * .03;
+  const pt = (lon, lat) => [ox + (lon - LON0) * KX * sc, oy + (LAT1 - lat) * sc];
+  if (GEO) {
+    c.beginPath(); GEO.alps.forEach(poly => poly.forEach(ring => { ring.forEach((p, k) => { const [x, y] = pt(p[0], p[1]); k ? c.lineTo(x, y) : c.moveTo(x, y); }); c.closePath(); }));
+    c.fillStyle = cssColors['--map-alps']; c.fill('evenodd');
+    c.beginPath(); GEO.lakes.forEach(poly => poly.forEach(ring => { ring.forEach((p, k) => { const [x, y] = pt(p[0], p[1]); k ? c.lineTo(x, y) : c.moveTo(x, y); }); c.closePath(); }));
+    c.fillStyle = cssColors['--map-water']; c.fill('evenodd');
+  }
+  if (!heroOrder) heroOrder = [...Array(N).keys()].sort((a, b) => (P.e[a] ?? -1) - (P.e[b] ?? -1));
+  const s = Math.max(1.2, 1.5 * dpr * sc / (W * .58 / spanX));
+  for (const i of heroOrder) { const [x, y] = pt(P.lo[i], P.la[i]); c.fillStyle = colorOf(P.e[i]); c.fillRect(x - s / 2, y - s / 2, s, s); }
+}
 function renderHome() {
   const P = D.peaks, cnt = fn => { let n = 0; for (let i = 0; i < N; i++) if (fn(i)) n++; return n; };
   const tiles = [
@@ -559,17 +688,19 @@ function renderHome() {
   const lands = D.countries.map((c, i) => [i, c.n, c.count]).filter(x => x[2]).sort((a, b) => b[2] - a[2]);
   const st = bookStats(), name = sbUser ? (sbUser.user_metadata && sbUser.user_metadata.username) || '' : '';
   $('page').innerHTML = `<div class="home">
-    <section class="hero"><p class="eyebrow">${fmt.format(N)} benannte Gipfel · Daten vom ${D.meta.date}</p>
+    <section class="hero"><div class="herobg"><canvas id="herocv" aria-hidden="true"></canvas></div><div class="herotxt"><p class="eyebrow">${fmt.format(N)} benannte Gipfel · Daten vom ${D.meta.date}</p>
       <h2>${name ? `Servus ${esc(name)}, wohin geht es als Nächstes?` : 'Finde deinen nächsten Gipfel in den Alpen'}</h2>
       <div class="hsearch"><input id="hq" type="search" placeholder="Gipfel suchen, z. B. Watzmann" autocomplete="off" aria-label="Gipfel suchen"><div class="hres" id="hres" hidden></div></div>
-      <div class="hact"><button type="button" class="primary" id="hmap">Karte und Liste öffnen</button><button type="button" id="hnear">Gipfel in meiner Nähe</button></div></section>
+      <div class="hact"><button type="button" class="primary" id="hmap">Karte und Liste öffnen</button><button type="button" id="hnear">Gipfel in meiner Nähe</button></div></div></section>
     <section><h3 class="h3">Schnell entdecken</h3><div class="tiles">${tiles.map((t, k) => `<button type="button" class="tile" data-k="${k}" style="--c:var(${t[4]})"><b>${t[0]}</b><span class="tn">${fmt.format(t[1])}</span><small>${t[2]}</small></button>`).join('')}</div></section>
     <section><h3 class="h3">Nach Land</h3><div class="lands">${lands.map(l => `<button type="button" data-c="${l[0]}">${esc(l[1])} <span>${fmt.format(l[2])}</span></button>`).join('')}</div></section>
     <section class="two"><div><h3 class="h3">Die höchsten Gipfel</h3><ol class="toplist">${[0, 1, 2, 3, 4].map(i => `<li><button type="button" data-i="${i}"><b>${esc(P.n[i])}</b><span>${fmt.format(P.e[i])} m</span></button></li>`).join('')}</ol></div>
-      <div class="hcard"><h3 class="h3">Dein Gipfelbuch</h3><p class="hbig">${fmt.format(st.done.length)}<span> bestiegen · ${fmt.format(st.wish)} auf der Wunschliste</span></p>
-        <p class="note">${st.done.length ? `Höchster bisher: ${esc(P.n[st.top] || '–')}${st.top >= 0 ? ', ' + fmt.format(P.e[st.top]) + ' m' : ''}.` : 'Öffne einen Gipfel und trage ihn als bestiegen ein.'}</p>
+      <div class="hcard"><h3 class="h3">Dein Gipfelbuch</h3>${st.done.length || st.wish ? `<p class="hbig">${fmt.format(st.done.length)}<span> bestiegen · ${fmt.format(st.wish)} auf der Wunschliste</span></p>
+        <p class="note">${st.done.length ? `Höchster bisher: ${esc(P.n[st.top] || '–')}${st.top >= 0 ? ', ' + fmt.format(P.e[st.top]) + ' m' : ''}.` : 'Noch kein Gipfel als bestiegen eingetragen.'}</p>`
+        : `<p class="hempty">Noch kein Gipfel eingetragen</p><p class="note">Öffne einen Gipfel und trage ihn als bestiegen ein, zum Beispiel die Zugspitze. Dein Fortschritt erscheint dann hier.</p>`}
         <div class="links"><button type="button" id="hbook">Gipfelbuch öffnen</button>${sb ? `<button type="button" id="hprof">${sbUser ? 'Profil' : 'Anmelden'}</button>` : ''}</div></div></section>
     <footer class="hfoot">${window.AG_SUPPORT ? `<a class="support" href="${esc(window.AG_SUPPORT)}" target="_blank" rel="noopener">Unterstützen</a>` : ''}${window.AG_LEGAL ? `<a href="${ROOT}impressum.html">Impressum</a><a href="${ROOT}datenschutz.html">Datenschutz</a><a href="${ROOT}nutzungsbedingungen.html">Nutzungsbedingungen</a>` : ''}<span>Daten: © OpenStreetMap-Mitwirkende, Camptocamp, Open-Meteo</span></footer></div>`;
+  drawHero();
   $('hmap').onclick = () => explore();
   $('hnear').onclick = () => { explore(); locate(); };
   $('hbook').onclick = showBook; if ($('hprof')) $('hprof').onclick = () => showProfile();
@@ -588,19 +719,30 @@ function renderHome() {
   };
   hq.onkeydown = ev => { if (ev.key === 'Enter') { const first = hres.querySelector('button'); if (first) first.click(); else if (hq.value.trim()) { preset({}); $('q').value = hq.value.trim(); apply(); } } };
 }
+const THEME_KEY = 'alpengipfel.theme';
+function setTheme(t) {
+  if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
+  try { if (t) localStorage.setItem(THEME_KEY, t); else localStorage.removeItem(THEME_KEY); } catch (err) { /* applies to this visit only */ }
+}
 function renderProfile() {
   const P = D.peaks, st = bookStats(), page = $('page');
-  const stats = `<div class="pstats">${[['Bestiegen', fmt.format(st.done.length)], ['Wunschliste', fmt.format(st.wish)], ['Höchster Gipfel', st.top >= 0 ? `${esc(P.n[st.top])}<small>${fmt.format(P.e[st.top])} m</small>` : '–'],
+  const empty = !st.done.length && !st.wish;
+  const stats = empty ? `<div class="emptybox"><h3>Noch keine Gipfel eingetragen</h3><p>Öffne einen Gipfel und trage ihn als bestiegen ein oder setze ihn auf die Wunschliste. Hier erscheinen dann deine Zahlen.</p></div>` : `<div class="pstats">${[['Bestiegen', fmt.format(st.done.length)], ['Wunschliste', fmt.format(st.wish)], ['Höchster Gipfel', st.top >= 0 ? `${esc(P.n[st.top])}<small>${fmt.format(P.e[st.top])} m</small>` : '–'],
     ['Gipfelhöhe gesamt', fmt.format(st.sum) + ' m'], ['Länder', st.countries], ['Gebirgsgruppen', st.groups]].map(s => `<div><span class="lab">${s[0]}</span><b>${s[1]}</b></div>`).join('')}</div>`;
-  const actions = `<div class="links"><button type="button" id="pbook">Gipfelbuch öffnen</button><button type="button" id="pdone">Bestiegene auf der Karte</button><button type="button" id="pwish">Wunschliste zeigen</button></div>`;
+  const actions = empty ? `<div class="links"><button type="button" id="pexp">Gipfel entdecken</button><button type="button" id="pbook">Gipfelbuch öffnen</button></div>`
+    : `<div class="links"><button type="button" id="pbook">Gipfelbuch öffnen</button><button type="button" id="pdone">Bestiegene auf der Karte</button><button type="button" id="pwish">Wunschliste zeigen</button></div>`;
+  const cur = document.documentElement.dataset.theme || '';
+  const theme = HOSTED ? `<section><h3 class="h3">Darstellung</h3><div class="seg3" role="radiogroup" aria-label="Farbschema">${[['', 'Automatisch'], ['light', 'Hell'], ['dark', 'Dunkel']].map(([v, t]) => `<button type="button" role="radio" data-t="${v}" aria-checked="${v === cur}">${t}</button>`).join('')}</div><p class="note">„Automatisch“ folgt der Einstellung deines Geräts.</p></section>` : '';
   let headHtml;
   if (sbUser) {
     const name = (sbUser.user_metadata && sbUser.user_metadata.username) || sbUser.email || '', since = sbUser.created_at ? new Date(sbUser.created_at).toLocaleDateString('de-DE') : '';
     headHtml = `<div class="phead"><div class="avatar" aria-hidden="true">${esc(name.slice(0, 1).toUpperCase())}</div><div><h2>${esc(name)}</h2><p class="note">${esc(sbUser.email || '')}${since ? ' · dabei seit ' + since : ''}</p></div></div>`;
   } else headHtml = `<div class="phead"><div class="avatar" aria-hidden="true">?</div><div><h2>Profil</h2><p class="note">${sb ? 'Du bist nicht angemeldet. Dein Gipfelbuch liegt nur in diesem Browser.' : 'Konten gibt es nur auf alpen-gipfel.de. Hier liegt dein Gipfelbuch in diesem Browser.'}</p></div></div>`;
-  page.innerHTML = `<div class="home profile">${headHtml}<section><h3 class="h3">Deine Gipfel</h3>${stats}${actions}</section><section class="pacct">${accountHtml()}</section></div>`;
+  page.innerHTML = `<div class="home profile">${headHtml}<section><h3 class="h3">Deine Gipfel</h3>${stats}${actions}</section><section class="pacct">${accountHtml()}</section>${theme}</div>`;
   $('pbook').onclick = showBook;
-  $('pdone').onclick = () => preset({ book: 'done' }); $('pwish').onclick = () => preset({ book: 'wish' });
+  if ($('pdone')) { $('pdone').onclick = () => preset({ book: 'done' }); $('pwish').onclick = () => preset({ book: 'wish' }); }
+  if ($('pexp')) $('pexp').onclick = () => showHome();
+  page.querySelectorAll('.seg3 button').forEach(b => { b.onclick = () => { setTheme(b.dataset.t); page.querySelectorAll('.seg3 button').forEach(x => x.setAttribute('aria-checked', String(x === b))); }; });
   wireAccount();
 }
 
@@ -779,24 +921,28 @@ function showBook() {
   const groups = new Set(); doneIdx.forEach(i => arr(P.g[i]).forEach(g => groups.add(g)));
   const recent = doneIdx.slice().sort((a, b) => String(book.done[P.id[b]]).localeCompare(String(book.done[P.id[a]]))).slice(0, 8);
   const dateDe = s => s ? s.split('-').reverse().join('.') : 'ohne Datum';
+  const empty = !doneIdx.length && !wishN;
   el.innerHTML = `<button class="back" id="bookback" type="button">← Zurück</button><div><h2>Gipfelbuch</h2></div>` +
-    `<div class="summit"><span class="big">${fmt.format(doneIdx.length)}</span><span class="unit">Gipfel bestiegen</span>` +
+    (empty ? `<div class="emptybox"><h3>Dein Gipfelbuch ist noch leer</h3><p>Öffne einen Gipfel und tippe auf „Als bestiegen eintragen“. Gipfel, die du noch vorhast, setzt du auf die Wunschliste.</p>` +
+      `<p>Hier siehst du dann deine Statistik: deinen höchsten Gipfel, die Höhenmeter und wie viele Dreitausender du schon hast.</p><div class="links"><button type="button" id="bex1">Zugspitze öffnen</button><button type="button" id="bex2">Gipfel entdecken</button></div></div>` : '') +
+    (empty ? '' :     `<div class="summit"><span class="big">${fmt.format(doneIdx.length)}</span><span class="unit">Gipfel bestiegen</span>` +
     `<span class="rank">${wishN} auf der<br>Wunschliste</span></div>` +
     (doneIdx.length ? `<dl class="facts"><dt>Höchster</dt><dd>${top >= 0 ? esc(P.n[top]) + ', ' + fmt.format(P.e[top]) + ' m' : '–'}</dd>` +
       `<dt>Höhenmeter</dt><dd>${fmt.format(withEle.reduce((s, i) => s + P.e[i], 0))} m Gipfelhöhe zusammengezählt</dd>` +
       `<dt>Gebiete</dt><dd>${countries.size} ${countries.size === 1 ? 'Land' : 'Länder'}, ${groups.size} ${groups.size === 1 ? 'Gebirgsgruppe' : 'Gebirgsgruppen'}</dd></dl>`
       : `<p class="note">Noch kein Eintrag. Öffne einen Gipfel und wähle „Als bestiegen eintragen“ oder „Auf die Wunschliste“.</p>`) +
     `<div class="prog">${BANDS.map((b, k) => `<div><span>${b[3]} m</span><span class="bar"><i style="width:${total[k] ? Math.max(got[k] ? 2 : 0, got[k] / total[k] * 100) : 0}%;background:var(${b[2]})"></i></span><span>${fmt.format(got[k])} von ${fmt.format(total[k])}</span></div>`).join('')}</div>` +
-    (recent.length ? `<div><h3 class="h3">Zuletzt eingetragen</h3><ul class="rts">${recent.map(i => `<li><a href="${HOSTED ? peakUrl(i) : '#'}" data-i="${i}">${esc(P.n[i])}</a> · ${dateDe(book.done[P.id[i]])}</li>`).join('')}</ul></div>` : '') +
-    `<div class="links"><button type="button" id="bshowdone">Bestiegene in der Liste zeigen</button><button type="button" id="bshowwish">Wunschliste zeigen</button>` +
+    (recent.length ? `<div><h3 class="h3">Zuletzt eingetragen</h3><ul class="rts">${recent.map(i => `<li><a href="${HOSTED ? peakUrl(i) : '#'}" data-i="${i}">${esc(P.n[i])}</a> · ${dateDe(book.done[P.id[i]])}</li>`).join('')}</ul></div>` : '')) +
+    `<div class="links">${empty ? '' : '<button type="button" id="bshowdone">Bestiegene in der Liste zeigen</button><button type="button" id="bshowwish">Wunschliste zeigen</button>'}` +
     (HOSTED ? `<button type="button" id="bexport">Sichern (Datei)</button><button type="button" id="bimport">Wiederherstellen</button><input type="file" id="bfile" accept="application/json,.json" hidden>` : '') + `</div>` +
     `<div class="acct"><h3 class="h3">Konto</h3><p class="note">${sbUser ? 'Angemeldet als ' + esc((sbUser.user_metadata && sbUser.user_metadata.username) || sbUser.email || '') + '.' : 'Mit einem Konto bleibt dein Gipfelbuch gespeichert und ist auf jedem Gerät dasselbe.'}</p><div class="links"><button type="button" id="toprofile">${sbUser ? 'Zum Profil' : 'Anmelden oder Konto anlegen'}</button></div></div>` +
     `<p class="note" id="bookmsg">${sbUser ? 'Dein Gipfelbuch liegt in deinem Konto und zusätzlich in diesem Browser.' : 'Ohne Anmeldung wird das Gipfelbuch nur in diesem Browser auf diesem Gerät gespeichert.'}${HOSTED ? ' Mit „Sichern“ kannst du es als Datei ablegen und auf einem anderen Gerät wiederherstellen.' : ''}</p>`;
-  el.hidden = false; el.scrollTop = 0; setView('list');
-  $('bookback').onclick = () => { el.hidden = true; };
+  el.hidden = false; el.scrollTop = 0; setView('list'); markNav();
+  $('bookback').onclick = () => { el.hidden = true; markNav(); };
+  if ($('bex1')) { $('bex1').onclick = () => { const k = indexOfId(27384190); if (k >= 0) { el.hidden = true; markNav(); showDetail(k, false); } }; $('bex2').onclick = () => showHome(); }
   $('toprofile').onclick = () => showProfile();
-  const show = v => { el.hidden = true; if (selected >= 0) closeDetail(); $('book').value = v; apply(); fitToFilter(); };
-  $('bshowdone').onclick = () => show('done'); $('bshowwish').onclick = () => show('wish');
+  const show = v => { el.hidden = true; markNav(); if (selected >= 0) closeDetail(); $('book').value = v; apply(); fitToFilter(); };
+  if ($('bshowdone')) { $('bshowdone').onclick = () => show('done'); $('bshowwish').onclick = () => show('wish'); }
   el.querySelectorAll('a[data-i]').forEach(a => { a.onclick = ev => { ev.preventDefault(); showDetail(+a.dataset.i, false); }; });
   if (HOSTED) {
     $('bexport').onclick = () => {
@@ -839,6 +985,7 @@ function locate() {
 /* ---------- map ---------- */
 function setView(v) {
   $('app').dataset.view = v;
+  if (MOBILE()) setSheet(v === 'map' ? 'peek' : 'full');
   $('tab-list').setAttribute('aria-pressed', String(v === 'list'));
   $('tab-map').setAttribute('aria-pressed', String(v === 'map'));
   if (v === 'map' && map) setTimeout(() => {
@@ -850,7 +997,7 @@ function setView(v) {
 function initMap() {
   if (!window.L) { $('map').innerHTML = '<div class="empty">Die Kartenbibliothek konnte nicht geladen werden. Liste und Filter funktionieren trotzdem.</div>'; return; }
   $('map').setAttribute('role', 'application'); $('map').setAttribute('aria-label', 'Karte der Gipfel, Hütten und Wege. Alle Gipfel sind auch über die Liste erreichbar.');
-  map = L.map('map', { preferCanvas: true, zoomSnap: 0.5, minZoom: 5, maxZoom: 17, maxBounds: [[40.5, -1], [51, 23]] }).fitBounds(ALPS_BOUNDS);
+  map = L.map('map', { preferCanvas: true, zoomSnap: 0.5, minZoom: 5, maxZoom: 17, maxBounds: [[35, -4], [52, 26]] }).fitBounds(ALPS_BOUNDS);
   mapShown = $('map').clientWidth > 0;
   map.attributionControl.setPrefix(false).addAttribution('Daten © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende (ODbL)');
   const baseStyle = () => ({
@@ -951,7 +1098,7 @@ function initMap() {
           if (h[1] < s || h[1] > n || h[0] < w || h[0] > e) return;
           const p = m.latLngToContainerPoint([h[1], h[0]]);
           ctx.beginPath(); ctx.rect(p.x - hs, p.y - hs, hs * 2, hs * 2); ctx.fill(); ctx.stroke();
-          this._huts.push([p.x, p.y, k]); if (z >= 12.5 && named.length < 40) named.push([p.x, p.y, h[2]]);
+          this._huts.push([p.x, p.y, k]); if (z >= 14 && named.length < 24) named.push([p.x, p.y, h[2]]);
         });
         ctx.font = '500 11.5px "Barlow", system-ui, sans-serif';
         named.forEach(([x, y, t]) => label(ctx, t, x, y + hs + 12, cssColors['--hut']));
@@ -963,7 +1110,7 @@ function initMap() {
           ctx.fillStyle = cssColors[kind ? '--stop' : '--park'];
           ctx.beginPath(); ctx.rect(p.x - 7, p.y - 7, 14, 14); ctx.fill(); ctx.stroke();
           ctx.fillStyle = cssColors['--surface']; ctx.fillText(kind ? 'H' : 'P', p.x, p.y + 3.8);
-          if (z >= 12 && name) { ctx.font = '500 11.5px "Barlow", system-ui, sans-serif'; label(ctx, name, p.x, p.y + 20, cssColors[kind ? '--stop' : '--park']); ctx.font = '700 10.5px "Barlow", system-ui, sans-serif'; ctx.lineWidth = 1.5; ctx.strokeStyle = cssColors['--surface']; }
+          if (z >= 13.5 && name) { ctx.font = '500 11.5px "Barlow", system-ui, sans-serif'; label(ctx, name, p.x, p.y + 20, cssColors[kind ? '--stop' : '--park']); ctx.font = '700 10.5px "Barlow", system-ui, sans-serif'; ctx.lineWidth = 1.5; ctx.strokeStyle = cssColors['--surface']; }
         }
       }
       if (me) {
@@ -1018,7 +1165,7 @@ function initMap() {
     tip.style.left = ev.containerPoint.x + 'px'; tip.style.top = ev.containerPoint.y + 'px'; tip.hidden = false;
   });
   map.on('mouseout movestart', () => { tip.hidden = true; });
-  const restyle = () => { readColors(); const s2 = baseStyle(); for (const k in layers) if (map.hasLayer(layers[k])) layers[k].setStyle(s2[k]); peakLayer.redraw(); renderList(); };
+  const restyle = () => { if (pageMode === 'home') drawHero(); readColors(); const s2 = baseStyle(); for (const k in layers) if (map.hasLayer(layers[k])) layers[k].setStyle(s2[k]); peakLayer.redraw(); renderList(); };
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', restyle);
   new MutationObserver(restyle).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 }
@@ -1059,7 +1206,12 @@ async function boot() {
   $('radius').addEventListener('change', () => { apply(); fitToFilter(); });
   $('near').addEventListener('click', locate);
   $('openbook').addEventListener('click', showBook);
-  $('navhome').addEventListener('click', () => showHome()); $('navexp').addEventListener('click', () => explore()); $('openprofile').addEventListener('click', () => showProfile());
+  $('navhome').addEventListener('click', () => showHome()); $('navstart').addEventListener('click', () => showHome());
+  $('ftoggle').onclick = () => { const f = $('filters'), open = !f.classList.contains('open'); f.classList.toggle('open', open); $('ftoggle').setAttribute('aria-expanded', String(open)); if (open && MOBILE()) setSheet('full'); };
+  let legOpen = !MOBILE(); try { const v = localStorage.getItem('alpengipfel.legende'); if (v) legOpen = v === '1'; } catch (err) { /* default */ }
+  const setLeg = open => { legOpen = open; $('legendbox').dataset.open = String(open); $('legtoggle').setAttribute('aria-expanded', String(open)); };
+  setLeg(legOpen); $('legtoggle').onclick = () => { setLeg(!legOpen); try { localStorage.setItem('alpengipfel.legende', legOpen ? '1' : '0'); } catch (err) { /* not remembered */ } };
+  initSheet(); $('navexp').addEventListener('click', () => explore()); $('openprofile').addEventListener('click', () => showProfile());
   $('v3close').addEventListener('click', close3d);
   $('huts').checked = showHuts;
   $('huts').addEventListener('change', () => { showHuts = $('huts').checked; try { localStorage.setItem('alpengipfel.huts', showHuts ? '1' : '0'); } catch (err) { /* not remembered */ } if (map) map.closePopup(); if (peakLayer) peakLayer.redraw(); });
@@ -1070,13 +1222,13 @@ async function boot() {
   let raf = 0;
   $('list').addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; renderList(); }); });
   $('list').addEventListener('click', ev => { const b = ev.target.closest('.row'); if (b) showDetail(+b.dataset.i, false); });
-  addEventListener('resize', renderList);
+  addEventListener('resize', () => { renderList(); if (pageMode === 'home') drawHero(); });
   $('tab-list').onclick = () => setView('list');
   $('tab-map').onclick = () => setView('map');
   apply();
   $('loading').hidden = true;
-  if (HOSTED) { addEventListener('popstate', route); route(); } else showHome(true);
   initAccount();
+  if (HOSTED) { addEventListener('popstate', route); route(); } else showHome(true);
   if (HOSTED && 'serviceWorker' in navigator) navigator.serviceWorker.register(ROOT + 'sw.js').catch(() => { /* the app works without it */ });
   if (window.AG_LEGAL) { $('foot').hidden = false; $('foot').innerHTML = `${window.AG_SUPPORT ? `<a class="support" href="${esc(window.AG_SUPPORT)}" target="_blank" rel="noopener">Unterstützen</a>` : ''}<a href="${ROOT}impressum.html">Impressum</a><a href="${ROOT}datenschutz.html">Datenschutz</a><a href="${ROOT}nutzungsbedingungen.html">Nutzungsbedingungen</a><span>Daten: © OpenStreetMap-Mitwirkende, Camptocamp, Open-Meteo</span>`; }
 }

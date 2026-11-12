@@ -45,6 +45,7 @@ LEGAL = json.load(open('src/legal.json')) if os.path.exists('src/legal.json') el
 def legal_page(title, body):
     return ('<!doctype html>\n<html lang="de">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n'
             f'<title>{title} – Alpengipfel</title>\n<meta name="robots" content="noindex">\n<link rel="stylesheet" href="assets/fonts.css">\n<link rel="stylesheet" href="assets/app.css">\n'
+            '<script>try{var t=localStorage.getItem(\'alpengipfel.theme\');if(t)document.documentElement.setAttribute(\'data-theme\',t)}catch(e){}</script>\n'
             '<style>html{color-scheme:light}body{margin:0}</style>\n</head>\n<body>\n'
             f'<article class="static legal"><p><a href="./">← Alpengipfel</a></p>{body}</article>\n</body>\n</html>\n')
 for name, title in (('impressum', 'Impressum'), ('datenschutz', 'Datenschutzerklärung'), ('nutzungsbedingungen', 'Nutzungsbedingungen')):
@@ -72,6 +73,7 @@ def page(base, title, desc, canonical, static, extra_head='', peak=None):
             '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
             f'<title>{E(title)}</title>\n<meta name="description" content="{E(desc)}">\n<link rel="canonical" href="{canonical}">\n'
             f'<meta property="og:title" content="{E(title)}">\n<meta property="og:description" content="{E(desc)}">\n{extra_head}'
+            '<script>try{var t=localStorage.getItem(\'alpengipfel.theme\');if(t)document.documentElement.setAttribute(\'data-theme\',t)}catch(e){}</script>\n'
             f'<link rel="manifest" href="{base}manifest.webmanifest">\n<meta name="theme-color" content="#1d2623">\n<link rel="apple-touch-icon" href="{base}assets/icon-180.png">\n<link rel="icon" href="{base}assets/icon-192.png">\n'
             f'<link rel="stylesheet" href="{base}assets/fonts.css">\n<link rel="stylesheet" href="{base}assets/app.css">\n'
             '<style>html{color-scheme:light}body{margin:0}[hidden]{display:none!important}</style>\n</head>\n<body>\n'
