@@ -67,7 +67,16 @@ def slug(i):
     s = re.sub('[^a-z0-9]+', '-', s)[:60].strip('-')
     return f"{s or 'gipfel'}-{P['id'][i]}"
 
+OG = set(os.listdir('docs/og')) if os.path.isdir('docs/og') else set()
+def og_tags(title, desc, url, image_id=None, alt=''):
+    img = f'og/{image_id}.jpg' if image_id and f'{image_id}.jpg' in OG else 'og/alpengipfel.jpg'
+    if 'alpengipfel.jpg' not in OG and img == 'og/alpengipfel.jpg': return ''
+    return (f'<meta property="og:type" content="website">\n<meta property="og:site_name" content="Alpengipfel">\n<meta property="og:locale" content="de_DE">\n'
+            f'<meta property="og:url" content="{url}">\n<meta property="og:image" content="{SITE_URL}{img}">\n<meta property="og:image:width" content="1200">\n<meta property="og:image:height" content="630">\n'
+            f'<meta property="og:image:alt" content="{E(alt or title)}">\n<meta name="twitter:card" content="summary_large_image">\n<meta name="twitter:title" content="{E(title)}">\n'
+            f'<meta name="twitter:description" content="{E(desc)}">\n<meta name="twitter:image" content="{SITE_URL}{img}">\n')
 def page(base, title, desc, canonical, static, extra_head='', peak=None):
+    extra_head = og_tags(title, desc, canonical, peak, title) + extra_head
     boot = f"<script>window.AG_BASE={json.dumps(base)};" + (f"window.AG_PEAK={peak};" if peak else '') + ('window.AG_LEGAL=1;' if LEGAL else '') + (f"window.AG_SUPPORT={json.dumps(LEGAL['support_url'])};" if LEGAL and LEGAL.get('support_url') else '') + "</script>"
     return ('<!doctype html>\n<html lang="de">\n<head>\n<meta charset="utf-8">\n'
             '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
@@ -184,7 +193,7 @@ def hub_page(path, title, desc, body, depth=1):
     base = '../' * depth
     head = ('<!doctype html>\n<html lang="de">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n'
             f'<title>{E(title)}</title>\n<meta name="description" content="{E(desc)}">\n<link rel="canonical" href="{SITE_URL}{path}">\n'
-            f'<meta property="og:title" content="{E(title)}">\n<meta property="og:description" content="{E(desc)}">\n'
+            f'<meta property="og:title" content="{E(title)}">\n<meta property="og:description" content="{E(desc)}">\n' + og_tags(title, desc, SITE_URL + path) +
             '<script>try{var t=localStorage.getItem(\'alpengipfel.theme\');if(t)document.documentElement.setAttribute(\'data-theme\',t)}catch(e){}</script>\n'
             f'<link rel="icon" href="{base}assets/icon-192.png">\n<link rel="stylesheet" href="{base}assets/fonts.css">\n<link rel="stylesheet" href="{base}assets/app.css">\n'
             '<style>body{margin:0}</style>\n</head>\n<body class="hubbody">\n')

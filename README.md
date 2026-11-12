@@ -54,6 +54,7 @@ pip install shapely numpy
 python3 scripts/fetch_qlever.py   # lädt OpenStreetMap-Rohdaten nach data/raw/q (vorhandene Dateien werden übersprungen)
 python3 scripts/fetch_c2c.py      # lädt Camptocamp-Routen und -Gipfel nach data/raw/c2c
 python3 scripts/build_data.py     # erzeugt docs/data/peaks.json und docs/data/geo.json
+python3 scripts/build_og.py       # Vorschaubilder für geteilte Links (docs/og), nur neue werden gezeichnet
 python3 scripts/build_page.py     # erzeugt docs/index.html, docs/assets, die Gipfelseiten und die Sitemap aus src/
 ```
 

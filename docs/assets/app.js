@@ -944,7 +944,7 @@ function renderDetail(i, fromMap, d) {
   const el = $('detail'), nR = (d.rt || []).length + (d.ap || []).length + (d.cc || []).length, nS = (d.pk || []).length + (d.st || []).length;
   const tabs = [['over', 'Übersicht', ''], ['routes', 'Routen', HOSTED ? '' : nR || ''], ['wx', 'Wetter', ''], ['go', 'Anfahrt', nS || '']];
   el.innerHTML =
-    `<button class="back" id="back" type="button">← Zur Liste</button>` +
+    `<div class="dtop"><button class="back" id="back" type="button">← Zur Liste</button>${HOSTED ? `<button type="button" class="sharebtn" id="share2" aria-label="${esc(P.n[i])} teilen">${SHARE_ICON}<span>Teilen</span></button>` : ''}</div>` +
     `<div><h2>${esc(P.n[i])}</h2>${P.an[i] ? `<div class="alt">auch: ${esc(P.an[i])}</div>` : ''}</div>` +
     `<div class="summit"><span class="big">${e == null ? '–' : fmt.format(e)}</span><span class="unit">m Höhe</span>` +
     (e != null ? `<span class="rank">Rang ${fmt.format(rankByEle[i])}<br>von ${fmt.format(N)} Gipfeln</span>` : `<span class="rank">Höhe in OpenStreetMap<br>nicht eingetragen</span>`) + `</div>` +
@@ -961,7 +961,7 @@ function renderDetail(i, fromMap, d) {
     (d.p ? `<dt>Schartenhöhe</dt><dd>${fmt.format(d.p)} m</dd>` : '') +
     `<dt>Wege und Routen</dt><dd>${nR ? `${nR} erfasst · <button type="button" class="linkbtn" data-goto="routes">ansehen</button>` : 'keine erfasst'}</dd>` +
     `</dl>` +
-    `<div class="links"><button type="button" id="zoomto">Auf Karte zeigen</button>${HOSTED ? '<button type="button" id="show3d">3D-Ansicht</button><button type="button" id="share">Link kopieren</button>' : ''}` +
+    `<div class="links"><button type="button" id="zoomto">Auf Karte zeigen</button>${HOSTED ? '<button type="button" id="show3d">3D-Ansicht</button><button type="button" id="share">Teilen</button>' : ''}` +
     `<a href="https://www.openstreetmap.org/node/${P.id[i]}" target="_blank" rel="noopener">OpenStreetMap</a>${wpLink}` +
     `<a href="https://www.opentopomap.org/#marker=15/${la}/${lo}" target="_blank" rel="noopener">Topokarte</a></div>` +
     (SEO_TEXT && SEO_TEXT.id === P.id[i] ? `<section class="about">${SEO_TEXT.html}</section>` : '') + `</section>` +
@@ -983,10 +983,7 @@ function renderDetail(i, fromMap, d) {
   $('back').onclick = () => closeDetail();
   renderBookRow(i);
   if ($('show3d')) $('show3d').onclick = () => open3d(i);
-  if ($('share')) $('share').onclick = ev => {
-    const done = () => { ev.target.textContent = 'Link kopiert'; setTimeout(() => { ev.target.textContent = 'Link kopieren'; }, 1800); };
-    navigator.clipboard.writeText(location.origin + peakUrl(i)).then(done).catch(() => { ev.target.textContent = location.origin + peakUrl(i); });
-  };
+  ['share', 'share2'].forEach(id => { if ($(id)) $(id).onclick = () => sharePeak(i); });
   $('zoomto').onclick = () => { close3d(); setView('map'); centerOn(la, lo, Math.max(map.getZoom(), 13)); };
   if (MOBILE()) setSheet(fromMap ? 'half' : 'full');
   if (map && (!fromMap || MOBILE())) centerOn(la, lo, fromMap ? map.getZoom() : Math.max(map.getZoom(), HOSTED ? 13 : 12));
@@ -1391,6 +1388,32 @@ function countVisit() {
   let ref = ''; try { ref = document.referrer ? new URL(document.referrer).hostname : ''; } catch (err) { /* no referrer */ }
   const src = !ref ? 'direkt' : /tiktok/.test(ref) ? 'tiktok' : /google\./.test(ref) ? 'google' : /instagram|facebook|fb\.com/.test(ref) ? 'instagram' : /bing|duckduckgo|ecosia|yahoo/.test(ref) ? 'suche' : ref.endsWith('alpen-gipfel.de') ? 'intern' : 'andere';
   if (src !== 'intern') count('von:' + src);
+}
+/* ---------- sharing: the phone's own share menu, otherwise a small window with the preview image ---------- */
+const SHARE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="m7.5 7.5 4.5-4.5 4.5 4.5"/><path d="M5 12v7.5h14V12"/></svg>';
+async function sharePeak(i) {
+  const P = D.peaks, url = location.origin + peakUrl(i);
+  const title = `${P.n[i]}${P.e[i] != null ? ' (' + fmt.format(P.e[i]) + ' m)' : ''}`;
+  const text = `${title} – Aufstieg vom Parkplatz, Bergwetter und Karte auf Alpengipfel`;
+  count('teilen');
+  if (navigator.share && (MOBILE() || matchMedia('(pointer: coarse)').matches)) {
+    try { await navigator.share({ title, text, url }); return; } catch (err) { if (err && err.name === 'AbortError') return; }
+  }
+  let dlg = $('sharedlg');
+  if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'sharedlg'; dlg.className = 'fbdlg sharedlg'; document.body.appendChild(dlg); dlg.onclick = ev => { if (ev.target === dlg) dlg.close(); }; }
+  const enc = encodeURIComponent, img = `${ROOT}og/${P.id[i]}.jpg`;
+  const targets = [['WhatsApp', `https://wa.me/?text=${enc(text + ' ' + url)}`], ['Telegram', `https://t.me/share/url?url=${enc(url)}&text=${enc(text)}`],
+    ['Facebook', `https://www.facebook.com/sharer/sharer.php?u=${enc(url)}`], ['X', `https://x.com/intent/post?text=${enc(text)}&url=${enc(url)}`],
+    ['E-Mail', `mailto:?subject=${enc(title)}&body=${enc(text + '\n\n' + url)}`]];
+  dlg.innerHTML = `<div class="fbhead"><h2>${esc(P.n[i])} teilen</h2><button type="button" class="fbx" id="shx" aria-label="Schließen">×</button></div>` +
+    `<img class="shareimg" src="${img}" alt="Vorschaubild: ${esc(title)}" width="1200" height="630" onerror="this.onerror=null;this.src='${ROOT}og/alpengipfel.jpg'">` +
+    `<p class="note">So sieht die Vorschau aus, wenn du den Link teilst.</p>` +
+    `<div class="sharegrid">${targets.map(([n, href]) => `<a class="onmap" href="${href}" target="_blank" rel="noopener">${n}</a>`).join('')}<button type="button" class="onmap" id="shcopy">Link kopieren</button></div>` +
+    `<input class="shareurl" id="shurl" readonly value="${esc(url)}" aria-label="Link">`;
+  $('shx').onclick = () => dlg.close();
+  $('shcopy').onclick = () => navigator.clipboard.writeText(url).then(() => { $('shcopy').textContent = 'Kopiert ✓'; }, () => { $('shurl').select(); });
+  $('shurl').onclick = () => $('shurl').select();
+  dlg.showModal();
 }
 /* ---------- feedback: visitors write, only admins read (Supabase table feedback) ---------- */
 const FB_ART = [['idee', 'Idee oder Wunsch'], ['fehler', 'Fehler auf der Seite'], ['daten', 'Gipfel oder Route stimmt nicht'], ['sonstiges', 'Sonstiges']];
