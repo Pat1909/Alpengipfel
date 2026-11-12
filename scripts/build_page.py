@@ -117,7 +117,7 @@ open('docs/sitemap.xml', 'w').write('<?xml version="1.0" encoding="UTF-8"?>\n<ur
 # single-file variant: styles, data and script inline, nothing to fetch
 inline = ''.join(f'<script type="application/json" id="data-{k}">' + open(f'docs/data/{k}.json').read().replace('</', '<\\/') + '</script>\n' for k in ('peaks', 'geo'))
 # the single file has a size limit, so it carries the details without the starting points
-slim = [{k: v for k, v in ch.items() if k not in ('pk', 'st')} for ch in details]
+slim = [{k: v for k, v in ch.items() if k not in ('pk', 'st', 'ar')} for ch in details]
 inline += '<script type="application/json" id="data-details">' + json.dumps(slim, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/') + '</script>\n'
 open('dist/artifact.html', 'w').write(
     '<title>Alpengipfel</title>\n<meta name="claude:viewport-fit-sides" content="cover">\n' + FONTS + '\n<style>\n' + css + '</style>\n'

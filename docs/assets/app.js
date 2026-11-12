@@ -187,6 +187,7 @@ const KINDS = ['Wandern', 'Hochalpin', 'Klettersteig', 'Skitour'];
 const KIND_HINT = ['Wanderwege und -routen bis T3 oder ohne Schwierigkeitsangabe', 'Alpinwanderwege T4–T6, Hochtouren und Klettereien', 'Gesicherte Steige mit Drahtseil, Klettersteigset nötig', 'Skitouren und Schneeschuhrouten im Winter'];
 const gradeLabel = (cat, grade, vf) => [grade ? 'T' + grade : '', vf ? 'Klettersteig-Skala ' + vf + ' von 6' : ''].filter(Boolean).join(' · ');
 function routesHtml(i, d) {
+  if (HOSTED) return routesHostedHtml(i, d);
   const P = D.peaks, osm = [[], [], [], []], c2c = [[], [], [], []];
   (d.rt || []).forEach(([rel, rname, cat, grade, vf]) => {
     const x = [rel, rname];
@@ -202,11 +203,7 @@ function routesHtml(i, d) {
       `<small>${[D.c2cActs[act], rating, up ? fmt.format(up) + ' Hm Aufstieg' : ''].filter(Boolean).map(esc).join(' · ')}</small></li>`);
   });
   const near = d.nr || [], total = osm.concat(c2c).reduce((s, g) => s + g.length, 0);
-  let out = '';
-  if (HOSTED && (d.pk || d.st)) out += `<section class="ways ascent" id="ascent"><h3 class="h3">Aufstieg vom Parkplatz</h3>` +
-    `<p class="note">Berechnet einen Weg vom nächsten öffentlichen Parkplatz${d.pk ? '' : ' (hier: von der nächsten Haltestelle)'} bis auf den Gipfel, mit Strecke, Höhenmetern und Gehzeit.</p>` +
-    `<button type="button" class="primary" id="ascbtn">Aufstieg berechnen</button><div id="ascout" role="status"></div></section>`;
-  out += `<section class="ways"><h3 class="h3">Wege und Routen auf den Gipfel</h3>`;
+  let out = `<section class="ways"><h3 class="h3">Wege und Routen auf den Gipfel</h3>`;
   if (!total && !near.length) out += `<p class="note">Weder in OpenStreetMap noch bei Camptocamp ist ein Weg oder eine Route zu diesem Gipfel erfasst. Das heißt meist: wegloser Anstieg oder ein selten besuchter Nebengipfel.</p>`;
   KINDS.forEach((kind, cat) => {
     const n = osm[cat].length + c2c[cat].length;
@@ -225,6 +222,18 @@ function routesHtml(i, d) {
   return out + '</section>';
 }
 
+const ccItem = ([id, title, cat, act, rating, up]) => `<li><a href="https://www.camptocamp.org/routes/${id}" target="_blank" rel="noopener"${title && deTitle(title) !== title.trim() ? ` title="Originaltitel: ${esc(title)}"` : ''}>${esc(title ? deTitle(title) : 'Route ohne Namen')}</a>` +
+  `<small>${[D.c2cActs[act], rating, up ? fmt.format(up) + ' Hm Aufstieg' : ''].filter(Boolean).map(esc).join(' · ')}</small></li>`;
+const NORMAL = /normal|voie normale|via normale|ordinaire|normale/i;
+function routesHostedHtml(i, d) {
+  let out = `<section class="ways ascent"><h3 class="h3">Aufstiege vom Parkplatz</h3><div id="asclist" aria-live="polite"><p class="note">Wege zum Gipfel werden berechnet …</p></div></section>`;
+  const cc = (d.cc || []).map((c, k) => [c, k]).sort((a, b) => (NORMAL.test(b[0][1]) - NORMAL.test(a[0][1])) || a[1] - b[1]).map(x => x[0]);
+  if (cc.length) out += `<section class="ways"><h3 class="h3">Hochtouren, Klettereien und Skitouren</h3><ul class="rts">${cc.slice(0, 5).map(ccItem).join('')}` +
+    (cc.length > 5 ? `<li><a href="https://www.camptocamp.org/waypoints/${d.cw}" target="_blank" rel="noopener">Alle ${cc.length} Routen bei Camptocamp</a></li>` : '') + `</ul>` +
+    `<p class="note">Beschreibungen von <a href="https://www.camptocamp.org/" target="_blank" rel="noopener">Camptocamp.org</a> (CC BY-SA 3.0), Normalwege zuerst; Schwierigkeit nach Alpinskala von F (leicht) bis ED (extrem schwierig).</p></section>`;
+  if (d.fw) out += `<p class="note fw"><b>Fernwanderwege über den Gipfel:</b> ${d.fw.map(esc).join(' · ')}. Sie führen nur hier vorbei und sind deshalb nicht als Aufstieg aufgeführt.</p>`;
+  return out;
+}
 /* ---------- trails on the map (fetched live from OpenStreetMap via Overpass) ---------- */
 const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
 const SAC = { strolling: 1, hiking: 1, mountain_hiking: 2, demanding_mountain_hiking: 3, alpine_hiking: 4, demanding_alpine_hiking: 5, difficult_alpine_hiking: 6 };
@@ -248,7 +257,13 @@ const WAYS = '?w osmkey:highway ?h ; geo:hasGeometry/geo:asWKT ?g . FILTER(?h = 
 const nearQuery = (id, dist, select, payload, inner) => `SELECT DISTINCT ${select} WHERE { osmnode:${id} geo:hasGeometry/geo:asWKT ?pg . ` +
   `SERVICE qlss: { _:c qlss:algorithm qlss:libspatialjoin ; qlss:joinType qlss:within-dist ; qlss:maxDistance ${dist} ; qlss:left ?pg ; qlss:right ?g ; qlss:payload ${payload} . { ${inner} } } }`;
 const inDistricts = id => `?m ogc:sfIntersects osmnode:${id} ; osmkey:boundary "administrative" ; osmkey:admin_level ?l . FILTER(?l >= 6) ?m ogc:sfIntersects ?w . `;
-async function qlever(query) {                      // rows of a SPARQL result, values unquoted
+async function qlever(query, tries = 3) {           // rows of a SPARQL result, values unquoted
+  for (let k = 1; ; k++) {
+    try { return await qleverOnce(query); }
+    catch (err) { if (k >= tries || !/^(429|502|503|504)$/.test(err.message)) throw err; await new Promise(r => setTimeout(r, 1500 * k)); }
+  }
+}
+async function qleverOnce(query) {
   const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 25000);
   try {
     const r = await fetch(QLEVER, { method: 'POST', body: 'query=' + encodeURIComponent(QPFX + query), headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'text/tab-separated-values' }, signal: ctl.signal });
@@ -259,7 +274,7 @@ async function qlever(query) {                      // rows of a SPARQL result, 
 const wktLine = wkt => { const ll = []; wkt.replace(/(-?\d+\.?\d*) (-?\d+\.?\d*)/g, (m, lon, lat) => { ll.push([+lat, +lon]); }); return ll; };
 const wayId = iri => +iri.slice(iri.lastIndexOf('/') + 1);
 function trailMsg(text) { const el = $('tmsg'); el.hidden = !text; el.textContent = text; }
-function clearTrails() { trailsFor = -1; if (trailLayer) { trailLayer.clearLayers(); hiLayer.clearLayers(); } if ($('tlegend')) { trailMsg(''); $('tlegend').hidden = true; } }
+function clearTrails() { trailsFor = -1; if (trailLayer) { trailLayer.clearLayers(); showAllTrails(); } if ($('tlegend')) { trailMsg(''); $('tlegend').hidden = true; } }
 async function fetchTrails(i) {                     // -> { ways: [{ id, t: tags, ll }], marked: Set of way ids, or null while still loading }
   const P = D.peaks, id = P.id[i];
   let empty = false;
@@ -294,7 +309,7 @@ function drawTrails(data) {
 }
 async function loadTrails(i) {
   if (!HOSTED || !map || trailsFor === i || !$('map').clientWidth) return;      // on phones the map loads once it is opened
-  trailsFor = i; trailLayer.clearLayers(); if (hiFor !== i) hiLayer.clearLayers(); trailMsg('Wege um den Gipfel werden geladen …');
+  trailsFor = i; trailLayer.clearLayers(); if (hiFor !== i) showAllTrails(); trailMsg('Wege um den Gipfel werden geladen …');
   let data = trailCache.get(i);
   if (!data) {
     try { data = await fetchTrails(i); trailCache.set(i, data); }
@@ -327,6 +342,7 @@ async function showRouteOnMap(rel, btn) {
     }
     if (!ll.length) throw new Error('empty');
     setView('map'); hiLayer.clearLayers(); hiFor = i;
+    if (map.hasLayer(trailLayer)) map.removeLayer(trailLayer);      // only this route
     L.polyline(ll, { color: cssColors['--surface'], weight: 9, opacity: .9, interactive: false }).addTo(hiLayer);
     const line = L.polyline(ll, { color: cssColors['--accent'], weight: 4.5, interactive: false }).addTo(hiLayer);
     map.fitBounds(line.getBounds(), { padding: [30, 30], maxZoom: 14 });
@@ -334,63 +350,280 @@ async function showRouteOnMap(rel, btn) {
   } catch (err) { btn.textContent = 'Gerade nicht verfügbar'; setTimeout(() => { btn.textContent = 'Auf Karte'; }, 2500); }
   btn.disabled = false;
 }
-/* ---------- ascent from the car park: computed on request with BRouter (brouter.de, OpenStreetMap data) ---------- */
-const BROUTER = 'https://brouter.de/brouter';
-const ascCache = new Map();
-async function brouter(from, to) {
-  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 25000);
-  try {
-    const r = await fetch(`${BROUTER}?lonlats=${from[1]},${from[0]}|${to[1]},${to[0]}&profile=hiking-mountain&alternativeidx=0&format=geojson`, { signal: ctl.signal });
-    if (!r.ok) throw new Error(r.status);
-    const f = (await r.json()).features[0], c = f.geometry.coordinates;
-    let down = 0, ref = c[0][2];                       // descent with 5 m hysteresis against noise
-    for (const p of c) { if (p[2] == null) continue; if (p[2] > ref) ref = p[2]; else if (ref - p[2] > 5) { down += ref - p[2]; ref = p[2]; } }
-    const km = +f.properties['track-length'] / 1000, up = +f.properties['filtered ascend'] || 0;
-    const th = km / 4, tv = up / 300 + down / 500;     // DIN 33466 walking time: 4 km/h, 300 Hm up and 500 Hm down per hour
-    return { ll: c.map(p => [p[1], p[0]]), km, up: Math.round(up), down: Math.round(down), h: Math.max(th, tv) + Math.min(th, tv) / 2 };
-  } finally { clearTimeout(timer); }
+/* ---------- ascents from the car park: routed in the browser on the OpenStreetMap path network around the summit ---------- */
+const NET_H = ['path', 'footway', 'track', 'via_ferrata', 'steps', 'bridleway', 'pedestrian', 'service', 'unclassified', 'residential', 'living_street', 'tertiary', 'secondary', 'primary'];
+const ROADF = { service: 1.3, unclassified: 1.3, residential: 1.3, living_street: 1.2, tertiary: 2.5, secondary: 5, primary: 8, gap: 3 };   // cost factors per metre
+const inAreas = (id, ar, v) => ar ? `VALUES ?m { ${ar.map(a => 'osmrel:' + a).join(' ')} } ?m ogc:sfIntersects ${v} . ` : inDistricts(id).replace(/\?w \. $/, v + ' . ');
+const netQuery = (id, dist, ar) => nearQuery(id, dist, '?w ?h ?sac ?vf ?name ?foot ?g', '?w , ?h , ?sac , ?vf , ?name , ?foot',
+  inAreas(id, ar, '?w') + `?w osmkey:highway ?h ; geo:hasGeometry/geo:asWKT ?g . FILTER(${NET_H.map(h => `?h = "${h}"`).join(' || ')}) ` +
+  'OPTIONAL { ?w osmkey:sac_scale ?sac } OPTIONAL { ?w osmkey:via_ferrata_scale ?vf } OPTIONAL { ?w osmkey:name ?name } OPTIONAL { ?w osmkey:foot ?foot }');
+const parkQuery = (id, dist, ar) => nearQuery(id, dist, '?p ?name ?access ?g', '?p , ?name , ?access', inAreas(id, ar, '?p') +
+  '?p osmkey:amenity "parking" ; geo:hasGeometry/geo:asWKT ?g . OPTIONAL { ?p osmkey:name ?name } OPTIONAL { ?p osmkey:access ?access }');
+const memberQuery = rels => `SELECT ?r ?w WHERE { VALUES ?r { ${rels.map(r => 'osmrel:' + (+r)).join(' ')} } ?r osmrel:member ?m . ?m osmrel:member_id ?w }`;
+function metres(a, b) {
+  const k = Math.PI / 180, x = (b[1] - a[1]) * k * Math.cos((a[0] + b[0]) / 2 * k), y = (b[0] - a[0]) * k;
+  return Math.hypot(x, y) * 6371000;
+}
+function buildNet(rows) {
+  const ids = new Map(), pts = [], adj = [], ways = [], seen = new Set();
+  const vert = p => { const k = p[0] + ',' + p[1]; let x = ids.get(k); if (x === undefined) { x = pts.length; ids.set(k, x); pts.push(p); adj.push([]); } return x; };
+  for (const [w, h, sac, vf, name, foot, g] of rows) {
+    if (seen.has(w) || foot === 'no' || foot === 'private' || !/LINESTRING/.test(g)) continue;
+    seen.add(w);
+    const ll = wktLine(g); if (ll.length < 2) continue;
+    const grade = Math.max(0, ...(sac || '').split(';').map(s => SAC[s.trim()] || 0));
+    const fer = h === 'via_ferrata' || /^[0-6][+-]?$/.test(vf || '');
+    const wi = ways.length, way = { id: wayId(w), h, grade, vf: fer && /^[0-6][+-]?$/.test(vf || '') ? vf : '', fer, name: name || '', len: 0 };
+    ways.push(way);
+    let a = vert(ll[0]);
+    for (let k = 1; k < ll.length; k++) {
+      const b = vert(ll[k]), d = metres(ll[k - 1], ll[k]); way.len += d;
+      if (a !== b) { adj[a].push(b, wi, d); adj[b].push(a, wi, d); }
+      a = b;
+    }
+  }
+  // short gaps in the mapping: join each dead end to the nearest point of another way within 60 m (counted as pathless)
+  const gap = ways.length; ways.push({ id: 0, h: 'gap', grade: 0, vf: '', fer: false, name: '', len: 0 });
+  const cell = new Map(), key = (la, lo) => Math.floor(la * 2000) + ':' + Math.floor(lo * 1400);
+  pts.forEach((p, v) => { const k = key(p[0], p[1]); if (!cell.has(k)) cell.set(k, []); cell.get(k).push(v); });
+  for (let v = 0; v < pts.length; v++) {
+    if (adj[v].length !== 3) continue;               // exactly one neighbour: a dead end
+    const p = pts[v], own = adj[v][1]; let best = -1, bd = 60;
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+      for (const u of cell.get(Math.floor(p[0] * 2000) + a + ':' + (Math.floor(p[1] * 1400) + b)) || []) {
+        if (u === v || u === adj[v][0]) continue;
+        const au = adj[u]; let mine = false; for (let j = 1; j < au.length; j += 3) if (au[j] === own) mine = true;
+        if (mine) continue;
+        const d = metres(p, pts[u]); if (d < bd) { bd = d; best = u; }
+      }
+    }
+    if (best >= 0) { adj[v].push(best, gap, bd); adj[best].push(v, gap, bd); }
+  }
+  return { pts, adj, ways };
+}
+function nearestVert(net, p) {
+  let best = -1, bd = Infinity;
+  for (let v = 0; v < net.pts.length; v++) { const q = net.pts[v]; if (Math.abs(q[0] - p[0]) > .01 || Math.abs(q[1] - p[1]) > .015) continue; const d = metres(p, q); if (d < bd) { bd = d; best = v; } }
+  return [best, bd];
+}
+function dijkstra(net, s, factor) {               // factor(way) -> cost per metre, Infinity = not allowed
+  const n = net.pts.length, dist = new Float64Array(n).fill(Infinity), prev = new Int32Array(n).fill(-1), via = new Int32Array(n).fill(-1);
+  const f = net.ways.map(factor), hk = [], hv = [];
+  const push = (k, v) => { let i = hk.length; hk.push(k); hv.push(v); while (i > 0) { const p = (i - 1) >> 1; if (hk[p] <= k) break; hk[i] = hk[p]; hv[i] = hv[p]; i = p; } hk[i] = k; hv[i] = v; };
+  const pop = () => { const v = hv[0], k = hk.pop(), x = hv.pop(); let i = 0; const m = hk.length; if (m) { while (true) { let c = 2 * i + 1; if (c >= m) break; if (c + 1 < m && hk[c + 1] < hk[c]) c++; if (hk[c] >= k) break; hk[i] = hk[c]; hv[i] = hv[c]; i = c; } hk[i] = k; hv[i] = x; } return v; };
+  dist[s] = 0; push(0, s);
+  while (hk.length) {
+    const k0 = hk[0], u = pop(); if (k0 > dist[u]) continue;
+    const a = net.adj[u];
+    for (let j = 0; j < a.length; j += 3) {
+      const c = f[a[j + 1]]; if (c === Infinity) continue;
+      const nd = dist[u] + a[j + 2] * c, v = a[j];
+      if (nd < dist[v]) { dist[v] = nd; prev[v] = u; via[v] = a[j + 1]; push(nd, v); }
+    }
+  }
+  return { dist, prev, via };
+}
+const demTiles = new Map();
+function demTile(k) {
+  if (!demTiles.has(k)) demTiles.set(k, new Promise((res, rej) => {
+    const im = new Image(); im.crossOrigin = 'anonymous';
+    im.onload = () => { const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d'); g.drawImage(im, 0, 0); res(g.getImageData(0, 0, 256, 256).data); };
+    im.onerror = () => { demTiles.delete(k); rej(new Error('dem')); };
+    im.src = `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${k}.png`;
+  }));
+  return demTiles.get(k);
+}
+function heights(pts) {                            // terrain height (Mapzen terrain tiles, about 15 m per pixel) at each point
+  const n = 2 ** 13;
+  return Promise.all(pts.map(async ([la, lo]) => {
+    const s = Math.sin(la * Math.PI / 180), x = (lo + 180) / 360 * n, y = (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * n;
+    const tx = Math.floor(x), ty = Math.floor(y), d = await demTile(`13/${tx}/${ty}`);
+    const o = (Math.min(255, Math.floor((y - ty) * 256)) * 256 + Math.min(255, Math.floor((x - tx) * 256))) * 4;
+    return d[o] * 256 + d[o + 1] + d[o + 2] / 256 - 32768;
+  }));
+}
+async function climb(ll) {                         // -> { up, down, h } with walking time after DIN 33466
+  const pts = [ll[0]];
+  for (let k = 1; k < ll.length; k++) {
+    const a = ll[k - 1], b = ll[k], d = metres(a, b), m = Math.floor(d / 30);
+    for (let j = 1; j <= m; j++) pts.push([a[0] + (b[0] - a[0]) * j / (m + 1), a[1] + (b[1] - a[1]) * j / (m + 1)]);
+    pts.push(b);
+  }
+  const z = await heights(pts);
+  let up = 0, down = 0, ref = z[0];
+  for (const h of z) { if (h - ref > 8) { up += h - ref; ref = h; } else if (ref - h > 8) { down += ref - h; ref = h; } }
+  return { up: Math.round(up), down: Math.round(down), start: Math.round(z[0]) };
 }
 const hm = h => { const m = Math.round(h * 60 / 5) * 5; return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h' + (m % 60 ? ' ' + String(m % 60).padStart(2, '0') + ' min' : ''); };
-async function computeAscent(i, d) {
-  const out = $('ascout'), btn = $('ascbtn'), P = D.peaks, top = [P.la[i], P.lo[i]];
-  const starts = (d.pk || d.st || []).slice(0, 3);
-  btn.disabled = true; btn.textContent = 'Wird berechnet …'; out.innerHTML = '';
-  let res = ascCache.get(i);
-  if (!res) {
-    res = (await Promise.all(starts.map(s => brouter([s[2], s[3]], top).then(r => ({ ...r, s }), () => null)))).filter(Boolean)
-      .filter(r => r.km < 30).sort((a, b) => a.h - b.h);
-    if (res.length) ascCache.set(i, res);
+const dinHours = (km, up, down) => { const th = km / 4, tv = up / 300 + down / 500; return Math.max(th, tv) + Math.min(th, tv) / 2; };
+const ascents = new Map();
+let ascSel = -1, ascList = [];
+function loadAscents(i, d) {
+  if (!$('asclist')) return;
+  let p = ascents.get(i);
+  if (!p) { p = computeAscents(i, d); ascents.set(i, p); p.catch(() => ascents.delete(i)); }
+  p.then(r => { if (selected === i) renderAscents(i, d, r); }, () => { if (selected === i) renderAscError(i, d); });
+}
+const startName = (s, h) => s.name || (s.kind ? START_KIND[s.kind] : 'Parkplatz') + (h ? ' auf ' + fmt.format(Math.round(h / 10) * 10) + ' m' : ' ohne Namen');
+function ascTitle(x) { return x.type === 'normal' ? (x.name || 'Leichtester Weg') : x.type === 'rel' ? (x.name || 'Markierte Route ohne Namen') : (x.name || 'Klettersteig ohne Namen'); }
+function renderAscents(i, d, r) {
+  const box = $('asclist'); if (!box) return;
+  ascList = r.list; ascSel = -1;
+  if (!r.list.length) {
+    const nr = d.nr && d.nr[0];
+    box.innerHTML = `<p class="note">${r.why === 'noway' ? 'In OpenStreetMap führt kein Weg bis zum Gipfel' + (nr ? ` (der nächste endet etwa ${nr[0]} m entfernt)` : '') + '. Der Gipfel ist weglos oder nur über Gletscher, Fels oder Klettereien erreichbar.'
+      : r.why === 'island' ? 'Die Wege am Gipfel sind in OpenStreetMap nicht durchgehend bis ins Tal eingetragen; meist liegt dazwischen ein Gletscher, Fels oder Kletterei.'
+      : 'Im Umkreis von etwa 6 km ist kein öffentlicher Parkplatz mit Weg zum Gipfel erfasst.'}${d.cc ? ' Hochtouren und Kletterrouten findest du unten.' : ''}</p>` + restHtml(r.rest);
+    box.querySelectorAll('.onmap[data-rel]').forEach(b => { b.onclick = () => showRouteOnMap(b.dataset.rel, b); });
+    return;
   }
-  btn.hidden = res.length > 0; btn.disabled = false; btn.textContent = 'Erneut versuchen';
-  if (selected !== i || !out) return;
-  if (!res.length) { out.innerHTML = '<p class="note">Der Aufstieg konnte gerade nicht berechnet werden. Bei weglosen Gipfeln findet sich oft kein Weg bis ganz oben.</p>'; return; }
-  const item = (r, k) => `<li class="${k ? '' : 'best'}"><button type="button" class="ascpick" data-k="${k}" aria-pressed="${!k}">` +
-    `<b>${esc(r.s[0] || START_KIND[r.s[4]] + ' ohne Namen')}</b><span class="ascfacts"><span>${n1(r.km)} km</span><span>↑ ${fmt.format(r.up)} Hm</span>${r.down > 30 ? `<span>↓ ${fmt.format(r.down)} Hm</span>` : ''}<span>${hm(r.h)}</span></span></button>` +
-    `<a class="onmap" href="https://www.google.com/maps/dir/?api=1&destination=${r.s[2]},${r.s[3]}" target="_blank" rel="noopener">Anfahrt</a></li>`;
-  out.innerHTML = `<ul class="rts asc">${res.map(item).join('')}</ul>` +
-    `<p class="note">${res.length > 1 ? 'Der schnellste Aufstieg steht oben; tippe einen anderen an, um ihn auf der Karte zu sehen. ' : ''}` +
-    `Gehzeit nur für den Aufstieg, ohne Pausen, nach DIN 33466. Der Weg wird automatisch aus OpenStreetMap berechnet (<a href="https://brouter.de/" target="_blank" rel="noopener">BRouter</a>) ` +
-    `und ist ein Vorschlag, keine geprüfte Tour: Er kann über schwierige oder gesperrte Wege führen. Prüfe ihn vor der Tour auf einer Wanderkarte.</p>`;
-  const show = k => {
-    out.querySelectorAll('.ascpick').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.k === k)));
-    drawAscent(res[k]);
-  };
-  out.querySelectorAll('.ascpick').forEach(b => { b.onclick = () => show(+b.dataset.k); });
-  drawAscent(res[0]);
+  box.innerHTML = `<p class="note">Tippe einen Aufstieg an, um nur ihn auf der Karte zu sehen.</p><ul class="asc">` + r.list.map((x, k) => {
+    const diff = gradeLabel(x.cat, x.grade, x.vf);
+    const sub = [x.type === 'rel' ? 'markierte Route' : '', x.easiest || x.type === 'normal' ? 'leichtester gefundener Weg' : '', x.via.length ? 'über ' + x.via.join(', ') : ''].filter(Boolean).join(' · ');
+    return `<li><button type="button" class="ascpick" data-k="${k}" aria-pressed="false"><span class="ascrow"><span class="kb k${x.cat}">${KINDS[x.cat]}</span><b>${esc(ascTitle(x))}</b></span>` +
+      (sub ? `<small>${esc(sub)}</small>` : '') + `<small>ab ${esc(startName(x.res.park, x.start))}${diff ? ' · ' + diff : ''}</small>` +
+      `<span class="ascfacts"><span>${n1(x.km)} km</span>${x.up != null ? `<span>↑ ${fmt.format(x.up)} Hm</span>` : ''}${x.down > 30 ? `<span>↓ ${fmt.format(x.down)} Hm</span>` : ''}<span>${x.up != null ? hm(x.h) : ''}</span></span></button></li>`;
+  }).join('') + `</ul><div id="ascact" class="ascact" hidden></div>` + restHtml(r.rest) +
+    `<p class="note">Berechnet aus den Wegen in OpenStreetMap vom nächstgelegenen Parkplatz bis zum Gipfel. Gehzeit nur für den Aufstieg, ohne Pausen, nach DIN 33466; Höhenmeter aus einem Geländemodell, auf etwa 10 % genau. ` +
+    `Ein Vorschlag, keine geprüfte Tour: Wege können gesperrt, verfallen oder schwieriger sein als angegeben. Prüfe die Tour vor dem Aufbruch auf einer Wanderkarte.</p>`;
+  box.querySelectorAll('.ascpick').forEach(b => { b.onclick = () => pickAscent(+b.dataset.k); });
+  box.querySelectorAll('.onmap[data-rel]').forEach(b => { b.onclick = () => showRouteOnMap(b.dataset.rel, b); });
+}
+function restHtml(rest) {                         // marked routes at the summit that could not be followed from a car park
+  if (!rest || !rest.length) return '';
+  return `<h3 class="h3">Weitere markierte Routen am Gipfel</h3><ul class="rts">${rest.map(([rel, name, cat, grade, vf]) => `<li><a href="https://hiking.waymarkedtrails.org/#route?id=${rel}" target="_blank" rel="noopener">${esc(name || 'Markierte Route ohne Namen')}</a>` +
+    `<button type="button" class="onmap" data-rel="${rel}">Auf Karte</button><small>${KINDS[cat]}${gradeLabel(cat, grade, vf) ? ' · ' + gradeLabel(cat, grade, vf) : ''} · Verlauf vom Parkplatz nicht durchgehend erfasst</small></li>`).join('')}</ul>`;
+}
+function pickAscent(k) {
+  ascSel = ascSel === k ? -1 : k;
+  document.querySelectorAll('#asclist .ascpick').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.k === ascSel)));
+  const act = $('ascact'), x = ascList[ascSel];
+  if (!x) { act.hidden = true; showAllTrails(); return; }
+  const s = x.res.park;
+  act.hidden = false;
+  act.innerHTML = `<a class="onmap" href="https://www.google.com/maps/dir/?api=1&destination=${s.p[0].toFixed(5)},${s.p[1].toFixed(5)}" target="_blank" rel="noopener">Anfahrt zum Startpunkt</a>` +
+    (x.type === 'rel' ? `<a class="onmap" href="https://hiking.waymarkedtrails.org/#route?id=${x.rel}" target="_blank" rel="noopener">Route bei Waymarked Trails</a>` : '') +
+    `<button type="button" class="onmap" id="ascall">Alle Wege zeigen</button>`;
+  $('ascall').onclick = () => pickAscent(ascSel);
+  drawAscent(x);
+}
+function renderAscError(i, d) {
+  const box = $('asclist'); if (!box) return;
+  box.innerHTML = `<p class="note">Die Wege konnten gerade nicht geladen werden. <button type="button" class="linkbtn" id="ascretry">Noch einmal versuchen</button></p>` +
+    ((d.rt || []).length ? `<ul class="rts">${d.rt.map(([rel, name]) => `<li><a href="https://hiking.waymarkedtrails.org/#route?id=${rel}" target="_blank" rel="noopener">${esc(name || 'Markierte Route ohne Namen')}</a><button type="button" class="onmap" data-rel="${rel}">Auf Karte</button></li>`).join('')}</ul>` : '');
+  $('ascretry').onclick = () => { box.innerHTML = '<p class="note">Wege zum Gipfel werden berechnet …</p>'; loadAscents(i, d); };
+  box.querySelectorAll('.onmap[data-rel]').forEach(b => { b.onclick = () => showRouteOnMap(b.dataset.rel, b); });
 }
 const ASC_COLOR = () => document.documentElement.dataset.theme === 'dark' || (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches) ? '#5ea8ff' : '#1d5fd6';
-function drawAscent(r) {
+function showAllTrails() { if (hiLayer) hiLayer.clearLayers(); if (map && trailLayer && !map.hasLayer(trailLayer)) trailLayer.addTo(map); }
+function drawAscent(x) {
   if (!map) return;
   setView('map'); hiLayer.clearLayers(); hiFor = selected;
-  const col = ASC_COLOR();                           // blue, so it stands out from the red and orange paths
-  L.polyline(r.ll, { color: cssColors['--surface'], weight: 10, opacity: .95, interactive: false }).addTo(hiLayer);
-  const line = L.polyline(r.ll, { color: col, weight: 5, interactive: false }).addTo(hiLayer);
-  L.circleMarker(r.ll[0], { radius: 8, color: cssColors['--surface'], weight: 3, fillColor: col, fillOpacity: 1, interactive: false }).addTo(hiLayer);
-  setTimeout(() => {                                 // after the map has its final size
+  if (map.hasLayer(trailLayer)) map.removeLayer(trailLayer);      // only the chosen ascent
+  const col = ASC_COLOR();
+  L.polyline(x.ll, { color: cssColors['--surface'], weight: 10, opacity: .95, interactive: false }).addTo(hiLayer);
+  const line = L.polyline(x.ll, { color: col, weight: 5, interactive: false }).addTo(hiLayer);
+  if (x.fer.length) L.polyline(x.fer, { color: cssColors['--tk'] || '#e07b00', weight: 5, dashArray: '2 7', lineCap: 'round', interactive: false }).addTo(hiLayer);
+  L.circleMarker(x.ll[0], { radius: 8, color: cssColors['--surface'], weight: 3, fillColor: col, fillOpacity: 1, interactive: false }).bindTooltip('Start: ' + startName(x.res.park, x.start)).addTo(hiLayer);
+  setTimeout(() => {
     map.invalidateSize();
-    const cover = MOBILE() ? Math.min(sheetPx($('app').dataset.sheet || 'peek'), $('mapwrap').clientHeight - 120) : 0;
+    const leg = $('legendbox') ? $('legendbox').offsetHeight + 16 : 0;
+    const cover = MOBILE() ? Math.min(sheetPx($('app').dataset.sheet || 'peek'), $('mapwrap').clientHeight - 120) : leg;
     map.fitBounds(line.getBounds(), { paddingTopLeft: [30, 30], paddingBottomRight: [30, 30 + cover], maxZoom: 15 });
   }, 60);
+}
+async function computeAscents(i, d) {
+  const P = D.peaks, id = P.id[i], top = [P.la[i], P.lo[i]];
+  const near = d.pk && d.pk[0] ? d.pk[0][1] : 5;
+  const dist = Math.round(Math.min(d.ar ? 6.5 : 11, Math.max(6, near + 2.5)) * 1000);
+  const rels = (d.rt || []).map(r => r[0]);
+  const rows = await qlever(netQuery(id, dist, d.ar));                     // one after the other: QLever refuses bursts
+  const prow = await qlever(parkQuery(id, dist, d.ar)).catch(() => []);
+  const mrows = rels.length ? await qlever(memberQuery(rels)).catch(() => []) : [];
+  const net = buildNet(rows);
+  if (!net.pts.length) return { list: [], why: 'noway' };
+  const [sv, sd] = nearestVert(net, top);
+  if (sd > 250) return { list: [], why: 'noway' };
+  // starting points: public car parks in the area (centre of the area), else the stored ones, else stops
+  let starts = prow.filter(r => ['', 'yes', 'public', 'permissive', 'customers'].includes(r[2] || '')).map(r => {
+    const ll = wktLine(r[3]); const c = ll.reduce((s, p) => [s[0] + p[0] / ll.length, s[1] + p[1] / ll.length], [0, 0]);
+    return { name: r[1] || '', p: c, kind: 0 };
+  });
+  if (!starts.length) starts = (d.pk || []).map(s => ({ name: s[0], p: [s[2], s[3]], kind: 0 }));
+  if (!starts.length) starts = (d.st || []).map(s => ({ name: s[0], p: [s[2], s[3]], kind: s[4] }));
+  const parks = [], usedV = new Set();
+  for (const s of starts) { const [v, sn] = nearestVert(net, s.p); if (v >= 0 && sn < 250 && !usedV.has(v)) { usedV.add(v); parks.push({ ...s, v, sn }); } }
+  if (!parks.length) return { list: [], why: 'nopark' };
+  const linked = dijkstra(net, sv, () => 1); if (!parks.some(p => linked.dist[p.v] < Infinity)) return { list: [], why: 'island' };
+  const members = new Map();
+  for (const [r, w] of mrows) { const k = wayId(r); if (!members.has(k)) members.set(k, new Set()); members.get(k).add(wayId(w)); }
+
+  // via ferratas: connected groups of via_ferrata ways close to the summit, each tried as the way up
+  const grp = new Map();
+  const parent = net.ways.map((_, k) => k), find = k => parent[k] === k ? k : (parent[k] = find(parent[k]));
+  net.adj.forEach(a => { let first = -1; for (let j = 1; j < a.length; j += 3) if (net.ways[a[j]].fer) { if (first < 0) first = a[j]; else parent[find(a[j])] = find(first); } });
+  net.adj.forEach((a, v) => { for (let j = 1; j < a.length; j += 3) { const wi = a[j]; if (!net.ways[wi].fer) continue; const g = find(wi); const e = grp.get(g) || { ways: new Set(), len: 0, near: Infinity }; e.ways.add(wi); e.verts = e.verts || new Set(); e.verts.add(v); grp.set(g, e); } });
+  const shortFer = new Set();                      // a few metres of cable on an ordinary path do not make it a via ferrata
+  for (const g of grp.values()) { g.len = [...g.ways].reduce((s, wi) => s + net.ways[wi].len, 0); if (g.len < 150) g.ways.forEach(wi => shortFer.add(wi)); }
+  const base = (w, k) => w.fer ? (shortFer.has(k) ? 2 : Infinity) : (ROADF[w.h] || 1) * (w.grade >= 6 ? 8 : w.grade === 5 ? 4 : w.grade === 4 ? 1.6 : 1);
+  const route = factor => {
+    const r = dijkstra(net, sv, factor); let best = null;
+    for (const p of parks) { const c = r.dist[p.v] + p.sn * 3; if (c < Infinity && (!best || c < best.c)) best = { p, c }; }
+    if (!best) return null;
+    const verts = [], wl = []; let v = best.p.v;
+    while (v !== -1) { verts.push(v); if (r.via[v] >= 0) wl.push(r.via[v]); v = r.prev[v]; }
+    return { park: best.p, cost: best.c, verts, wl };
+  };
+  const share = (res, test) => { let a = 0, b = 0; res.wl.forEach((wi, k) => { const len = metres(net.pts[res.verts[k]], net.pts[res.verts[k + 1]]); b += len; if (test(wi)) a += len; }); return b ? a / b : 0; };
+  const out = [], normal = route(base);
+  if (normal) out.push({ type: 'normal', res: normal });
+  for (const rel of rels) {
+    const set = members.get(+rel); if (!set) continue;
+    const res = route((w, k) => set.has(w.id) ? (w.fer ? 1 : base(w, k)) * 0.3 : base(w, k));
+    if (!res) continue;
+    let relLen = 0, relUsed = 0; net.ways.forEach(w => { if (set.has(w.id)) relLen += w.len; });
+    res.wl.forEach((wi, k) => { if (set.has(net.ways[wi].id)) relUsed += metres(net.pts[res.verts[k]], net.pts[res.verts[k + 1]]); });
+    if (share(res, wi => set.has(net.ways[wi].id)) > 0.25 || (relLen && relUsed / relLen > 0.5)) out.push({ type: 'rel', rel: +rel, res, name: ((d.rt.find(x => x[0] === rel) || [])[1]) || '' });
+  }
+  const free = dijkstra(net, sv, (w, k) => w.fer ? 1 : base(w, k));
+  for (const g of grp.values()) g.verts.forEach(v => { g.near = Math.min(g.near, free.dist[v]); });
+  const groups = [...grp.values()].filter(g => g.len >= 150 && g.near < 6000).sort((a, b) => a.near - b.near).slice(0, 4);
+  for (const g of groups) {
+    const res = route((w, k) => w.fer ? (g.ways.has(k) ? 0.25 : shortFer.has(k) ? 2 : 3) : base(w, k));
+    if (!res) continue;
+    let used = 0; res.wl.forEach((wi, k) => { if (g.ways.has(wi)) used += metres(net.pts[res.verts[k]], net.pts[res.verts[k + 1]]); });
+    if (used / g.len < 0.5 || (normal && res.cost > normal.cost * 3)) continue;
+    const names = {}; g.ways.forEach(wi => { const nm = net.ways[wi].name; if (nm) names[nm] = (names[nm] || 0) + net.ways[wi].len; });
+    out.push({ type: 'fer', res, name: Object.keys(names).sort((a, b) => names[b] - names[a])[0] || '' });
+  }
+  // drop near-identical results; a marked route that is the easiest way replaces the plain one
+  const same = (a, b) => { const A = new Set(a.verts); let n = 0; b.verts.forEach(v => { if (A.has(v)) n++; }); return n / Math.min(a.verts.length, b.verts.length) > 0.7; };
+  const list = [];
+  for (const x of out) {
+    const k = list.findIndex(y => same(x.res, y.res));
+    if (k < 0) list.push(x);
+    else if (list[k].type === 'normal' && x.type === 'rel') list[k] = { ...x, easiest: true };
+  }
+  // describe each: line, length, difficulty, the longest named paths, height gain and time
+  for (const x of list) {
+    const r = x.res, ll = [x.res.park.p, ...r.verts.map(v => net.pts[v])];
+    if (sd > 5) ll.push(top);
+    x.ll = ll; x.km = ll.reduce((s, p, k) => k ? s + metres(ll[k - 1], p) : 0, 0) / 1000;
+    let grade = 0, vf = '', fer = false; const names = {};
+    x.fer = r.wl.map((wi, k) => net.ways[wi].fer && !shortFer.has(wi) ? [net.pts[r.verts[k]], net.pts[r.verts[k + 1]]] : null).filter(Boolean);
+    r.wl.forEach(wi => { const w = net.ways[wi]; if (!ROADF[w.h]) grade = Math.max(grade, w.grade); if (w.fer && !shortFer.has(wi)) { fer = true; if (w.vf > vf) vf = w.vf; } if (w.name && !/^(tertiary|secondary|primary)$/.test(w.h)) names[w.name] = (names[w.name] || 0) + w.len; });
+    x.grade = grade; x.vf = vf; x.cat = fer ? 2 : grade >= 4 ? 1 : 0;
+    x.via = Object.keys(names).sort((a, b) => names[b] - names[a]).filter(n => n !== x.name).slice(0, 3);
+    if (!x.name && x.via.length) x.name = (x.type === 'normal' ? 'Über ' : '') + x.via.shift();
+    x.via = x.via.slice(0, 2);
+    try { Object.assign(x, await climb(ll)); } catch (err) { x.up = null; }
+    x.h = dinHours(x.km, x.up || 0, x.down || 0);
+  }
+  // a T6 ridge is no 'easiest way' when there are other ascents (e.g. Jubiläumsgrat at the Zugspitze)
+  const k6 = list.findIndex(x => x.type === 'normal' && x.grade >= 6);
+  if (k6 >= 0 && list.length > 1) list.splice(k6, 1);
+  const shown = new Set(list.filter(x => x.type === 'rel').map(x => x.rel));
+  return { list, why: list.length ? '' : 'nopark', rest: (d.rt || []).filter(r => !shown.has(r[0])) };
 }
 /* ---------- details of a summit are loaded in small files when it is opened ---------- */
 const chunkCache = new Map();
@@ -436,14 +669,16 @@ function showDetail(i, fromMap, noPush) {
   detailOf(i).then(d => { if (selected === i) renderDetail(i, fromMap, d); },
     () => { if (selected === i && $('dload')) $('dload').textContent = 'Die Angaben zu diesem Gipfel konnten nicht geladen werden. Prüfe die Verbindung und öffne den Gipfel noch einmal.'; });
 }
-let detailTab = 'over';
+let detailTab = 'over', curDetail = null;
 function setTab(k, user) {
   detailTab = k;
+  if (k === 'routes' && HOSTED && curDetail && curDetail.i === selected) loadAscents(selected, curDetail.d);
   document.querySelectorAll('#detail .dtabs button').forEach(b => { const on = b.dataset.k === k; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; });
   document.querySelectorAll('#detail .dpanel').forEach(p => { p.hidden = p.id !== 'dp-' + k; });
   if (user) { const el = $('detail'), t = el.querySelector('.dtabs'), top = t.offsetTop - parseFloat(getComputedStyle(el).paddingTop); if (el.scrollTop > top) el.scrollTop = top; }
 }
 function renderDetail(i, fromMap, d) {
+  curDetail = { i, d }; ascSel = -1;
   const P = D.peaks, e = P.e[i], la = P.la[i], lo = P.lo[i];
   const pl = placeNames(i);
   startPts = [...(d.pk || []), ...(d.st || [])];
@@ -457,7 +692,7 @@ function renderDetail(i, fromMap, d) {
   let wpLink = '';
   if (wp) { const k = wp.indexOf(':'); wpLink = `<a href="https://${esc(wp.slice(0, k))}.wikipedia.org/wiki/${encodeURIComponent(wp.slice(k + 1).replace(/ /g, '_'))}" target="_blank" rel="noopener">Wikipedia</a>`; }
   const el = $('detail'), nR = (d.rt || []).length + (d.ap || []).length + (d.cc || []).length, nS = (d.pk || []).length + (d.st || []).length;
-  const tabs = [['over', 'Übersicht', ''], ['routes', 'Routen', nR || ''], ['wx', 'Wetter', ''], ['go', 'Anfahrt', nS || '']];
+  const tabs = [['over', 'Übersicht', ''], ['routes', 'Routen', HOSTED ? '' : nR || ''], ['wx', 'Wetter', ''], ['go', 'Anfahrt', nS || '']];
   el.innerHTML =
     `<button class="back" id="back" type="button">← Zur Liste</button>` +
     `<div><h2>${esc(P.n[i])}</h2>${P.an[i] ? `<div class="alt">auch: ${esc(P.an[i])}</div>` : ''}</div>` +
@@ -504,7 +739,6 @@ function renderDetail(i, fromMap, d) {
   if (MOBILE()) setSheet(fromMap ? 'half' : 'full');
   if (map && (!fromMap || MOBILE())) centerOn(la, lo, fromMap ? map.getZoom() : Math.max(map.getZoom(), HOSTED ? 13 : 12));
   el.querySelectorAll('.onmap[data-rel]').forEach(b => { b.onclick = () => showRouteOnMap(b.dataset.rel, b); });
-  if ($('ascbtn')) { $('ascbtn').onclick = () => computeAscent(i, d); if (ascCache.has(i)) computeAscent(i, d); }
   if (trailsFor !== i) clearTrails();
   loadTrails(i);
   if (peakLayer) peakLayer.redraw();

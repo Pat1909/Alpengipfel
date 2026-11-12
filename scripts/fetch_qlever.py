@@ -68,6 +68,10 @@ if not os.path.exists('data/raw/q/route_ways.tsv'):
         keep += [l for l in open(tmp).read().splitlines()[1:] if l.split('\t')[1] in near]
         os.remove(tmp)
     open('data/raw/q/route_ways.tsv', 'w').write('\n'.join(keep) + '\n'); print('route_ways', len(keep) - 1)
+# administrative areas (levels 4, 6, 8) within 6 km of each summit: the app loads the path network of these areas around a summit
+run(f'''SELECT ?n ?m ?l WHERE {{ {PEAK}
+  SERVICE qlss: {{ {JOIN.replace('qlss:maxDistance 100', 'qlss:maxDistance 6000')} qlss:payload ?m , ?l .
+    {{ osmrel:{ALPS} ogc:sfIntersects ?m . ?m osmkey:boundary "administrative" ; osmkey:admin_level ?l ; geo:hasGeometry/geo:asWKT ?rg . FILTER(?l = 4 || ?l = 6 || ?l = 8) }} }} }}''', 'data/raw/q/areas6k.tsv')
 # Natural Earth: country borders and lakes for the overview map
 for name in ('ne_10m_admin_0_countries', 'ne_10m_lakes'):
     out = 'data/raw/' + {'ne_10m_admin_0_countries': 'ne_countries', 'ne_10m_lakes': 'ne_lakes'}[name] + '.geojson'

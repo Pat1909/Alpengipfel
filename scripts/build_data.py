@@ -157,6 +157,13 @@ def through(rid, named=False):
     return net in ('iwn', 'nwn') or km > 30 or (not named and bool(THROUGH.search(rnames.get(rid, ''))))
 fold = lambda x: re.sub('[\u0300-\u036f]', '', unicodedata.normalize('NFD', x.lower())).replace('ß', 'ss')
 SUMMIT_D, NAMED_D, MAX_RT = 40, 100, 8   # a route reaches the summit if one of its paths comes this close (metres)
+# municipalities (else districts, else states) within 6 km: the app loads the path network of these around the summit
+areas = {}
+if os.path.exists(f'{RAW}/q/areas6k.tsv'):
+    by = {}
+    for row in tsv(f'{RAW}/q/areas6k.tsv'):
+        if '/relation/' in row['m']: by.setdefault(nid(row['n']), {}).setdefault(int(row['l']), set()).add(nid(row['m']))
+    for k, lv in by.items(): areas[k] = sorted(lv.get(8) or lv.get(6) or lv.get(4) or [])[:12]
 route_list, route_idx = [], {}
 def route_ref(rid):
     if rid not in route_idx:
@@ -264,7 +271,7 @@ stops = nearest(load_points(f'{RAW}/q/stops_bus.tsv', 1) + load_points(f'{RAW}/q
 print('summits with a car park within', START_KM, 'km:', sum(1 for p in parkings if p), '; with a stop:', sum(1 for p in stops if p))
 
 country_keys = list(COUNTRIES); state_keys = list(STATES)
-cols = {k: [] for k in ['n', 'an', 'e', 'la', 'lo', 'c', 's', 'g', 'sg', 'p', 'wp', 'id', 'rt', 'ap', 'nr', 'cc', 'cw', 'k', 'pk', 'st', 'fw']}
+cols = {k: [] for k in ['n', 'an', 'e', 'la', 'lo', 'c', 's', 'g', 'sg', 'p', 'wp', 'id', 'rt', 'ap', 'nr', 'cc', 'cw', 'k', 'pk', 'st', 'fw', 'ar']}
 ccount = [0] * len(country_keys); scount = [0] * len(state_keys); gcount = [0] * len(groups); ungrouped = 0
 def compact(lst): return -1 if not lst else (lst[0] if len(lst) == 1 else lst)
 order = sorted(range(len(P)), key=lambda i: -(parse_num(P[i]['t'].get('ele'), 0, 4900) or -1))
@@ -318,6 +325,7 @@ for i in order:
     for rec in cc: kinds |= 1 << rec[2]
     if not kinds and nr: kinds = 16                 # only a path nearby
     cols['rt'].append(rt or 0); cols['ap'].append([list(x) for x in ap] or 0); cols['nr'].append(nr or 0)
+    cols['ar'].append(areas.get(p['id']) or 0)
     cols['fw'].append(sorted(fw, key=len)[:4] or 0)
     cols['cc'].append(cc or 0); cols['cw'].append(c2c_wp.get(p['id'], 0)); cols['k'].append(kinds)
     cols['pk'].append(parkings[i] or 0); cols['st'].append(stops[i] or 0)
