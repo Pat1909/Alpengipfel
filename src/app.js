@@ -226,7 +226,8 @@ const ccItem = ([id, title, cat, act, rating, up]) => `<li><a href="https://www.
   `<small>${[D.c2cActs[act], rating, up ? fmt.format(up) + ' Hm Aufstieg' : ''].filter(Boolean).map(esc).join(' · ')}</small></li>`;
 const NORMAL = /normal|voie normale|via normale|ordinaire|normale/i;
 function routesHostedHtml(i, d) {
-  let out = `<section class="ways ascent"><h3 class="h3">Aufstiege vom Parkplatz</h3><div id="asclist" aria-live="polite"><p class="note">Wege zum Gipfel werden berechnet …</p></div></section>`;
+  let out = `<section class="ways ascent"><h3 class="h3">Aufstiege vom Parkplatz</h3><div id="asclist" aria-live="polite"><p class="note">Wege zum Gipfel werden berechnet …</p></div></section>` +
+    `<section class="ways" id="trackbox"><h3 class="h3">Tracks von Nutzern</h3><div id="tracklist" aria-live="polite"><p class="note">Tracks werden geladen …</p></div><div id="trackup"></div></section>`;
   const cc = (d.cc || []).map((c, k) => [c, k]).sort((a, b) => (NORMAL.test(b[0][1]) - NORMAL.test(a[0][1])) || a[1] - b[1]).map(x => x[0]);
   if (cc.length) out += `<section class="ways"><h3 class="h3">Hochtouren, Klettereien und Skitouren</h3><ul class="rts">${cc.slice(0, 5).map(ccItem).join('')}` +
     (cc.length > 5 ? `<li><a href="https://www.camptocamp.org/waypoints/${d.cw}" target="_blank" rel="noopener">Alle ${cc.length} Routen bei Camptocamp</a></li>` : '') + `</ul>` +
@@ -457,23 +458,25 @@ async function climb(ll) {                         // -> { up, down, h } with wa
   const z = await heights(pts);
   let up = 0, down = 0, ref = z[0];
   for (const h of z) { if (h - ref > 8) { up += h - ref; ref = h; } else if (ref - h > 8) { down += ref - h; ref = h; } }
-  return { up: Math.round(up), down: Math.round(down), start: Math.round(z[0]) };
+  return { up: Math.round(up), down: Math.round(down), start: Math.round(z[0]), trk: pts.map((p, k) => [p[0], p[1], Math.round(z[k])]) };
 }
 const hm = h => { const m = Math.round(h * 60 / 5) * 5; return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h' + (m % 60 ? ' ' + String(m % 60).padStart(2, '0') + ' min' : ''); };
 const dinHours = (km, up, down) => { const th = km / 4, tv = up / 300 + down / 500; return Math.max(th, tv) + Math.min(th, tv) / 2; };
 const ascents = new Map();
-let ascSel = -1, ascList = [];
+let ascList = [], trackList = [], selKey = '';
 function loadAscents(i, d) {
   if (!$('asclist')) return;
   let p = ascents.get(i);
   if (!p) { p = computeAscents(i, d); ascents.set(i, p); p.catch(() => ascents.delete(i)); }
   p.then(r => { if (selected === i) renderAscents(i, d, r); }, () => { if (selected === i) renderAscError(i, d); });
+  loadTracks(i);
 }
 const startName = (s, h) => s.name || (s.kind ? START_KIND[s.kind] : 'Parkplatz') + (h ? ' auf ' + fmt.format(Math.round(h / 10) * 10) + ' m' : ' ohne Namen');
 function ascTitle(x) { return x.type === 'normal' ? x.name : x.type === 'rel' ? (x.name || 'Markierte Route ohne Namen') : (x.name || 'Klettersteig ohne Namen'); }
+const factsHtml = x => `<span class="ascfacts"><span>${n1(x.km)} km</span>${x.up != null ? `<span>↑ ${fmt.format(x.up)} Hm</span>` : ''}${x.down > 30 ? `<span>↓ ${fmt.format(x.down)} Hm</span>` : ''}<span>${x.up != null ? hm(x.h) : ''}</span></span>`;
 function renderAscents(i, d, r) {
   const box = $('asclist'); if (!box) return;
-  ascList = r.list; ascSel = -1;
+  ascList = r.list; if (selKey.startsWith('a:')) selKey = '';
   if (!r.list.length) {
     const nr = d.nr && d.nr[0];
     box.innerHTML = `<p class="note">${r.why === 'noway' ? 'In OpenStreetMap führt kein Weg bis zum Gipfel' + (nr ? ` (der nächste endet etwa ${nr[0]} m entfernt)` : '') + '. Der Gipfel ist weglos oder nur über Gletscher, Fels oder Klettereien erreichbar.'
@@ -482,16 +485,15 @@ function renderAscents(i, d, r) {
     box.querySelectorAll('.onmap[data-rel]').forEach(b => { b.onclick = () => showRouteOnMap(b.dataset.rel, b); });
     return;
   }
-  box.innerHTML = `<p class="note">Tippe einen Aufstieg an, um nur ihn auf der Karte zu sehen.</p><ul class="asc">` + r.list.map((x, k) => {
+  box.innerHTML = `<p class="note">Tippe einen Aufstieg an, um nur ihn auf der Karte und sein Höhenprofil zu sehen.</p><ul class="asc">` + r.list.map((x, k) => {
     const diff = gradeLabel(x.cat, x.grade, x.vf);
     const sub = [x.type === 'rel' ? 'markierte Route' : '', x.easiest || x.type === 'normal' ? 'leichtester gefundener Weg' : '', x.via.length ? 'über ' + x.via.join(', ') : ''].filter(Boolean).join(' · ');
-    return `<li><button type="button" class="ascpick" data-k="${k}" aria-pressed="false"><span class="ascrow"><span class="kb k${x.cat}">${KINDS[x.cat]}</span><b>${esc(ascTitle(x))}</b></span>` +
-      (sub ? `<small>${esc(sub)}</small>` : '') + `<small>ab ${esc(startName(x.res.park, x.start))}${diff ? ' · ' + diff : ''}</small>` +
-      `<span class="ascfacts"><span>${n1(x.km)} km</span>${x.up != null ? `<span>↑ ${fmt.format(x.up)} Hm</span>` : ''}${x.down > 30 ? `<span>↓ ${fmt.format(x.down)} Hm</span>` : ''}<span>${x.up != null ? hm(x.h) : ''}</span></span></button></li>`;
-  }).join('') + `</ul><div id="ascact" class="ascact" hidden></div>` + restHtml(r.rest) +
+    return `<li><button type="button" class="ascpick" data-key="a:${k}" aria-pressed="false"><span class="ascrow"><span class="kb k${x.cat}">${KINDS[x.cat]}</span><b>${esc(ascTitle(x))}</b></span>` +
+      (sub ? `<small>${esc(sub)}</small>` : '') + `<small>ab ${esc(startName(x.res.park, x.start))}${diff ? ' · ' + diff : ''}</small>` + factsHtml(x) + `</button></li>`;
+  }).join('') + `</ul>` + restHtml(r.rest) +
     `<p class="note">Berechnet aus den Wegen in OpenStreetMap vom nächstgelegenen Parkplatz bis zum Gipfel. Gehzeit nur für den Aufstieg, ohne Pausen, nach DIN 33466; Höhenmeter aus einem Geländemodell, auf etwa 10 % genau. ` +
     `Ein Vorschlag, keine geprüfte Tour: Wege können gesperrt, verfallen oder schwieriger sein als angegeben. Prüfe die Tour vor dem Aufbruch auf einer Wanderkarte.</p>`;
-  box.querySelectorAll('.ascpick').forEach(b => { b.onclick = () => pickAscent(+b.dataset.k); });
+  box.querySelectorAll('.ascpick').forEach(b => { b.onclick = () => pickItem(b.dataset.key); });
   box.querySelectorAll('.onmap[data-rel]').forEach(b => { b.onclick = () => showRouteOnMap(b.dataset.rel, b); });
 }
 function restHtml(rest) {                         // marked routes at the summit that could not be followed from a car park
@@ -499,17 +501,29 @@ function restHtml(rest) {                         // marked routes at the summit
   return `<h3 class="h3">Weitere markierte Routen am Gipfel</h3><ul class="rts">${rest.map(([rel, name, cat, grade, vf]) => `<li><a href="https://hiking.waymarkedtrails.org/#route?id=${rel}" target="_blank" rel="noopener">${esc(name || 'Markierte Route ohne Namen')}</a>` +
     `<button type="button" class="onmap" data-rel="${rel}">Auf Karte</button><small>${KINDS[cat]}${gradeLabel(cat, grade, vf) ? ' · ' + gradeLabel(cat, grade, vf) : ''} · Verlauf vom Parkplatz nicht durchgehend erfasst</small></li>`).join('')}</ul>`;
 }
-function pickAscent(k) {
-  ascSel = ascSel === k ? -1 : k;
-  document.querySelectorAll('#asclist .ascpick').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.k === ascSel)));
-  const act = $('ascact'), x = ascList[ascSel];
-  if (!x) { act.hidden = true; showAllTrails(); return; }
-  const s = x.res.park;
-  act.hidden = false;
-  act.innerHTML = `<a class="onmap" href="https://www.google.com/maps/dir/?api=1&destination=${s.p[0].toFixed(5)},${s.p[1].toFixed(5)}" target="_blank" rel="noopener">Anfahrt zum Startpunkt</a>` +
+const itemOf = key => { const [t, k] = key.split(':'); return (t === 'a' ? ascList : trackList)[+k]; };
+function pickItem(key) {
+  selKey = selKey === key ? '' : key;
+  document.querySelectorAll('#detail .ascpick').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.key === selKey)));
+  const old = $('ascact'); if (old) old.remove();
+  const x = selKey && itemOf(selKey);
+  if (!x) { showAllTrails(); return; }
+  const li = document.querySelector(`#detail .ascpick[data-key="${selKey}"]`).closest('li');
+  const act = document.createElement('div'); act.id = 'ascact'; act.className = 'ascact';
+  const s = x.trk[0], user = x.type === 'user', mine = user && sbUser && sbUser.id === x.user_id;
+  act.innerHTML = profileHtml(x) + `<div class="ascbtns">` +
+    `<button type="button" class="onmap" id="ascgpx">GPX herunterladen</button>` +
+    `<a class="onmap" href="https://www.google.com/maps/dir/?api=1&destination=${s[0].toFixed(5)},${s[1].toFixed(5)}" target="_blank" rel="noopener">Anfahrt zum Startpunkt</a>` +
     (x.type === 'rel' ? `<a class="onmap" href="https://hiking.waymarkedtrails.org/#route?id=${x.rel}" target="_blank" rel="noopener">Route bei Waymarked Trails</a>` : '') +
-    `<button type="button" class="onmap" id="ascall">Alle Wege zeigen</button>`;
-  $('ascall').onclick = () => pickAscent(ascSel);
+    (user ? `<button type="button" class="onmap" id="ascrep">Melden</button>` : '') +
+    (user && (mine || isAdminNow) ? `<button type="button" class="onmap" id="ascdel">Löschen</button>` : '') +
+    `<button type="button" class="onmap" id="ascall">Alle Wege zeigen</button></div><div id="ascmsg"></div>`;
+  li.appendChild(act);
+  wireProfile(act, x);
+  $('ascgpx').onclick = () => downloadGpx(x);
+  $('ascall').onclick = () => pickItem(selKey);
+  if ($('ascrep')) $('ascrep').onclick = () => reportForm(x);
+  if ($('ascdel')) $('ascdel').onclick = () => deleteTrack(x);
   drawAscent(x);
 }
 function renderAscError(i, d) {
@@ -520,22 +534,203 @@ function renderAscError(i, d) {
   box.querySelectorAll('.onmap[data-rel]').forEach(b => { b.onclick = () => showRouteOnMap(b.dataset.rel, b); });
 }
 const ASC_COLOR = () => document.documentElement.dataset.theme === 'dark' || (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches) ? '#5ea8ff' : '#1d5fd6';
-function showAllTrails() { if (hiLayer) hiLayer.clearLayers(); if (map && trailLayer && !map.hasLayer(trailLayer)) trailLayer.addTo(map); }
+function showAllTrails() { if (hiLayer) hiLayer.clearLayers(); hoverDot = null; if (map && trailLayer && !map.hasLayer(trailLayer)) trailLayer.addTo(map); }
+let hoverDot = null;
 function drawAscent(x) {
   if (!map) return;
-  setView('map'); hiLayer.clearLayers(); hiFor = selected;
+  if (MOBILE()) setSheet('half'); else setView('map');   // on phones the profile stays visible under the map
+  hiLayer.clearLayers(); hiFor = selected; hoverDot = null;
   if (map.hasLayer(trailLayer)) map.removeLayer(trailLayer);      // only the chosen ascent
   const col = ASC_COLOR();
   L.polyline(x.ll, { color: cssColors['--surface'], weight: 10, opacity: .95, interactive: false }).addTo(hiLayer);
   const line = L.polyline(x.ll, { color: col, weight: 5, interactive: false }).addTo(hiLayer);
-  if (x.fer.length) L.polyline(x.fer, { color: cssColors['--tk'] || '#e07b00', weight: 5, dashArray: '2 7', lineCap: 'round', interactive: false }).addTo(hiLayer);
-  L.circleMarker(x.ll[0], { radius: 8, color: cssColors['--surface'], weight: 3, fillColor: col, fillOpacity: 1, interactive: false }).bindTooltip('Start: ' + startName(x.res.park, x.start)).addTo(hiLayer);
+  if (x.fer && x.fer.length) L.polyline(x.fer, { color: cssColors['--tk'] || '#e07b00', weight: 5, dashArray: '2 7', lineCap: 'round', interactive: false }).addTo(hiLayer);
+  L.circleMarker(x.ll[0], { radius: 8, color: cssColors['--surface'], weight: 3, fillColor: col, fillOpacity: 1, interactive: false })
+    .bindTooltip(x.res ? 'Start: ' + startName(x.res.park, x.start) : 'Start').addTo(hiLayer);
   setTimeout(() => {
     map.invalidateSize();
     const leg = $('legendbox') ? $('legendbox').offsetHeight + 16 : 0;
-    const cover = MOBILE() ? Math.min(sheetPx($('app').dataset.sheet || 'peek'), $('mapwrap').clientHeight - 120) : leg;
+    const cover = MOBILE() ? Math.min(sheetPx($('app').dataset.sheet || 'half'), $('mapwrap').clientHeight - 120) : leg;
     map.fitBounds(line.getBounds(), { paddingTopLeft: [30, 30], paddingBottomRight: [30, 30 + cover], maxZoom: 15 });
   }, 60);
+}
+/* ---------- height profile, shared by computed ascents and uploaded tracks ---------- */
+function profPoints(trk) {                         // -> [[km, height, index in trk]], at most 240 points
+  const out = []; let km = 0;
+  trk.forEach((p, k) => { if (k) km += metres(trk[k - 1], p) / 1000; if (p[2] != null) out.push([km, p[2], k]); });
+  if (out.length <= 240) return out;
+  const step = out.length / 240, res = [];
+  for (let k = 0; k < 240; k++) res.push(out[Math.floor(k * step)]);
+  res.push(out[out.length - 1]); return res;
+}
+function profileHtml(x) {
+  const pp = profPoints(x.trk); if (pp.length < 2) return '';
+  const W = 600, H = 150, L0 = 46, R0 = 8, T0 = 10, B0 = 22;
+  const km = pp[pp.length - 1][0], lo = Math.min(...pp.map(p => p[1])), hi = Math.max(...pp.map(p => p[1]));
+  const step = [50, 100, 200, 250, 500, 1000].find(s => (hi - lo) / s <= 4) || 1000, y0 = Math.floor(lo / step) * step, y1 = Math.max(y0 + step, Math.ceil(hi / step) * step);
+  const X = v => L0 + v / km * (W - L0 - R0), Y = v => T0 + (1 - (v - y0) / (y1 - y0)) * (H - T0 - B0);
+  const line = pp.map((p, k) => (k ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join('');
+  const kstep = [0.5, 1, 2, 5, 10].find(s => km / s <= 6) || 10, xt = [];
+  for (let v = 0; v <= km + 1e-9; v += kstep) xt.push(v);
+  let grid = '';
+  for (let v = y0; v <= y1; v += step) grid += `<line x1="${L0}" x2="${W - R0}" y1="${Y(v)}" y2="${Y(v)}" class="pg"/><text x="${L0 - 6}" y="${Y(v) + 4}" text-anchor="end">${fmt.format(v)}</text>`;
+  xt.forEach(v => { grid += `<text x="${X(v)}" y="${H - 5}" text-anchor="middle">${n1(v)}${v === 0 ? '' : ''}</text>`; });
+  return `<figure class="prof"><figcaption>Höhenprofil · ${n1(km)} km · ${fmt.format(Math.round(lo))}–${fmt.format(Math.round(hi))} m</figcaption>` +
+    `<div class="profbox"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Höhenprofil: von ${fmt.format(Math.round(pp[0][1]))} m auf ${fmt.format(Math.round(pp[pp.length - 1][1]))} m über ${n1(km)} km, höchster Punkt ${fmt.format(Math.round(hi))} m">` +
+    grid + `<path d="${line}L${X(km)} ${Y(y0)}L${X(0)} ${Y(y0)}Z" class="pa"/><path d="${line}" class="pl"/>` +
+    `<line class="px" x1="0" x2="0" y1="${T0}" y2="${H - B0}" visibility="hidden"/><circle class="pd" r="4" visibility="hidden"/></svg><div class="ptip" hidden></div></div>` +
+    `<div class="paxis"><span>km</span></div></figure>`;
+}
+function wireProfile(box, x) {
+  const svg = box.querySelector('.prof svg'); if (!svg) return;
+  const pp = profPoints(x.trk), W = 600, H = 150, L0 = 46, R0 = 8, T0 = 10, B0 = 22, km = pp[pp.length - 1][0];
+  const lo = Math.min(...pp.map(p => p[1])), hi = Math.max(...pp.map(p => p[1]));
+  const step = [50, 100, 200, 250, 500, 1000].find(s => (hi - lo) / s <= 4) || 1000, y0 = Math.floor(lo / step) * step, y1 = Math.max(y0 + step, Math.ceil(hi / step) * step);
+  const X = v => L0 + v / km * (W - L0 - R0), Y = v => T0 + (1 - (v - y0) / (y1 - y0)) * (H - T0 - B0);
+  const cross = svg.querySelector('.px'), dot = svg.querySelector('.pd'), tip = box.querySelector('.ptip');
+  const move = ev => {
+    const r = svg.getBoundingClientRect(), vx = (ev.clientX - r.left) / r.width * W, v = Math.max(0, Math.min(km, (vx - L0) / (W - L0 - R0) * km));
+    let p = pp[0]; for (const q of pp) if (Math.abs(q[0] - v) < Math.abs(p[0] - v)) p = q;
+    cross.setAttribute('x1', X(p[0])); cross.setAttribute('x2', X(p[0])); cross.setAttribute('visibility', 'visible');
+    dot.setAttribute('cx', X(p[0])); dot.setAttribute('cy', Y(p[1])); dot.setAttribute('visibility', 'visible');
+    tip.hidden = false; tip.textContent = `${n1(p[0])} km · ${fmt.format(Math.round(p[1]))} m`;
+    tip.style.left = Math.min(r.width - tip.offsetWidth, Math.max(0, X(p[0]) / W * r.width - tip.offsetWidth / 2)) + 'px';
+    const t = x.trk[p[2]];
+    if (map && t) { if (!hoverDot) hoverDot = L.circleMarker(t, { radius: 6, color: cssColors['--surface'], weight: 2, fillColor: cssColors['--accent'], fillOpacity: 1, interactive: false }).addTo(hiLayer); else hoverDot.setLatLng(t); }
+  };
+  const leave = () => { cross.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); tip.hidden = true; if (hoverDot) { hiLayer.removeLayer(hoverDot); hoverDot = null; } };
+  svg.addEventListener('pointermove', move); svg.addEventListener('pointerdown', move); svg.addEventListener('pointerleave', leave);
+}
+/* ---------- GPX download ---------- */
+const xmlEsc = s => String(s).replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[c]));
+function downloadGpx(x) {
+  const name = (x.type === 'user' ? x.name : ascTitle(x)) + ' – ' + D.peaks.n[selected];
+  const pts = x.trk.map(p => `<trkpt lat="${p[0].toFixed(6)}" lon="${p[1].toFixed(6)}">${p[2] != null ? `<ele>${Math.round(p[2])}</ele>` : ''}</trkpt>`).join('\n');
+  const gpx = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Alpengipfel (alpen-gipfel.de)" xmlns="http://www.topografix.com/GPX/1/1">\n` +
+    `<metadata><name>${xmlEsc(name)}</name><copyright author="${x.type === 'user' ? xmlEsc(x.autor || 'Alpengipfel-Nutzer') : 'OpenStreetMap-Mitwirkende'}"><license>${x.type === 'user' ? 'https://alpen-gipfel.de/nutzungsbedingungen.html' : 'https://opendatacommons.org/licenses/odbl/'}</license></copyright></metadata>\n` +
+    `<trk><name>${xmlEsc(name)}</name><desc>${xmlEsc(x.type === 'user' ? 'Track von ' + (x.autor || 'einem Nutzer') + ' auf alpen-gipfel.de' : 'Berechneter Aufstieg aus OpenStreetMap-Daten, ungeprüft')}</desc><trkseg>\n${pts}\n</trkseg></trk>\n</gpx>\n`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([gpx], { type: 'application/gpx+xml' }));
+  a.download = (norm(name).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'track') + '.gpx';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+/* ---------- GPX tracks of users (Supabase table tracks) ---------- */
+let isAdminNow = false, adminFor = '';
+async function checkAdmin() {
+  const uid = sbUser ? sbUser.id : '';
+  if (adminFor === uid) return isAdminNow;
+  adminFor = uid; isAdminNow = false;
+  if (sb && uid) { try { const r = await sb.rpc('ist_admin'); isAdminNow = r.data === true; } catch (err) { /* no admin */ } }
+  return isAdminNow;
+}
+async function loadTracks(i) {
+  const box = $('tracklist'); if (!box) return;
+  if (!sb) { $('trackbox').hidden = true; return; }
+  const id = D.peaks.id[i];
+  const [{ data, error }] = await Promise.all([sb.from('tracks').select('id,user_id,autor,name,art,kommentar,km,hm_auf,hm_ab,punkte,created_at').eq('gipfel', id).order('created_at', { ascending: false }).limit(50), checkAdmin()]);
+  if (selected !== i || !$('tracklist')) return;
+  if (error) { box.innerHTML = `<p class="note">${/relation .* does not exist|tracks/.test(error.message || '') && error.code === '42P01' ? 'Tracks sind noch nicht eingerichtet.' : 'Die Tracks konnten gerade nicht geladen werden.'}</p>`; renderUpload(i); return; }
+  trackList = data.map(t => {
+    const trk = t.punkte.map(p => [p[0], p[1], p[2] == null ? null : p[2]]);
+    return { type: 'user', id: t.id, user_id: t.user_id, autor: t.autor, name: t.name, cat: t.art, kommentar: t.kommentar, km: t.km, up: t.hm_auf, down: t.hm_ab,
+      h: dinHours(t.km, t.hm_auf, t.hm_ab), when: new Date(t.created_at), trk, ll: trk.map(p => [p[0], p[1]]), fer: [] };
+  });
+  if (selKey.startsWith('t:')) selKey = '';
+  box.innerHTML = trackList.length ? `<ul class="asc">${trackList.map((x, k) => `<li><button type="button" class="ascpick" data-key="t:${k}" aria-pressed="false">` +
+    `<span class="ascrow"><span class="kb k${x.cat}">${KINDS[x.cat]}</span><b>${esc(x.name)}</b></span><small>von ${esc(x.autor || 'einem Nutzer')} · ${x.when.toLocaleDateString('de-DE')}</small>` +
+    (x.kommentar ? `<small class="tcom">${esc(x.kommentar)}</small>` : '') + factsHtml(x) + `</button></li>`).join('')}</ul>`
+    : `<p class="note">Noch kein Track für diesen Gipfel. Warst du schon oben? Lade deinen Track hoch, damit andere ihn nutzen können.</p>`;
+  box.querySelectorAll('.ascpick').forEach(b => { b.onclick = () => pickItem(b.dataset.key); });
+  renderUpload(i);
+}
+function renderUpload(i) {
+  const up = $('trackup'); if (!up) return;
+  if (!sbUser) { up.innerHTML = `<p class="note"><button type="button" class="linkbtn" id="tlogin">Melde dich an</button>, um eigene GPX-Tracks hochzuladen.</p>`; $('tlogin').onclick = () => showProfile(); return; }
+  up.innerHTML = `<label class="upbtn"><input type="file" id="gpxfile" accept=".gpx,application/gpx+xml" hidden>GPX-Datei hochladen</label><div id="upform"></div>`;
+  $('gpxfile').onchange = ev => { const f = ev.target.files[0]; ev.target.value = ''; if (f) prepareUpload(i, f); };
+}
+function simplify(pts, tol) {                      // Douglas-Peucker in metres
+  const k0 = Math.cos(pts[0][0] * Math.PI / 180), P = pts.map(p => [p[1] * 111320 * k0, p[0] * 110540]);
+  const keep = new Uint8Array(pts.length); keep[0] = keep[pts.length - 1] = 1;
+  const stack = [[0, pts.length - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop(); let md = 0, mi = -1;
+    const [ax, ay] = P[a], [bx, by] = P[b], dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+    for (let k = a + 1; k < b; k++) {
+      const t = l2 ? Math.max(0, Math.min(1, ((P[k][0] - ax) * dx + (P[k][1] - ay) * dy) / l2)) : 0;
+      const d = Math.hypot(P[k][0] - ax - t * dx, P[k][1] - ay - t * dy); if (d > md) { md = d; mi = k; }
+    }
+    if (md > tol) { keep[mi] = 1; stack.push([a, mi], [mi, b]); }
+  }
+  return pts.filter((_, k) => keep[k]);
+}
+function gain(z, hyst) { let up = 0, down = 0, ref = z[0]; for (const h of z) { if (h - ref > hyst) { up += h - ref; ref = h; } else if (ref - h > hyst) { down += ref - h; ref = h; } } return [Math.round(up), Math.round(down)]; }
+async function prepareUpload(i, file) {
+  const form = $('upform'), top = [D.peaks.la[i], D.peaks.lo[i]];
+  const fail = msg => { form.innerHTML = `<p class="note warn">${msg}</p>`; };
+  if (file.size > 20e6) return fail('Die Datei ist zu groß (höchstens 20 MB).');
+  let doc;
+  try { doc = new DOMParser().parseFromString(await file.text(), 'application/xml'); } catch (err) { return fail('Die Datei konnte nicht gelesen werden.'); }
+  if (doc.getElementsByTagName('parsererror').length) return fail('Das ist keine gültige GPX-Datei.');
+  let nodes = [...doc.getElementsByTagName('trkpt')]; if (nodes.length < 2) nodes = [...doc.getElementsByTagName('rtept')];
+  let pts = nodes.map(n => { const e = n.getElementsByTagName('ele')[0]; const z = e ? parseFloat(e.textContent) : NaN; return [+n.getAttribute('lat'), +n.getAttribute('lon'), Number.isFinite(z) ? z : null]; })
+    .filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]) && Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180);
+  if (pts.length < 10) return fail('In der Datei ist kein Track mit genügend Punkten.');
+  let nearest = Infinity; pts.forEach(p => { nearest = Math.min(nearest, metres(p, top)); });
+  if (nearest > 150) return fail(`Der Track führt nicht auf diesen Gipfel: Sein nächster Punkt ist ${nearest < 10000 ? fmt.format(Math.round(nearest / 10) * 10) + ' m' : n1(nearest / 1000) + ' km'} entfernt.`);
+  // privacy: drop the first and last 200 m where the track starts or ends away from the summit
+  const trim = arr => { if (metres(arr[0], top) < 500) return arr; let d = 0, k = 1; while (k < arr.length - 2 && d < 200) { d += metres(arr[k - 1], arr[k]); k++; } return arr.slice(k - 1); };
+  pts = trim(pts); pts = trim(pts.reverse()).reverse();
+  let km = 0;
+  const hasEle = pts.filter(p => p[2] != null).length >= pts.length * 0.8;
+  let tol = 4, simple = simplify(pts, tol); while (simple.length > 2500) { tol *= 1.5; simple = simplify(pts, tol); }
+  let up, down;
+  if (hasEle) { let last = null; pts.forEach(p => { if (p[2] == null) p[2] = last; else last = p[2]; }); [up, down] = gain(pts.map(p => p[2] ?? pts.find(q => q[2] != null)[2]), 5); simple = simple.map(p => [p[0], p[1], p[2] ?? null]); }
+  else {
+    try { const z = await heights(simple.map(p => [p[0], p[1]])); simple = simple.map((p, k) => [p[0], p[1], z[k]]); [up, down] = gain(z, 8); }
+    catch (err) { simple = simple.map(p => [p[0], p[1], null]); up = 0; down = 0; }
+  }
+  const punkte = simple.map(p => [+p[0].toFixed(6), +p[1].toFixed(6), p[2] == null ? null : Math.round(p[2])]);
+  km = punkte.reduce((s, p, k) => k ? s + metres(punkte[k - 1], p) : 0, 0) / 1000;   // the distance of what is shown and stored
+  const x = { type: 'user', name: '', cat: 0, km, up, down, h: dinHours(km, up, down), trk: punkte, ll: punkte.map(p => [p[0], p[1]]), fer: [] };
+  const nameEl = doc.querySelector('trk > name') || doc.querySelector('rte > name') || doc.querySelector('metadata > name');
+  const guess = nameEl ? nameEl.textContent.trim().slice(0, 80) : '';
+  drawAscent(x);
+  form.innerHTML = `<form class="upf" id="upf"><p class="note">Vorschau auf der Karte: ${n1(km)} km · ↑ ${fmt.format(up)} Hm · ↓ ${fmt.format(down)} Hm. ` +
+    `Zeitstempel und Geräteangaben werden nicht übertragen${pts.length ? '' : ''}.</p>` + profileHtml(x) +
+    `<label>Name der Route<input id="upname" required minlength="3" maxlength="80" value="${esc(guess)}" placeholder="z. B. Über die Höllentalangerhütte"></label>` +
+    `<label>Art<select id="upart">${KINDS.map((k, c) => `<option value="${c}">${k}</option>`).join('')}</select></label>` +
+    `<label>Kommentar (freiwillig)<textarea id="upcom" maxlength="500" rows="3" placeholder="z. B. Zustand, Schlüsselstelle, Einkehr"></textarea></label>` +
+    `<label class="chk"><input type="checkbox" id="upok" required><span>Ich habe den Track selbst aufgezeichnet oder darf ihn veröffentlichen. Er wird mit meinem Benutzernamen öffentlich gezeigt` +
+    (window.AG_LEGAL ? ` (<a href="${ROOT}nutzungsbedingungen.html" target="_blank">Nutzungsbedingungen</a>, <a href="${ROOT}datenschutz.html" target="_blank">Datenschutz</a>)` : '') + `.</span></label>` +
+    `<div class="ascbtns"><button type="submit" class="primary">Veröffentlichen</button><button type="button" class="onmap" id="upcancel">Abbrechen</button></div><p class="note" id="upmsg" role="status"></p></form>`;
+  wireProfile(form, x);
+  $('upcancel').onclick = () => { form.innerHTML = ''; showAllTrails(); };
+  $('upf').onsubmit = async ev => {
+    ev.preventDefault();
+    const name = $('upname').value.trim(); if (name.length < 3) { $('upmsg').textContent = 'Bitte gib einen Namen mit mindestens 3 Zeichen ein.'; return; }
+    $('upmsg').textContent = 'Wird hochgeladen …';
+    const { error } = await sb.from('tracks').insert({ gipfel: D.peaks.id[i], name, art: +$('upart').value, kommentar: $('upcom').value.trim(), km: Math.round(km * 100) / 100, hm_auf: up, hm_ab: down, punkte });
+    if (error) { $('upmsg').textContent = /Zu viele/.test(error.message) ? 'Du hast heute schon 20 Tracks hochgeladen. Versuch es morgen wieder.' : 'Das Hochladen hat nicht geklappt. Bitte versuch es noch einmal.'; return; }
+    form.innerHTML = '<p class="note">Danke! Dein Track ist jetzt sichtbar.</p>'; showAllTrails(); loadTracks(i);
+  };
+}
+function reportForm(x) {
+  const m = $('ascmsg');
+  m.innerHTML = `<form class="upf" id="repf"><label>Was stimmt nicht mit diesem Track?<textarea id="repg" minlength="3" maxlength="500" rows="2" required placeholder="z. B. führt über einen gesperrten Weg"></textarea></label>` +
+    `<div class="ascbtns"><button type="submit" class="onmap">Meldung senden</button></div></form>`;
+  $('repf').onsubmit = async ev => {
+    ev.preventDefault();
+    const g = $('repg').value.trim(); if (g.length < 3) return;
+    const { error } = await sb.rpc('track_melden', { track: x.id, text_grund: g });
+    m.innerHTML = `<p class="note">${error ? 'Die Meldung konnte nicht gesendet werden. Schreib uns gern per E-Mail.' : 'Danke, wir sehen uns den Track an.'}</p>`;
+  };
+}
+async function deleteTrack(x) {
+  if (!confirm(`Track „${x.name}“ wirklich löschen?`)) return;
+  const { error } = await sb.rpc('track_entfernen', { track: x.id });
+  if (error) { $('ascmsg').innerHTML = '<p class="note">Der Track konnte nicht gelöscht werden.</p>'; return; }
+  selKey = ''; showAllTrails(); loadTracks(selected);
 }
 function ferGroups(net) {                         // connected via_ferrata sections: { ways, verts, len }
   const parent = net.ways.map((_, k) => k), find = k => parent[k] === k ? k : (parent[k] = find(parent[k])), grp = new Map();
@@ -669,7 +864,7 @@ async function computeAscents(i, d) {
     const ways = Object.keys(names).sort((a, b) => names[b] - names[a]).filter(n => n !== x.name), huts = hutsAlong(ll, top);
     if (!x.name) x.name = huts.length ? 'Über ' + huts.slice(0, 2).join(' und ') : ways.length ? 'Über ' + ways.shift() : 'Normalweg';
     x.via = (x.name.startsWith('Über ') ? (huts.length > 2 ? huts.slice(2) : ways) : huts.length ? huts : ways).filter(n => !x.name.includes(n)).slice(0, 2);
-    try { Object.assign(x, await climb(ll)); } catch (err) { x.up = null; }
+    try { Object.assign(x, await climb(ll)); } catch (err) { x.up = null; x.trk = ll.map(p => [p[0], p[1], null]); }
     x.h = dinHours(x.km, x.up || 0, x.down || 0);
   }
   // a T6 ridge is no 'easiest way' when there are other ascents (e.g. Jubiläumsgrat at the Zugspitze)
@@ -731,7 +926,7 @@ function setTab(k, user) {
   if (user) { const el = $('detail'), t = el.querySelector('.dtabs'), top = t.offsetTop - parseFloat(getComputedStyle(el).paddingTop); if (el.scrollTop > top) el.scrollTop = top; }
 }
 function renderDetail(i, fromMap, d) {
-  curDetail = { i, d }; ascSel = -1;
+  curDetail = { i, d }; selKey = '';
   const P = D.peaks, e = P.e[i], la = P.la[i], lo = P.lo[i];
   const pl = placeNames(i);
   startPts = [...(d.pk || []), ...(d.st || [])];
@@ -1130,6 +1325,21 @@ function countVisit() {
   const src = !ref ? 'direkt' : /tiktok/.test(ref) ? 'tiktok' : /google\./.test(ref) ? 'google' : /instagram|facebook|fb\.com/.test(ref) ? 'instagram' : /bing|duckduckgo|ecosia|yahoo/.test(ref) ? 'suche' : ref.endsWith('alpen-gipfel.de') ? 'intern' : 'andere';
   if (src !== 'intern') count('von:' + src);
 }
+async function loadReports(box) {                // reported user tracks, for admins
+  const sec = document.createElement('div'); box.appendChild(sec);
+  const { data, error } = await sb.rpc('track_meldungen_liste');
+  if (error) { sec.innerHTML = '<h3 class="h3">Gemeldete Tracks</h3><p class="note">Noch nicht eingerichtet (supabase/tracks.sql ausführen).</p>'; return; }
+  const draw = rows => {
+    sec.innerHTML = `<h3 class="h3">Gemeldete Tracks</h3>` + (rows.length ? `<ul class="slist">${rows.map((r, k) => { const i = indexOfId(+r.gipfel);
+      return `<li><span><b>${esc(r.name)}</b> von ${esc(r.autor || '?')} · ${i >= 0 ? esc(D.peaks.n[i]) : r.gipfel}<small class="note">„${esc(r.grund)}“ · ${new Date(r.created_at).toLocaleDateString('de-DE')}</small></span>` +
+        `<span class="ascbtns">${i >= 0 ? `<button type="button" class="onmap" data-open="${i}">Ansehen</button>` : ''}<button type="button" class="onmap" data-del="${k}">Track löschen</button><button type="button" class="onmap" data-ok="${k}">Meldung erledigt</button></span></li>`; }).join('')}</ul>`
+      : '<p class="note">Keine offenen Meldungen.</p>');
+    sec.querySelectorAll('[data-open]').forEach(b => { b.onclick = () => { detailTab = 'routes'; showDetail(+b.dataset.open); }; });
+    sec.querySelectorAll('[data-del]').forEach(b => { b.onclick = async () => { const r = rows[+b.dataset.del]; if (!confirm(`Track „${r.name}“ löschen?`)) return; await sb.rpc('track_entfernen', { track: r.track_id }); draw(rows.filter(x => x.track_id !== r.track_id)); }; });
+    sec.querySelectorAll('[data-ok]').forEach(b => { b.onclick = async () => { const r = rows[+b.dataset.ok]; await sb.rpc('meldung_erledigt', { track: r.track_id }); draw(rows.filter(x => x.track_id !== r.track_id)); }; });
+  };
+  draw(data || []);
+}
 async function loadStats() {                            // only for accounts listed as admins
   const box = $('pstatsadmin'); if (!box || !sb || !sbUser) return;
   const adm = await sb.rpc('ist_admin'); if (adm.error || !adm.data) { box.remove(); return; }
@@ -1153,6 +1363,7 @@ async function loadStats() {                            // only for accounts lis
     `<div class="two"><div><h3 class="h3">Herkunft</h3><ul class="slist">${Object.entries(src).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<li><span>${SRC[k] || k}</span><b>${fmt.format(n)}</b></li>`).join('') || '<li class="note">noch keine Daten</li>'}</ul></div>` +
     `<div><h3 class="h3">Meistgeöffnete Gipfel</h3><ul class="slist">${top.map(([id, n]) => { const i = indexOfId(+id); return `<li><span>${i >= 0 ? esc(D.peaks.n[i]) : id}</span><b>${fmt.format(n)}</b></li>`; }).join('') || '<li class="note">noch keine Daten</li>'}</ul></div></div>` +
     `<p class="note">Gezählt wird jeder Seitenaufruf, ohne Cookies und ohne Wiedererkennung. Mehrere Aufrufe derselben Person zählen deshalb mehrfach. Deine eigenen Aufrufe zählen nicht, solange du mit diesem Konto angemeldet bist. Die Herkunft fehlt oft, wenn jemand den Link in der TikTok-App öffnet; dann steht er unter „direkt“.</p>`;
+  loadReports(box);
 }
 function initAccount() {
   if (!HOSTED || !window.supabase) return;

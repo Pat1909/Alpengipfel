@@ -78,6 +78,12 @@ insbesondere IP-Adresse, Zeitpunkt, aufgerufene Seite und Angaben zum Browser, u
 <p>Konto und Gipfelbuch werden bei unserem Auftragsverarbeiter Supabase, Inc., 970 Toa Payoh North #07-04, Singapur 318992, gespeichert; der Speicherort der Datenbank ist {region}.
 Nur Sie selbst können Ihr Gipfelbuch lesen und ändern. Wir speichern die Daten, solange Ihr Konto besteht. Sie können Ihr Konto mit allen zugehörigen Daten jederzeit selbst löschen: im Gipfelbuch unter „Konto“ → „Konto löschen“. Alternativ genügt eine E-Mail an die oben genannte Adresse.</p>
 <p>Das Angebot richtet sich an Personen ab 16 Jahren. Wir erheben wissentlich keine Daten von Kindern.</p>
+<h2>Hochgeladene Tracks</h2>
+<p>Angemeldete Nutzer können GPX-Tracks zu einem Gipfel hochladen. Bevor etwas übertragen wird, entfernt die App im Browser Zeitstempel, Geräte- und Programmangaben und alle weiteren Inhalte der Datei;
+übertragen werden nur der vereinfachte Verlauf (Koordinaten und Höhe), der von Ihnen gewählte Name, die Art, Ihr Kommentar, Strecke und Höhenmeter. Beginnt oder endet der Track abseits des Gipfels,
+werden die ersten und letzten 200 Meter abgeschnitten, damit zum Beispiel Ihre Haustür nicht erkennbar ist. Der Track wird mit Ihrem Benutzernamen öffentlich auf der Gipfelseite angezeigt und kann von allen Besuchern heruntergeladen werden.
+Gespeichert wird er bei Supabase (Speicherort {region}), bis Sie ihn löschen (beim Track: „Löschen“) oder Ihr Konto löschen. Rechtsgrundlage ist die Bereitstellung der von Ihnen gewünschten Funktion (Art. 6 Abs. 1 lit. b DSGVO).
+Meldet jemand einen Track, speichern wir den angegebenen Grund ohne Angaben zur meldenden Person.</p>
 <h2>Besucherzählung</h2>
 <p>Um zu sehen, wie die Website genutzt wird, zählen wir Seitenaufrufe: je Tag die Anzahl der Aufrufe, die Art der Einstiegsseite, von welcher Art Website Besucher kommen
 (zum Beispiel Suchmaschine oder soziales Netzwerk, ermittelt aus der Herkunftsangabe Ihres Browsers) und welche Gipfel geöffnet werden. Gespeichert werden nur diese Tagessummen bei Supabase (Speicherort {region}),
@@ -119,6 +125,12 @@ Bergtouren unternehmen Sie auf eigene Gefahr.</p>
 <h2>3. Konto</h2>
 <p>Für das Gipfelbuch auf mehreren Geräten können Sie ein kostenloses Konto anlegen. Voraussetzung ist ein Mindestalter von 16 Jahren. Wählen Sie einen Benutzernamen, der keine Rechte Dritter verletzt und nicht beleidigend ist,
 und halten Sie Ihr Passwort geheim. Sie können Ihr Konto jederzeit in der App löschen (Gipfelbuch → Konto → Konto löschen). Wir können Konten sperren oder löschen, die missbräuchlich verwendet werden.</p>
+<h2>3a. Eigene Tracks</h2>
+<p>Angemeldete Nutzer können GPX-Tracks zu Gipfeln hochladen. Laden Sie nur Tracks hoch, die Sie selbst aufgezeichnet oder geplant haben oder für die Sie die nötigen Rechte besitzen, und die einen tatsächlich begehbaren Weg zeigen.
+Mit dem Hochladen räumen Sie uns das einfache, unentgeltliche Recht ein, den Track auf Alpengipfel anzuzeigen und Besuchern zum Herunterladen anzubieten, bis Sie ihn löschen.
+Für Inhalt und Richtigkeit Ihres Tracks sind Sie selbst verantwortlich; wir prüfen Tracks nicht vorab. Tracks anderer Nutzer sind keine geprüften Touren, die Nutzung erfolgt auf eigene Gefahr.</p>
+<p>Jeder Track lässt sich über „Melden“ melden, etwa wenn er falsch, gefährlich oder rechtswidrig ist oder Rechte Dritter verletzt; Hinweise auf rechtswidrige Inhalte können Sie auch per E-Mail an die im Impressum genannte Adresse senden.
+Wir prüfen Meldungen zeitnah und entfernen Tracks, die gegen diese Bedingungen oder geltendes Recht verstoßen. Wer wiederholt solche Inhalte hochlädt, kann gesperrt werden.</p>
 <h2>4. Erlaubte Nutzung</h2>
 <p>Sie dürfen Alpengipfel für private Zwecke nutzen. Nicht erlaubt ist es, den Dienst zu stören, Schutzmaßnahmen zu umgehen oder Inhalte automatisiert in großem Umfang abzurufen.
 Die Daten selbst stehen unter den im Impressum genannten freien Lizenzen und können bei den jeweiligen Quellen bezogen werden.</p>
