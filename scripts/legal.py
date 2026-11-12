@@ -78,12 +78,13 @@ insbesondere IP-Adresse, Zeitpunkt, aufgerufene Seite und Angaben zum Browser, u
 <p>Konto und Gipfelbuch werden bei unserem Auftragsverarbeiter Supabase, Inc., 970 Toa Payoh North #07-04, Singapur 318992, gespeichert; der Speicherort der Datenbank ist {region}.
 Nur Sie selbst können Ihr Gipfelbuch lesen und ändern. Wir speichern die Daten, solange Ihr Konto besteht. Sie können Ihr Konto mit allen zugehörigen Daten jederzeit selbst löschen: im Gipfelbuch unter „Konto“ → „Konto löschen“. Alternativ genügt eine E-Mail an die oben genannte Adresse.</p>
 <p>Das Angebot richtet sich an Personen ab 16 Jahren. Wir erheben wissentlich keine Daten von Kindern.</p>
-<h2>Hochgeladene Tracks</h2>
-<p>Angemeldete Nutzer können GPX-Tracks zu einem Gipfel hochladen. Bevor etwas übertragen wird, entfernt die App im Browser Zeitstempel, Geräte- und Programmangaben und alle weiteren Inhalte der Datei;
-übertragen werden nur der vereinfachte Verlauf (Koordinaten und Höhe), der von Ihnen gewählte Name, die Art, Ihr Kommentar, Strecke und Höhenmeter. Beginnt oder endet der Track abseits des Gipfels,
-werden die ersten und letzten 200 Meter abgeschnitten, damit zum Beispiel Ihre Haustür nicht erkennbar ist. Der Track wird mit Ihrem Benutzernamen öffentlich auf der Gipfelseite angezeigt und kann von allen Besuchern heruntergeladen werden.
-Gespeichert wird er bei Supabase (Speicherort {region}), bis Sie ihn löschen (beim Track: „Löschen“) oder Ihr Konto löschen. Rechtsgrundlage ist die Bereitstellung der von Ihnen gewünschten Funktion (Art. 6 Abs. 1 lit. b DSGVO).
-Meldet jemand einen Track, speichern wir den angegebenen Grund ohne Angaben zur meldenden Person.</p>
+<h2>Geteilte Touren (Community)</h2>
+<p>Angemeldete Nutzer können Touren teilen: Gipfel, Datum, Titel, Bericht, Art, Gehzeit, bis zu vier Fotos und optional einen GPX-Track. Bevor etwas übertragen wird, verkleinert die App jedes Foto in Ihrem Browser
+und speichert es neu; dabei gehen Standort-, Kamera- und alle anderen Metadaten verloren. Beim Track werden Zeitstempel, Geräte- und Programmangaben entfernt; beginnt oder endet er abseits des Gipfels,
+werden die ersten und letzten 200 Meter abgeschnitten. Der Beitrag wird mit Ihrem Benutzernamen öffentlich angezeigt; Fotos und Track können alle Besucher ansehen und herunterladen.
+Wenn Sie einen Beitrag mit „Gefällt mir“ markieren, speichern wir diese Zuordnung zu Ihrem Konto; öffentlich sichtbar ist nur die Anzahl.
+Alles wird bei Supabase gespeichert (Speicherort {region}), bis Sie den Beitrag löschen (beim Beitrag: „Löschen“) oder Ihr Konto löschen. Rechtsgrundlage ist die Bereitstellung der von Ihnen gewünschten Funktion (Art. 6 Abs. 1 lit. b DSGVO).
+Meldet jemand einen Beitrag, speichern wir den angegebenen Grund ohne Angaben zur meldenden Person. Zeigen Ihre Fotos andere erkennbare Personen, brauchen Sie deren Einverständnis.</p>
 <h2>Feedback</h2>
 <p>Über „Feedback“ können Sie uns eine Nachricht schicken, auch ohne Konto. Gespeichert werden Ihre Nachricht, die gewählte Art (zum Beispiel Idee oder Fehler), die Seite, auf der Sie das Formular geöffnet haben,
 eine freiwillig angegebene E-Mail-Adresse für eine Antwort und, wenn Sie angemeldet sind, Ihr Benutzername. Die Nachrichten liegen bei Supabase (Speicherort {region}) und können nur vom Betreiber gelesen werden.
@@ -130,12 +131,12 @@ Bergtouren unternehmen Sie auf eigene Gefahr.</p>
 <h2>3. Konto</h2>
 <p>Für das Gipfelbuch auf mehreren Geräten können Sie ein kostenloses Konto anlegen. Voraussetzung ist ein Mindestalter von 16 Jahren. Wählen Sie einen Benutzernamen, der keine Rechte Dritter verletzt und nicht beleidigend ist,
 und halten Sie Ihr Passwort geheim. Sie können Ihr Konto jederzeit in der App löschen (Gipfelbuch → Konto → Konto löschen). Wir können Konten sperren oder löschen, die missbräuchlich verwendet werden.</p>
-<h2>3a. Eigene Tracks</h2>
-<p>Angemeldete Nutzer können GPX-Tracks zu Gipfeln hochladen. Laden Sie nur Tracks hoch, die Sie selbst aufgezeichnet oder geplant haben oder für die Sie die nötigen Rechte besitzen, und die einen tatsächlich begehbaren Weg zeigen.
-Mit dem Hochladen räumen Sie uns das einfache, unentgeltliche Recht ein, den Track auf Alpengipfel anzuzeigen und Besuchern zum Herunterladen anzubieten, bis Sie ihn löschen.
-Für Inhalt und Richtigkeit Ihres Tracks sind Sie selbst verantwortlich; wir prüfen Tracks nicht vorab. Tracks anderer Nutzer sind keine geprüften Touren, die Nutzung erfolgt auf eigene Gefahr.</p>
-<p>Jeder Track lässt sich über „Melden“ melden, etwa wenn er falsch, gefährlich oder rechtswidrig ist oder Rechte Dritter verletzt; Hinweise auf rechtswidrige Inhalte können Sie auch per E-Mail an die im Impressum genannte Adresse senden.
-Wir prüfen Meldungen zeitnah und entfernen Tracks, die gegen diese Bedingungen oder geltendes Recht verstoßen. Wer wiederholt solche Inhalte hochlädt, kann gesperrt werden.</p>
+<h2>3a. Geteilte Touren, Fotos und Tracks</h2>
+<p>Angemeldete Nutzer können Touren mit Bericht, Fotos und GPX-Track teilen. Teilen Sie nur Inhalte, die Sie selbst erstellt haben oder für die Sie die nötigen Rechte besitzen. Auf Fotos erkennbare Personen müssen mit der Veröffentlichung einverstanden sein.
+Verboten sind beleidigende, werbliche oder rechtswidrige Inhalte sowie Angaben, die andere gefährden können. Mit dem Teilen räumen Sie uns das einfache, unentgeltliche Recht ein, den Beitrag auf Alpengipfel anzuzeigen und Besuchern zum Ansehen und Herunterladen anzubieten, bis Sie ihn löschen.
+Für Inhalt und Richtigkeit Ihres Beitrags sind Sie selbst verantwortlich; wir prüfen Beiträge nicht vorab. Touren anderer Nutzer sind keine geprüften Touren, die Nutzung erfolgt auf eigene Gefahr.</p>
+<p>Jeder Beitrag lässt sich über „Melden“ melden; Hinweise auf rechtswidrige Inhalte können Sie auch per E-Mail an die im Impressum genannte Adresse senden.
+Wir prüfen Meldungen zeitnah und entfernen Beiträge, die gegen diese Bedingungen oder geltendes Recht verstoßen. Wer wiederholt solche Inhalte teilt, kann gesperrt werden.</p>
 <h2>4. Erlaubte Nutzung</h2>
 <p>Sie dürfen Alpengipfel für private Zwecke nutzen. Nicht erlaubt ist es, den Dienst zu stören, Schutzmaßnahmen zu umgehen oder Inhalte automatisiert in großem Umfang abzurufen.
 Die Daten selbst stehen unter den im Impressum genannten freien Lizenzen und können bei den jeweiligen Quellen bezogen werden.</p>

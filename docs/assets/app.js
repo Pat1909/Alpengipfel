@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 const $ = id => document.getElementById(id);
-const SHELL = "<div class=\"app\" id=\"app\" data-view=\"list\" data-sheet=\"half\">\n  <header class=\"top\">\n    <h1><button type=\"button\" id=\"navhome\" class=\"brand\" aria-label=\"Alpengipfel, zur Startseite\"><svg class=\"logo\" viewBox=\"0 0 32 32\" aria-hidden=\"true\"><rect width=\"32\" height=\"32\" rx=\"8\" fill=\"#1f2a27\"/><path d=\"M4.5 25 12.2 11.3l3.6 5.8 3.4-5.3L27.5 25z\" fill=\"#f3f6f3\"/><path d=\"m10.4 14.5 1.8-3.2 1.9 3-1.2-.6zM17.7 14.1l1.5-2.3 1.6 2.4-1.1-.5z\" fill=\"#8fb8d6\"/><circle cx=\"12.2\" cy=\"8.6\" r=\"2.3\" fill=\"#c62828\" stroke=\"#f3f6f3\" stroke-width=\"1\"/><\/svg><span>Alpengipfel<\/span><\/button><\/h1>\n    <span class=\"sub\" id=\"sub\">Alle benannten Gipfel der Alpen aus OpenStreetMap<\/span>\n    <nav class=\"nav\" aria-label=\"Bereiche\"><button id=\"navstart\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 11.5 12 4l9 7.5\"/><path d=\"M5.5 10v9.5h13V10\"/><\/svg><span>Start<\/span><\/button><button id=\"navexp\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M2.5 19.5 9 8l3.5 6 2.5-4 6.5 9.5z\"/><\/svg><span>Gipfel<\/span><\/button><button id=\"openbook\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 4.5h11a2 2 0 0 1 2 2v13H7a2 2 0 0 1-2-2z\"/><path d=\"M5 17.5a2 2 0 0 1 2-2h11\"/><path d=\"m9 9.5 2 2 3.5-3.5\"/><\/svg><span>Gipfelbuch<\/span><\/button><button id=\"openprofile\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"8.5\" r=\"3.5\"/><path d=\"M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5\"/><\/svg><span>Profil<\/span><\/button><\/nav>\n    <button type=\"button\" id=\"openfb\" class=\"fbbtn\" aria-label=\"Feedback geben\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 5h16v11H9l-5 4z\"/><path d=\"M8 9.5h8M8 12.5h5\"/><\/svg><span>Feedback<\/span><\/button>\n    <div class=\"tabs\" role=\"group\" aria-label=\"Ansicht\">\n      <button id=\"tab-list\" type=\"button\" aria-pressed=\"true\">Liste<\/button>\n      <button id=\"tab-map\" type=\"button\" aria-pressed=\"false\">Karte<\/button>\n    <\/div>\n  <\/header>\n\n  <main class=\"page\" id=\"page\" hidden><\/main>\n\n  <section class=\"side\" id=\"side\">\n    <div class=\"grab\" id=\"grab\" aria-hidden=\"true\"><span><\/span><\/div>\n    <div class=\"filters\" id=\"filters\">\n      <div class=\"f wide fq\"><label for=\"q\">Name<\/label><div class=\"qrow\"><input id=\"q\" type=\"search\" placeholder=\"Gipfel suchen, z. B. Großglockner\" autocomplete=\"off\"><button type=\"button\" class=\"ftoggle\" id=\"ftoggle\" aria-expanded=\"false\" aria-controls=\"filters\">Filter<b id=\"fcount\" hidden><\/b><\/button><\/div><\/div>\n      <div class=\"f wide\">\n        <span class=\"lab\">Höhe in Metern<\/span>\n        <div class=\"hrow\"><input id=\"hmin\" type=\"number\" inputmode=\"numeric\" min=\"0\" max=\"4900\" step=\"50\" placeholder=\"von\" aria-label=\"Mindesthöhe\"><span>bis<\/span><input id=\"hmax\" type=\"number\" inputmode=\"numeric\" min=\"0\" max=\"4900\" step=\"50\" placeholder=\"bis\" aria-label=\"Maximalhöhe\"><\/div>\n        <div class=\"bands\" id=\"bands\"><\/div>\n      <\/div>\n      <div class=\"f\"><label for=\"country\">Land<\/label><select id=\"country\"><\/select><\/div>\n      <div class=\"f\"><label for=\"state\">Bundesland / Region<\/label><select id=\"state\"><\/select><\/div>\n      <div class=\"f wide\"><label for=\"group\">Gebirgsgruppe<\/label><select id=\"group\"><\/select><\/div>\n      <div class=\"f wide\"><label for=\"kind\">Weg zum Gipfel<\/label><select id=\"kind\"><option value=\"\">Alle Gipfel<\/option><option value=\"0\">Wandern (bis T3)<\/option><option value=\"1\">Hochalpin (T4–T6)<\/option><option value=\"2\">Klettersteig<\/option><option value=\"3\">Skitour<\/option><option value=\"4\">Nur Weg in Gipfelnähe<\/option><option value=\"none\">Kein Weg, keine Route erfasst<\/option><\/select><\/div>\n      <div class=\"f\"><label for=\"book\">Gipfelbuch<\/label><select id=\"book\"><option value=\"\">Alle Gipfel<\/option><option value=\"done\">Bestiegen<\/option><option value=\"todo\">Noch nicht bestiegen<\/option><option value=\"wish\">Wunschliste<\/option><\/select><\/div>\n      <div class=\"f\"><span class=\"lab\">In meiner Nähe<\/span><div class=\"hrow\"><button class=\"nearbtn\" id=\"near\" type=\"button\">Standort verwenden<\/button><select id=\"radius\" aria-label=\"Umkreis\" hidden><option value=\"\">beliebig weit<\/option><option value=\"10\">10 km<\/option><option value=\"25\">25 km<\/option><option value=\"50\">50 km<\/option><option value=\"100\">100 km<\/option><\/select><\/div><\/div>\n      <div class=\"f wide note\" id=\"nearmsg\" hidden><\/div>\n    <\/div>\n    <div class=\"status\">\n      <span><strong id=\"count\">–<\/strong> Gipfel<\/span>\n      <button class=\"reset\" id=\"reset\" type=\"button\" hidden>Filter zurücksetzen<\/button>\n      <select id=\"sort\" aria-label=\"Sortierung\">\n        <option value=\"hd\">Höchste zuerst<\/option>\n        <option value=\"ha\">Niedrigste zuerst<\/option>\n        <option value=\"na\">Name A–Z<\/option>\n        <option value=\"near\">Nächste zuerst<\/option>\n      <\/select>\n    <\/div>\n    <div class=\"list\" id=\"list\" tabindex=\"0\"><div class=\"spacer\" id=\"spacer\"><\/div><\/div>\n    <footer class=\"foot\" id=\"foot\" hidden><\/footer>\n    <div class=\"detail\" id=\"detail\" hidden><\/div>\n    <div class=\"detail\" id=\"bookpanel\" hidden><\/div>\n    <div class=\"loading\" id=\"loading\">Gipfeldaten werden geladen …<\/div>\n  <\/section>\n\n  <section class=\"mapwrap\" id=\"mapwrap\">\n    <div id=\"map\"><\/div>\n    <div class=\"legend\" id=\"legendbox\" data-open=\"true\"><button type=\"button\" class=\"legtoggle\" id=\"legtoggle\" aria-expanded=\"true\" aria-controls=\"legbody\">Legende<\/button><div class=\"lrow note\" id=\"tmsg\" role=\"status\" hidden><\/div><div class=\"legbody\" id=\"legbody\"><div class=\"lrow\" id=\"legend\"><\/div><div class=\"lrow\" id=\"tlegend\" hidden><\/div><label class=\"lrow hutrow\"><input type=\"checkbox\" id=\"huts\" checked><i class=\"sq\"><\/i>Hütten anzeigen (ab mittlerer Zoomstufe)<\/label><\/div><\/div>\n    <div class=\"tip\" id=\"tip\" hidden><\/div>\n    <div class=\"view3d\" id=\"view3d\" hidden><div id=\"v3map\"><\/div><button class=\"back\" id=\"v3close\" type=\"button\">← Zur flachen Karte<\/button><div class=\"v3hint\">Ziehen: verschieben · rechte Maustaste oder zwei Finger: drehen und kippen<\/div><div class=\"v3msg\" id=\"v3msg\" role=\"status\"><\/div><\/div>\n  <\/section>\n<\/div>\n";
+const SHELL = "<div class=\"app\" id=\"app\" data-view=\"list\" data-sheet=\"half\">\n  <header class=\"top\">\n    <h1><button type=\"button\" id=\"navhome\" class=\"brand\" aria-label=\"Alpengipfel, zur Startseite\"><svg class=\"logo\" viewBox=\"0 0 32 32\" aria-hidden=\"true\"><rect width=\"32\" height=\"32\" rx=\"8\" fill=\"#1f2a27\"/><path d=\"M4.5 25 12.2 11.3l3.6 5.8 3.4-5.3L27.5 25z\" fill=\"#f3f6f3\"/><path d=\"m10.4 14.5 1.8-3.2 1.9 3-1.2-.6zM17.7 14.1l1.5-2.3 1.6 2.4-1.1-.5z\" fill=\"#8fb8d6\"/><circle cx=\"12.2\" cy=\"8.6\" r=\"2.3\" fill=\"#c62828\" stroke=\"#f3f6f3\" stroke-width=\"1\"/><\/svg><span>Alpengipfel<\/span><\/button><\/h1>\n    <span class=\"sub\" id=\"sub\">Alle benannten Gipfel der Alpen aus OpenStreetMap<\/span>\n    <nav class=\"nav\" aria-label=\"Bereiche\"><button id=\"navstart\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 11.5 12 4l9 7.5\"/><path d=\"M5.5 10v9.5h13V10\"/><\/svg><span>Start<\/span><\/button><button id=\"navexp\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M2.5 19.5 9 8l3.5 6 2.5-4 6.5 9.5z\"/><\/svg><span>Gipfel<\/span><\/button><button id=\"navfeed\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"8.5\" cy=\"8\" r=\"3\"/><circle cx=\"16.5\" cy=\"9\" r=\"2.5\"/><path d=\"M3 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5\"/><path d=\"M14.5 14.3c.6-.2 1.3-.3 2-.3 2.3 0 4 1.4 4.5 4\"/><\/svg><span>Touren<\/span><\/button><button id=\"openbook\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 4.5h11a2 2 0 0 1 2 2v13H7a2 2 0 0 1-2-2z\"/><path d=\"M5 17.5a2 2 0 0 1 2-2h11\"/><path d=\"m9 9.5 2 2 3.5-3.5\"/><\/svg><span>Gipfelbuch<\/span><\/button><button id=\"openprofile\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"8.5\" r=\"3.5\"/><path d=\"M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5\"/><\/svg><span>Profil<\/span><\/button><\/nav>\n    <button type=\"button\" id=\"openfb\" class=\"fbbtn\" aria-label=\"Feedback geben\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 5h16v11H9l-5 4z\"/><path d=\"M8 9.5h8M8 12.5h5\"/><\/svg><span>Feedback<\/span><\/button>\n    <div class=\"tabs\" role=\"group\" aria-label=\"Ansicht\">\n      <button id=\"tab-list\" type=\"button\" aria-pressed=\"true\">Liste<\/button>\n      <button id=\"tab-map\" type=\"button\" aria-pressed=\"false\">Karte<\/button>\n    <\/div>\n  <\/header>\n\n  <main class=\"page\" id=\"page\" hidden><\/main>\n\n  <section class=\"side\" id=\"side\">\n    <div class=\"grab\" id=\"grab\" aria-hidden=\"true\"><span><\/span><\/div>\n    <div class=\"filters\" id=\"filters\">\n      <div class=\"f wide fq\"><label for=\"q\">Name<\/label><div class=\"qrow\"><input id=\"q\" type=\"search\" placeholder=\"Gipfel suchen, z. B. Großglockner\" autocomplete=\"off\"><button type=\"button\" class=\"ftoggle\" id=\"ftoggle\" aria-expanded=\"false\" aria-controls=\"filters\">Filter<b id=\"fcount\" hidden><\/b><\/button><\/div><\/div>\n      <div class=\"f wide\">\n        <span class=\"lab\">Höhe in Metern<\/span>\n        <div class=\"hrow\"><input id=\"hmin\" type=\"number\" inputmode=\"numeric\" min=\"0\" max=\"4900\" step=\"50\" placeholder=\"von\" aria-label=\"Mindesthöhe\"><span>bis<\/span><input id=\"hmax\" type=\"number\" inputmode=\"numeric\" min=\"0\" max=\"4900\" step=\"50\" placeholder=\"bis\" aria-label=\"Maximalhöhe\"><\/div>\n        <div class=\"bands\" id=\"bands\"><\/div>\n      <\/div>\n      <div class=\"f\"><label for=\"country\">Land<\/label><select id=\"country\"><\/select><\/div>\n      <div class=\"f\"><label for=\"state\">Bundesland / Region<\/label><select id=\"state\"><\/select><\/div>\n      <div class=\"f wide\"><label for=\"group\">Gebirgsgruppe<\/label><select id=\"group\"><\/select><\/div>\n      <div class=\"f wide\"><label for=\"kind\">Weg zum Gipfel<\/label><select id=\"kind\"><option value=\"\">Alle Gipfel<\/option><option value=\"0\">Wandern (bis T3)<\/option><option value=\"1\">Hochalpin (T4–T6)<\/option><option value=\"2\">Klettersteig<\/option><option value=\"3\">Skitour<\/option><option value=\"4\">Nur Weg in Gipfelnähe<\/option><option value=\"none\">Kein Weg, keine Route erfasst<\/option><\/select><\/div>\n      <div class=\"f\"><label for=\"book\">Gipfelbuch<\/label><select id=\"book\"><option value=\"\">Alle Gipfel<\/option><option value=\"done\">Bestiegen<\/option><option value=\"todo\">Noch nicht bestiegen<\/option><option value=\"wish\">Wunschliste<\/option><\/select><\/div>\n      <div class=\"f\"><span class=\"lab\">In meiner Nähe<\/span><div class=\"hrow\"><button class=\"nearbtn\" id=\"near\" type=\"button\">Standort verwenden<\/button><select id=\"radius\" aria-label=\"Umkreis\" hidden><option value=\"\">beliebig weit<\/option><option value=\"10\">10 km<\/option><option value=\"25\">25 km<\/option><option value=\"50\">50 km<\/option><option value=\"100\">100 km<\/option><\/select><\/div><\/div>\n      <div class=\"f wide note\" id=\"nearmsg\" hidden><\/div>\n    <\/div>\n    <div class=\"status\">\n      <span><strong id=\"count\">–<\/strong> Gipfel<\/span>\n      <button class=\"reset\" id=\"reset\" type=\"button\" hidden>Filter zurücksetzen<\/button>\n      <select id=\"sort\" aria-label=\"Sortierung\">\n        <option value=\"hd\">Höchste zuerst<\/option>\n        <option value=\"ha\">Niedrigste zuerst<\/option>\n        <option value=\"na\">Name A–Z<\/option>\n        <option value=\"near\">Nächste zuerst<\/option>\n      <\/select>\n    <\/div>\n    <div class=\"list\" id=\"list\" tabindex=\"0\"><div class=\"spacer\" id=\"spacer\"><\/div><\/div>\n    <footer class=\"foot\" id=\"foot\" hidden><\/footer>\n    <div class=\"detail\" id=\"detail\" hidden><\/div>\n    <div class=\"detail\" id=\"bookpanel\" hidden><\/div>\n    <div class=\"loading\" id=\"loading\">Gipfeldaten werden geladen …<\/div>\n  <\/section>\n\n  <section class=\"mapwrap\" id=\"mapwrap\">\n    <div id=\"map\"><\/div>\n    <div class=\"legend\" id=\"legendbox\" data-open=\"true\"><button type=\"button\" class=\"legtoggle\" id=\"legtoggle\" aria-expanded=\"true\" aria-controls=\"legbody\">Legende<\/button><div class=\"lrow note\" id=\"tmsg\" role=\"status\" hidden><\/div><div class=\"legbody\" id=\"legbody\"><div class=\"lrow\" id=\"legend\"><\/div><div class=\"lrow\" id=\"tlegend\" hidden><\/div><label class=\"lrow hutrow\"><input type=\"checkbox\" id=\"huts\" checked><i class=\"sq\"><\/i>Hütten anzeigen (ab mittlerer Zoomstufe)<\/label><\/div><\/div>\n    <div class=\"tip\" id=\"tip\" hidden><\/div>\n    <div class=\"view3d\" id=\"view3d\" hidden><div id=\"v3map\"><\/div><button class=\"back\" id=\"v3close\" type=\"button\">← Zur flachen Karte<\/button><div class=\"v3hint\">Ziehen: verschieben · rechte Maustaste oder zwei Finger: drehen und kippen<\/div><div class=\"v3msg\" id=\"v3msg\" role=\"status\"><\/div><\/div>\n  <\/section>\n<\/div>\n";
 // the summit page's own text (written for search engines) stays visible in the summit's overview tab
 const SEO_TEXT = (() => { const a = document.querySelector('#app-root article.seo'); return a ? { id: window.AG_PEAK, html: a.innerHTML.replace(/<h1>[\s\S]*?<\/h1>/, '') } : null; })();
 if ($('app-root')) $('app-root').innerHTML = SHELL;
@@ -229,7 +229,7 @@ const ccItem = ([id, title, cat, act, rating, up]) => `<li><a href="https://www.
 const NORMAL = /normal|voie normale|via normale|ordinaire|normale/i;
 function routesHostedHtml(i, d) {
   let out = `<section class="ways ascent"><h3 class="h3">Aufstiege vom Parkplatz</h3><div id="asclist" aria-live="polite"><p class="note">Wege zum Gipfel werden berechnet …</p></div></section>` +
-    `<section class="ways" id="trackbox"><h3 class="h3">Tracks von Nutzern</h3><div id="tracklist" aria-live="polite"><p class="note">Tracks werden geladen …</p></div><div id="trackup"></div></section>`;
+    `<section class="ways" id="trackbox"><h3 class="h3">Touren von Nutzern</h3><div id="tracklist" aria-live="polite"><p class="note">Tracks werden geladen …</p></div><div id="trackup"></div></section>`;
   const cc = (d.cc || []).map((c, k) => [c, k]).sort((a, b) => (NORMAL.test(b[0][1]) - NORMAL.test(a[0][1])) || a[1] - b[1]).map(x => x[0]);
   if (cc.length) out += `<section class="ways"><h3 class="h3">Hochtouren, Klettereien und Skitouren</h3><ul class="rts">${cc.slice(0, 5).map(ccItem).join('')}` +
     (cc.length > 5 ? `<li><a href="https://www.camptocamp.org/waypoints/${d.cw}" target="_blank" rel="noopener">Alle ${cc.length} Routen bei Camptocamp</a></li>` : '') + `</ul>` +
@@ -517,15 +517,12 @@ function pickItem(key) {
     `<button type="button" class="onmap" id="ascgpx">GPX herunterladen</button>` +
     `<a class="onmap" href="https://www.google.com/maps/dir/?api=1&destination=${s[0].toFixed(5)},${s[1].toFixed(5)}" target="_blank" rel="noopener">Anfahrt zum Startpunkt</a>` +
     (x.type === 'rel' ? `<a class="onmap" href="https://hiking.waymarkedtrails.org/#route?id=${x.rel}" target="_blank" rel="noopener">Route bei Waymarked Trails</a>` : '') +
-    (user ? `<button type="button" class="onmap" id="ascrep">Melden</button>` : '') +
-    (user && (mine || isAdminNow) ? `<button type="button" class="onmap" id="ascdel">Löschen</button>` : '') +
+
     `<button type="button" class="onmap" id="ascall">Alle Wege zeigen</button></div><div id="ascmsg"></div>`;
-  li.appendChild(act);
+  li.insertBefore(act, li.querySelector('.ascpick').nextSibling);
   wireProfile(act, x);
   $('ascgpx').onclick = () => downloadGpx(x);
   $('ascall').onclick = () => pickItem(selKey);
-  if ($('ascrep')) $('ascrep').onclick = () => reportForm(x);
-  if ($('ascdel')) $('ascdel').onclick = () => deleteTrack(x);
   drawAscent(x);
 }
 function renderAscError(i, d) {
@@ -553,8 +550,8 @@ function drawAscent(x) {
     map.invalidateSize();
     const leg = $('legendbox') ? $('legendbox').offsetHeight + 16 : 0;
     const cover = MOBILE() ? Math.min(sheetPx($('app').dataset.sheet || 'half'), $('mapwrap').clientHeight - 120) : leg;
-    map.fitBounds(line.getBounds(), { paddingTopLeft: [30, 30], paddingBottomRight: [30, 30 + cover], maxZoom: 15 });
-  }, 60);
+    map.fitBounds(line.getBounds(), { paddingTopLeft: [30, 30], paddingBottomRight: [30, 30 + cover], maxZoom: 15, animate: false });
+  }, MOBILE() ? 330 : 60);                        // on phones after the sheet has moved, or the resize cancels the zoom
 }
 /* ---------- height profile, shared by computed ascents and uploaded tracks ---------- */
 function profPoints(trk) {                         // -> [[km, height, index in trk]], at most 240 points
@@ -616,7 +613,7 @@ function downloadGpx(x) {
   a.download = (norm(name).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'track') + '.gpx';
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
-/* ---------- GPX tracks of users (Supabase table tracks) ---------- */
+/* ---------- community: shared tours (Supabase table beitraege, photos in storage bucket "fotos") ---------- */
 let isAdminNow = false, adminFor = '';
 async function checkAdmin() {
   const uid = sbUser ? sbUser.id : '';
@@ -625,31 +622,85 @@ async function checkAdmin() {
   if (sb && uid) { try { const r = await sb.rpc('ist_admin'); isAdminNow = r.data === true; } catch (err) { /* no admin */ } }
   return isAdminNow;
 }
+const POST_COLS = 'id,user_id,autor,gipfel,datum,titel,text,art,dauer_min,km,hm_auf,hm_ab,punkte,fotos,likes,created_at';
+const fotoUrl = path => `${SB_URL}/storage/v1/object/public/fotos/${path}`;
+let myLikes = new Set(), pendingPost = '';
+function postItem(b) {                              // a post as an item that can be drawn on the map like an ascent
+  const trk = b.punkte ? b.punkte.map(p => [p[0], p[1], p[2] == null ? null : p[2]]) : null;
+  return { type: 'user', id: b.id, user_id: b.user_id, autor: b.autor, name: b.titel, cat: b.art, text: b.text, gipfel: b.gipfel, datum: b.datum, fotos: b.fotos || [], likes: b.likes,
+    km: b.km, up: b.hm_auf, down: b.hm_ab, dauer: b.dauer_min, h: b.dauer_min ? b.dauer_min / 60 : b.km ? dinHours(b.km, b.hm_auf || 0, b.hm_ab || 0) : null,
+    trk, ll: trk ? trk.map(p => [p[0], p[1]]) : null, fer: [] };
+}
+async function loadMyLikes(ids) {
+  if (!sb || !sbUser || !ids.length) return;
+  const { data } = await sb.from('beitrag_likes').select('beitrag_id').in('beitrag_id', ids);
+  (data || []).forEach(r => myLikes.add(r.beitrag_id));
+}
+const dateDe = s => new Date(s + 'T12:00:00').toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' });
+function postBody(x, withPeak) {                    // everything below the title: photos, text, likes, actions
+  const i = withPeak ? indexOfId(x.gipfel) : -1;
+  return (withPeak && i >= 0 ? `<button type="button" class="ppeak" data-open="${i}">${esc(D.peaks.n[i])}${D.peaks.e[i] != null ? ` · ${fmt.format(D.peaks.e[i])} m` : ''}</button>` : '') +
+    (x.fotos.length ? `<div class="pfotos n${Math.min(x.fotos.length, 4)}">${x.fotos.map((f, k) => `<button type="button" class="pfoto" data-f="${k}"><img src="${fotoUrl(f)}" alt="Foto ${k + 1} von ${esc(x.name)}" loading="lazy"></button>`).join('')}</div>` : '') +
+    (x.text ? `<p class="ptext">${esc(x.text)}</p>` : '') +
+    `<div class="pbar"><button type="button" class="plike" aria-pressed="${myLikes.has(x.id)}" data-like="${x.id}">♥ <span>${x.likes || ''}</span></button>` +
+    (x.trk && withPeak && i >= 0 ? `<button type="button" class="onmap" data-route="${i}">Route ansehen</button>` : '') +
+    `<button type="button" class="onmap pmore" data-rep="${x.id}">Melden</button>` +
+    ((sbUser && sbUser.id === x.user_id) || isAdminNow ? `<button type="button" class="onmap pmore" data-del="${x.id}">Löschen</button>` : '') + `</div><div class="pmsg" data-msg="${x.id}"></div>`;
+}
+function postFacts(x) {
+  const f = [x.km ? `${n1(x.km)} km` : '', x.up != null ? `↑ ${fmt.format(x.up)} Hm` : '', x.down > 30 ? `↓ ${fmt.format(x.down)} Hm` : '', x.dauer ? hm(x.dauer / 60) + ' Gehzeit' : ''].filter(Boolean);
+  return f.length ? `<span class="ascfacts">${f.map(t => `<span>${t}</span>`).join('')}</span>` : '';
+}
+function postHead(x) {
+  return `<div class="phd"><span class="pav" aria-hidden="true">${esc((x.autor || '?').slice(0, 1).toUpperCase())}</span><div><b>${esc(x.autor || 'Bergfreund')}</b><small>${dateDe(x.datum)}</small></div><span class="kb k${x.cat}">${KINDS[x.cat]}</span></div>` +
+    `<h3 class="ptitle">${esc(x.name)}</h3>` + postFacts(x);
+}
+function wirePosts(box, items) {
+  const byId = Object.fromEntries(items.map(x => [x.id, x]));
+  box.querySelectorAll('[data-like]').forEach(b => { b.onclick = async () => {
+    if (!sbUser) { b.closest('.post').querySelector('.pmsg').innerHTML = `<p class="note"><button type="button" class="linkbtn">Melde dich an</button>, um Touren zu liken.</p>`; b.closest('.post').querySelector('.pmsg .linkbtn').onclick = () => showProfile(); return; }
+    const { data, error } = await sb.rpc('like_umschalten', { beitrag: b.dataset.like }); if (error) return;
+    const x = byId[b.dataset.like]; x.likes = data.likes; data.liked ? myLikes.add(x.id) : myLikes.delete(x.id);
+    b.setAttribute('aria-pressed', String(data.liked)); b.querySelector('span').textContent = data.likes || '';
+  }; });
+  box.querySelectorAll('[data-rep]').forEach(b => { b.onclick = ev => { ev.stopPropagation(); reportPost(byId[b.dataset.rep], b.closest('.post').querySelector('.pmsg')); }; });
+  box.querySelectorAll('[data-del]').forEach(b => { b.onclick = ev => { ev.stopPropagation(); deletePost(byId[b.dataset.del]); }; });
+  box.querySelectorAll('[data-open]').forEach(b => { b.onclick = () => { explore(true); showDetail(+b.dataset.open); }; });
+  box.querySelectorAll('[data-route]').forEach(b => { b.onclick = () => { const id = b.closest('.post').dataset.id; pendingPost = id; detailTab = 'routes'; explore(true); showDetail(+b.dataset.route); }; });
+  box.querySelectorAll('.pfoto').forEach(b => { b.onclick = ev => { ev.stopPropagation(); const x = byId[b.closest('.post').dataset.id]; showPhoto(x, +b.dataset.f); }; });
+}
+function showPhoto(x, k) {
+  let dlg = $('photodlg');
+  if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'photodlg'; dlg.className = 'photodlg'; document.body.appendChild(dlg); dlg.onclick = ev => { if (ev.target === dlg || ev.target.tagName === 'IMG') dlg.close(); }; }
+  const go = n => { k = (n + x.fotos.length) % x.fotos.length; dlg.querySelector('img').src = fotoUrl(x.fotos[k]); dlg.querySelector('.pcount').textContent = `${k + 1} / ${x.fotos.length}`; };
+  dlg.innerHTML = `<img alt="Foto von ${esc(x.name)}"><div class="pnav">${x.fotos.length > 1 ? '<button type="button" data-d="-1" aria-label="Vorheriges Foto">‹</button>' : ''}<span class="pcount"></span>${x.fotos.length > 1 ? '<button type="button" data-d="1" aria-label="Nächstes Foto">›</button>' : ''}<button type="button" data-x aria-label="Schließen">×</button></div>`;
+  dlg.querySelectorAll('[data-d]').forEach(b => { b.onclick = () => go(k + +b.dataset.d); }); dlg.querySelector('[data-x]').onclick = () => dlg.close();
+  go(k); dlg.showModal();
+}
+// on a summit page: the tours shared for this summit; those with a GPX track can be drawn like the computed ascents
 async function loadTracks(i) {
   const box = $('tracklist'); if (!box) return;
   if (!sb) { $('trackbox').hidden = true; return; }
-  const id = D.peaks.id[i];
-  const [{ data, error }] = await Promise.all([sb.from('tracks').select('id,user_id,autor,name,art,kommentar,km,hm_auf,hm_ab,punkte,created_at').eq('gipfel', id).order('created_at', { ascending: false }).limit(50), checkAdmin()]);
+  const [{ data, error }] = await Promise.all([sb.from('beitraege').select(POST_COLS).eq('gipfel', D.peaks.id[i]).order('datum', { ascending: false }).limit(50), checkAdmin()]);
   if (selected !== i || !$('tracklist')) return;
-  if (error) { box.innerHTML = `<p class="note">${/relation .* does not exist|tracks/.test(error.message || '') && error.code === '42P01' ? 'Tracks sind noch nicht eingerichtet.' : 'Die Tracks konnten gerade nicht geladen werden.'}</p>`; renderUpload(i); return; }
-  trackList = data.map(t => {
-    const trk = t.punkte.map(p => [p[0], p[1], p[2] == null ? null : p[2]]);
-    return { type: 'user', id: t.id, user_id: t.user_id, autor: t.autor, name: t.name, cat: t.art, kommentar: t.kommentar, km: t.km, up: t.hm_auf, down: t.hm_ab,
-      h: dinHours(t.km, t.hm_auf, t.hm_ab), when: new Date(t.created_at), trk, ll: trk.map(p => [p[0], p[1]]), fer: [] };
-  });
-  if (selKey.startsWith('t:')) selKey = '';
-  box.innerHTML = trackList.length ? `<ul class="asc">${trackList.map((x, k) => `<li><button type="button" class="ascpick" data-key="t:${k}" aria-pressed="false">` +
-    `<span class="ascrow"><span class="kb k${x.cat}">${KINDS[x.cat]}</span><b>${esc(x.name)}</b></span><small>von ${esc(x.autor || 'einem Nutzer')} · ${x.when.toLocaleDateString('de-DE')}</small>` +
-    (x.kommentar ? `<small class="tcom">${esc(x.kommentar)}</small>` : '') + factsHtml(x) + `</button></li>`).join('')}</ul>`
-    : `<p class="note">Noch kein Track für diesen Gipfel. Warst du schon oben? Lade deinen Track hoch, damit andere ihn nutzen können.</p>`;
-  box.querySelectorAll('.ascpick').forEach(b => { b.onclick = () => pickItem(b.dataset.key); });
   renderUpload(i);
+  if (error) { box.innerHTML = '<p class="note">Die Touren konnten gerade nicht geladen werden.</p>'; return; }
+  trackList = data.map(postItem); await loadMyLikes(trackList.map(x => x.id));
+  if (selKey.startsWith('t:')) selKey = '';
+  box.innerHTML = trackList.length ? `<ul class="asc posts">${trackList.map((x, k) => `<li class="post" data-id="${x.id}">` +
+    (x.trk ? `<button type="button" class="ascpick" data-key="t:${k}" aria-pressed="false">${postHead(x)}<small class="phint">Antippen: Route auf der Karte, Höhenprofil und GPX</small></button>` : `<div class="ascpick static">${postHead(x)}</div>`) +
+    postBody(x, false) + `</li>`).join('')}</ul>`
+    : `<p class="note">Noch keine Tour für diesen Gipfel geteilt. Warst du schon oben? Teile deine Tour mit Fotos und Track.</p>`;
+  box.querySelectorAll('button.ascpick').forEach(b => { b.onclick = () => pickItem(b.dataset.key); });
+  wirePosts(box, trackList);
+  if (pendingPost) { const k = trackList.findIndex(x => x.id === pendingPost); pendingPost = ''; if (k >= 0 && trackList[k].trk) { pickItem('t:' + k); box.querySelectorAll('.post')[k].scrollIntoView({ block: 'center' }); } }
 }
 function renderUpload(i) {
   const up = $('trackup'); if (!up) return;
-  if (!sbUser) { up.innerHTML = `<p class="note"><button type="button" class="linkbtn" id="tlogin">Melde dich an</button>, um eigene GPX-Tracks hochzuladen.</p>`; $('tlogin').onclick = () => showProfile(); return; }
-  up.innerHTML = `<label class="upbtn"><input type="file" id="gpxfile" accept=".gpx,application/gpx+xml" hidden>GPX-Datei hochladen</label><div id="upform"></div>`;
-  $('gpxfile').onchange = ev => { const f = ev.target.files[0]; ev.target.value = ''; if (f) prepareUpload(i, f); };
+  up.innerHTML = sbUser ? `<button type="button" class="primary sharetour" id="tshare">Tour teilen</button>`
+    : `<p class="note"><button type="button" class="linkbtn" id="tlogin">Melde dich an</button>, um eigene Touren mit Fotos und GPX zu teilen.</p>`;
+  if ($('tshare')) $('tshare').onclick = () => openComposer(i);
+  if ($('tlogin')) $('tlogin').onclick = () => showProfile();
 }
 function simplify(pts, tol) {                      // Douglas-Peucker in metres
   const k0 = Math.cos(pts[0][0] * Math.PI / 180), P = pts.map(p => [p[1] * 111320 * k0, p[0] * 110540]);
@@ -667,72 +718,164 @@ function simplify(pts, tol) {                      // Douglas-Peucker in metres
   return pts.filter((_, k) => keep[k]);
 }
 function gain(z, hyst) { let up = 0, down = 0, ref = z[0]; for (const h of z) { if (h - ref > hyst) { up += h - ref; ref = h; } else if (ref - h > hyst) { down += ref - h; ref = h; } } return [Math.round(up), Math.round(down)]; }
-async function prepareUpload(i, file) {
-  const form = $('upform'), top = [D.peaks.la[i], D.peaks.lo[i]];
-  const fail = msg => { form.innerHTML = `<p class="note warn">${msg}</p>`; };
-  if (file.size > 20e6) return fail('Die Datei ist zu groß (höchstens 20 MB).');
-  let doc;
-  try { doc = new DOMParser().parseFromString(await file.text(), 'application/xml'); } catch (err) { return fail('Die Datei konnte nicht gelesen werden.'); }
-  if (doc.getElementsByTagName('parsererror').length) return fail('Das ist keine gültige GPX-Datei.');
+async function parseGpx(file, top) {                // -> { punkte, km, up, down, name }; throws Error with a message for the user
+  if (file.size > 20e6) throw new Error('Die GPX-Datei ist zu groß (höchstens 20 MB).');
+  const doc = new DOMParser().parseFromString(await file.text(), 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length) throw new Error('Das ist keine gültige GPX-Datei.');
   let nodes = [...doc.getElementsByTagName('trkpt')]; if (nodes.length < 2) nodes = [...doc.getElementsByTagName('rtept')];
   let pts = nodes.map(n => { const e = n.getElementsByTagName('ele')[0]; const z = e ? parseFloat(e.textContent) : NaN; return [+n.getAttribute('lat'), +n.getAttribute('lon'), Number.isFinite(z) ? z : null]; })
     .filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]) && Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180);
-  if (pts.length < 10) return fail('In der Datei ist kein Track mit genügend Punkten.');
+  if (pts.length < 10) throw new Error('In der GPX-Datei ist kein Track mit genügend Punkten.');
   let nearest = Infinity; pts.forEach(p => { nearest = Math.min(nearest, metres(p, top)); });
-  if (nearest > 150) return fail(`Der Track führt nicht auf diesen Gipfel: Sein nächster Punkt ist ${nearest < 10000 ? fmt.format(Math.round(nearest / 10) * 10) + ' m' : n1(nearest / 1000) + ' km'} entfernt.`);
+  if (nearest > 150) throw new Error(`Der Track führt nicht auf diesen Gipfel: Sein nächster Punkt ist ${nearest < 10000 ? fmt.format(Math.round(nearest / 10) * 10) + ' m' : n1(nearest / 1000) + ' km'} entfernt.`);
   // privacy: drop the first and last 200 m where the track starts or ends away from the summit
   const trim = arr => { if (metres(arr[0], top) < 500) return arr; let d = 0, k = 1; while (k < arr.length - 2 && d < 200) { d += metres(arr[k - 1], arr[k]); k++; } return arr.slice(k - 1); };
   pts = trim(pts); pts = trim(pts.reverse()).reverse();
-  let km = 0;
   const hasEle = pts.filter(p => p[2] != null).length >= pts.length * 0.8;
   let tol = 4, simple = simplify(pts, tol); while (simple.length > 2500) { tol *= 1.5; simple = simplify(pts, tol); }
-  let up, down;
-  if (hasEle) { let last = null; pts.forEach(p => { if (p[2] == null) p[2] = last; else last = p[2]; }); [up, down] = gain(pts.map(p => p[2] ?? pts.find(q => q[2] != null)[2]), 5); simple = simple.map(p => [p[0], p[1], p[2] ?? null]); }
-  else {
-    try { const z = await heights(simple.map(p => [p[0], p[1]])); simple = simple.map((p, k) => [p[0], p[1], z[k]]); [up, down] = gain(z, 8); }
-    catch (err) { simple = simple.map(p => [p[0], p[1], null]); up = 0; down = 0; }
-  }
+  let up = 0, down = 0;
+  if (hasEle) { let last = pts.find(q => q[2] != null)[2]; pts.forEach(p => { if (p[2] == null) p[2] = last; else last = p[2]; }); [up, down] = gain(pts.map(p => p[2]), 5); }
+  else { try { const z = await heights(simple.map(p => [p[0], p[1]])); simple = simple.map((p, k) => [p[0], p[1], z[k]]); [up, down] = gain(z, 8); } catch (err) { /* without heights */ } }
   const punkte = simple.map(p => [+p[0].toFixed(6), +p[1].toFixed(6), p[2] == null ? null : Math.round(p[2])]);
-  km = punkte.reduce((s, p, k) => k ? s + metres(punkte[k - 1], p) : 0, 0) / 1000;   // the distance of what is shown and stored
-  const x = { type: 'user', name: '', cat: 0, km, up, down, h: dinHours(km, up, down), trk: punkte, ll: punkte.map(p => [p[0], p[1]]), fer: [] };
+  const km = punkte.reduce((s, p, k) => k ? s + metres(punkte[k - 1], p) : 0, 0) / 1000;
   const nameEl = doc.querySelector('trk > name') || doc.querySelector('rte > name') || doc.querySelector('metadata > name');
-  const guess = nameEl ? nameEl.textContent.trim().slice(0, 80) : '';
-  drawAscent(x);
-  form.innerHTML = `<form class="upf" id="upf"><p class="note">Vorschau auf der Karte: ${n1(km)} km · ↑ ${fmt.format(up)} Hm · ↓ ${fmt.format(down)} Hm. ` +
-    `Zeitstempel und Geräteangaben werden nicht übertragen${pts.length ? '' : ''}.</p>` + profileHtml(x) +
-    `<label>Name der Route<input id="upname" required minlength="3" maxlength="80" value="${esc(guess)}" placeholder="z. B. Über die Höllentalangerhütte"></label>` +
-    `<label>Art<select id="upart">${KINDS.map((k, c) => `<option value="${c}">${k}</option>`).join('')}</select></label>` +
-    `<label>Kommentar (freiwillig)<textarea id="upcom" maxlength="500" rows="3" placeholder="z. B. Zustand, Schlüsselstelle, Einkehr"></textarea></label>` +
-    `<label class="chk"><input type="checkbox" id="upok" required><span>Ich habe den Track selbst aufgezeichnet oder darf ihn veröffentlichen. Er wird mit meinem Benutzernamen öffentlich gezeigt` +
+  return { punkte, km, up, down, name: nameEl ? nameEl.textContent.trim().slice(0, 80) : '' };
+}
+async function shrinkPhoto(file) {                  // re-encodes the picture: at most 1600 px, JPEG, no location or camera data
+  const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  const s = Math.min(1, 1600 / Math.max(bmp.width, bmp.height)), c = document.createElement('canvas');
+  c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s); c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  for (const q of [0.82, 0.72, 0.6]) { const b = await new Promise(r => c.toBlob(r, 'image/jpeg', q)); if (b && b.size < 1.45e6) return b; }
+  throw new Error('Ein Foto ist zu groß.');
+}
+const randId = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), b => 'abcdefghijklmnopqrstuvwxyz0123456789'[b % 36]).join('');
+function openComposer(i0) {                          // share a tour: summit, date, title, report, kind, time, photos, GPX
+  if (!sb || !sbUser) { showProfile(); return; }
+  let dlg = $('postdlg');
+  if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'postdlg'; dlg.className = 'fbdlg postdlg'; document.body.appendChild(dlg); }
+  let peak = i0 != null && i0 >= 0 ? i0 : -1, gpx = null, photos = [];
+  const today = new Date().toLocaleDateString('sv-SE');
+  dlg.innerHTML = `<form class="upf" id="postf"><div class="fbhead"><h2>Tour teilen</h2><button type="button" class="fbx" id="pfx" aria-label="Schließen">×</button></div>` +
+    `<label>Gipfel<div class="hsearch"><input id="ppq" autocomplete="off" placeholder="Gipfel suchen" value="${peak >= 0 ? esc(D.peaks.n[peak]) : ''}" required><div class="hres" id="ppres" hidden></div></div></label>` +
+    `<div class="prow"><label>Datum<input type="date" id="pdate" max="${today}" value="${today}" required></label><label>Art<select id="part">${KINDS.map((k, c) => `<option value="${c}">${k}</option>`).join('')}</select></label>` +
+    `<label>Gehzeit (freiwillig)<input id="pdauer" placeholder="z. B. 4:30" inputmode="numeric" pattern="\\d{1,2}(:[0-5]\\d)?"></label></div>` +
+    `<label>Titel<input id="ptitel" required minlength="3" maxlength="80" placeholder="z. B. Über den Stopselzieher bei Traumwetter"></label>` +
+    `<label>Bericht (freiwillig)<textarea id="ptext" maxlength="3000" rows="5" placeholder="Wie war der Weg, die Verhältnisse, die Aussicht? Tipps für andere?"></textarea></label>` +
+    `<div class="prow"><label class="upbtn"><input type="file" id="pfotos" accept="image/*" multiple hidden>Fotos hinzufügen (bis 4)</label><label class="upbtn"><input type="file" id="pgpx" accept=".gpx,application/gpx+xml" hidden>GPX-Track (freiwillig)</label></div>` +
+    `<div class="pthumbs" id="pthumbs"></div><p class="note small" id="pgpxinfo"></p>` +
+    `<label class="chk"><input type="checkbox" id="pok" required><span>Ich darf die Fotos und den Track veröffentlichen; erkennbare Personen sind einverstanden. Der Beitrag erscheint mit meinem Benutzernamen öffentlich` +
     (window.AG_LEGAL ? ` (<a href="${ROOT}nutzungsbedingungen.html" target="_blank">Nutzungsbedingungen</a>, <a href="${ROOT}datenschutz.html" target="_blank">Datenschutz</a>)` : '') + `.</span></label>` +
-    `<div class="ascbtns"><button type="submit" class="primary">Veröffentlichen</button><button type="button" class="onmap" id="upcancel">Abbrechen</button></div><p class="note" id="upmsg" role="status"></p></form>`;
-  wireProfile(form, x);
-  $('upcancel').onclick = () => { form.innerHTML = ''; showAllTrails(); };
-  $('upf').onsubmit = async ev => {
-    ev.preventDefault();
-    const name = $('upname').value.trim(); if (name.length < 3) { $('upmsg').textContent = 'Bitte gib einen Namen mit mindestens 3 Zeichen ein.'; return; }
-    $('upmsg').textContent = 'Wird hochgeladen …';
-    const { error } = await sb.from('tracks').insert({ gipfel: D.peaks.id[i], name, art: +$('upart').value, kommentar: $('upcom').value.trim(), km: Math.round(km * 100) / 100, hm_auf: up, hm_ab: down, punkte });
-    if (error) { $('upmsg').textContent = /Zu viele/.test(error.message) ? 'Du hast heute schon 20 Tracks hochgeladen. Versuch es morgen wieder.' : 'Das Hochladen hat nicht geklappt. Bitte versuch es noch einmal.'; return; }
-    form.innerHTML = '<p class="note">Danke! Dein Track ist jetzt sichtbar.</p>'; showAllTrails(); loadTracks(i);
+    `<p class="note small">Standort- und Kameradaten werden vor dem Hochladen aus den Fotos entfernt, beim Track Zeitstempel und die ersten und letzten 200 m.</p>` +
+    `<div class="ascbtns"><button type="submit" class="primary">Veröffentlichen</button><button type="button" class="onmap" id="pcancel">Abbrechen</button></div><p class="note" id="pmsgc" role="status"></p></form>`;
+  const msg = t => { $('pmsgc').textContent = t; };
+  $('pfx').onclick = $('pcancel').onclick = () => dlg.close();
+  const q = $('ppq'), res = $('ppres');
+  q.oninput = () => {
+    peak = -1; const s = norm(q.value.trim()), hits = [];
+    if (s.length >= 2) for (let k = 0; k < N && hits.length < 6; k++) if (D.peaks.nn[k].includes(s)) hits.push(k);
+    res.hidden = s.length < 2;
+    res.innerHTML = hits.map(k => { const pl = placeNames(k); return `<button type="button" data-i="${k}"><b>${esc(D.peaks.n[k])}</b><small>${esc([pl.g, pl.s || pl.c].filter(Boolean).join(' · '))}</small><span>${D.peaks.e[k] == null ? '–' : fmt.format(D.peaks.e[k])}</span></button>`; }).join('') || '<p class="note">Kein Gipfel gefunden.</p>';
+    res.querySelectorAll('button').forEach(b => { b.onclick = () => { peak = +b.dataset.i; q.value = D.peaks.n[peak]; res.hidden = true; gpx = null; $('pgpxinfo').textContent = ''; }; });
   };
+  const thumbs = () => { $('pthumbs').innerHTML = photos.map((p, k) => `<span><img src="${p.url}" alt=""><button type="button" data-k="${k}" aria-label="Foto entfernen">×</button></span>`).join('');
+    $('pthumbs').querySelectorAll('button').forEach(b => { b.onclick = () => { URL.revokeObjectURL(photos[+b.dataset.k].url); photos.splice(+b.dataset.k, 1); thumbs(); }; }); };
+  $('pfotos').onchange = async ev => {
+    const files = [...ev.target.files].slice(0, 4 - photos.length); ev.target.value = '';
+    for (const f of files) { try { msg('Foto wird vorbereitet …'); const blob = await shrinkPhoto(f); photos.push({ blob, url: URL.createObjectURL(blob) }); } catch (err) { msg('Ein Foto konnte nicht gelesen werden.'); } }
+    msg(''); thumbs();
+  };
+  $('pgpx').onchange = async ev => {
+    const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
+    if (peak < 0) { msg('Wähle zuerst den Gipfel aus.'); return; }
+    try { msg('Track wird gelesen …'); gpx = await parseGpx(f, [D.peaks.la[peak], D.peaks.lo[peak]]); msg('');
+      $('pgpxinfo').textContent = `Track: ${n1(gpx.km)} km · ↑ ${fmt.format(gpx.up)} Hm · ↓ ${fmt.format(gpx.down)} Hm`; if (!$('ptitel').value && gpx.name) $('ptitel').value = gpx.name; }
+    catch (err) { gpx = null; $('pgpxinfo').textContent = ''; msg(err.message); }
+  };
+  $('postf').onsubmit = async ev => {
+    ev.preventDefault();
+    if (peak < 0) { msg('Bitte wähle den Gipfel aus der Liste.'); return; }
+    const titel = $('ptitel').value.trim(); if (titel.length < 3) { msg('Bitte gib einen Titel ein.'); return; }
+    const dm = $('pdauer').value.trim().match(/^(\d{1,2})(?::([0-5]\d))?$/), dauer = dm ? (+dm[1]) * 60 + (+(dm[2] || 0)) : null;
+    const btn = dlg.querySelector('button[type=submit]'); btn.disabled = true;
+    const paths = [];
+    try {
+      for (const [k, p] of photos.entries()) {
+        msg(`Foto ${k + 1} von ${photos.length} wird hochgeladen …`);
+        const path = `${sbUser.id}/${randId()}.jpg`;
+        const { error } = await sb.storage.from('fotos').upload(path, p.blob, { contentType: 'image/jpeg', upsert: false });
+        if (error) throw error; paths.push(path);
+      }
+      msg('Wird veröffentlicht …');
+      const row = { gipfel: D.peaks.id[peak], datum: $('pdate').value, titel, text: $('ptext').value.trim(), art: +$('part').value, dauer_min: dauer && dauer >= 10 ? dauer : null, fotos: paths };
+      if (gpx) Object.assign(row, { punkte: gpx.punkte, km: Math.round(gpx.km * 100) / 100, hm_auf: gpx.up, hm_ab: gpx.down });
+      const { error } = await sb.from('beitraege').insert(row);
+      if (error) throw error;
+    } catch (err) {
+      if (paths.length) sb.storage.from('fotos').remove(paths);
+      msg(/Zu viele/.test(err.message || '') ? 'Du hast heute schon 10 Touren geteilt. Versuch es morgen wieder.' : 'Das hat leider nicht geklappt. Bitte versuch es noch einmal.'); btn.disabled = false; return;
+    }
+    photos.forEach(p => URL.revokeObjectURL(p.url));
+    dlg.close(); count('tour-geteilt');
+    if (pageMode === 'feed') renderFeed(); else if (selected === peak) loadTracks(peak); else { explore(true); detailTab = 'routes'; showDetail(peak); }
+  };
+  dlg.showModal(); (peak >= 0 ? $('ptitel') : q).focus();
 }
-function reportForm(x) {
-  const m = $('ascmsg');
-  m.innerHTML = `<form class="upf" id="repf"><label>Was stimmt nicht mit diesem Track?<textarea id="repg" minlength="3" maxlength="500" rows="2" required placeholder="z. B. führt über einen gesperrten Weg"></textarea></label>` +
+function reportPost(x, box) {
+  box.innerHTML = `<form class="upf" data-repf><label>Was stimmt mit diesem Beitrag nicht?<textarea minlength="3" maxlength="500" rows="2" required placeholder="z. B. fremdes Foto, falsche oder gefährliche Angaben"></textarea></label>` +
     `<div class="ascbtns"><button type="submit" class="onmap">Meldung senden</button></div></form>`;
-  $('repf').onsubmit = async ev => {
-    ev.preventDefault();
-    const g = $('repg').value.trim(); if (g.length < 3) return;
-    const { error } = await sb.rpc('track_melden', { track: x.id, text_grund: g });
-    m.innerHTML = `<p class="note">${error ? 'Die Meldung konnte nicht gesendet werden. Schreib uns gern per E-Mail.' : 'Danke, wir sehen uns den Track an.'}</p>`;
+  box.querySelector('form').onsubmit = async ev => {
+    ev.preventDefault(); const g = box.querySelector('textarea').value.trim(); if (g.length < 3) return;
+    const { error } = await sb.rpc('beitrag_melden', { beitrag: x.id, text_grund: g });
+    box.innerHTML = `<p class="note">${error ? 'Die Meldung konnte nicht gesendet werden. Schreib uns gern per E-Mail.' : 'Danke, wir sehen uns den Beitrag an.'}</p>`;
   };
 }
-async function deleteTrack(x) {
-  if (!confirm(`Track „${x.name}“ wirklich löschen?`)) return;
-  const { error } = await sb.rpc('track_entfernen', { track: x.id });
-  if (error) { $('ascmsg').innerHTML = '<p class="note">Der Track konnte nicht gelöscht werden.</p>'; return; }
-  selKey = ''; showAllTrails(); loadTracks(selected);
+async function deletePost(x) {
+  if (!confirm(`„${x.name}“ wirklich löschen?`)) return;
+  if (x.fotos.length) await sb.storage.from('fotos').remove(x.fotos);
+  const { error } = await sb.rpc('beitrag_entfernen', { beitrag: x.id });
+  if (error) { alert('Der Beitrag konnte nicht gelöscht werden.'); return; }
+  selKey = ''; showAllTrails();
+  if (pageMode === 'feed') renderFeed(); else if (selected >= 0) loadTracks(selected);
+}
+// the feed page: newest tours first, 15 at a time
+let feedItems = [];
+function showFeed(noPush) { if (selected >= 0) closeDetail(true); $('bookpanel').hidden = true; setPage('feed'); renderFeed(); if (!noPush) pushUrl(ROOT + '#touren'); }
+async function renderFeed(more) {
+  const page = $('page');
+  if (!more) {
+    feedItems = [];
+    page.innerHTML = `<div class="home feed"><section class="feedhead"><div><p class="eyebrow">Community</p><h2>Touren der Community</h2><p class="lede">Gipfel, die andere gerade bestiegen haben – mit Bericht, Fotos und Track.</p></div>` +
+      `<button type="button" class="primary sharetour" id="fshare">Tour teilen</button></section><ul class="asc posts" id="feedlist"><li class="note">Touren werden geladen …</li></ul><div id="feedmore"></div></div>`;
+    $('fshare').onclick = () => openComposer(-1);
+  }
+  if (!sb) { $('feedlist').innerHTML = '<li class="note">Die Community ist nur auf alpen-gipfel.de verfügbar.</li>'; return; }
+  const from = feedItems.length;
+  const [{ data, error }] = await Promise.all([sb.from('beitraege').select(POST_COLS).order('created_at', { ascending: false }).range(from, from + 14), checkAdmin()]);
+  if (pageMode !== 'feed') return;
+  if (error) { $('feedlist').innerHTML = '<li class="note">Die Touren konnten gerade nicht geladen werden.</li>'; return; }
+  const items = data.map(postItem); await loadMyLikes(items.map(x => x.id)); feedItems = feedItems.concat(items);
+  const list = $('feedlist');
+  if (!more) list.innerHTML = '';
+  if (!feedItems.length) list.innerHTML = `<li class="emptybox"><h3>Noch keine Touren geteilt</h3><p>Sei die oder der Erste: Teile deine letzte Gipfeltour mit Fotos und Track.</p></li>`;
+  list.insertAdjacentHTML('beforeend', items.map(x => `<li class="post" data-id="${x.id}"><div class="ascpick static">${postHead(x)}</div>${postBody(x, true)}</li>`).join(''));
+  wirePosts(list, feedItems);
+  $('feedmore').innerHTML = items.length === 15 ? '<button type="button" class="onmap" id="fmore">Weitere Touren laden</button>' : '';
+  if ($('fmore')) $('fmore').onclick = () => renderFeed(true);
+}
+async function loadPostReports(box) {               // reported posts, for admins
+  const sec = document.createElement('div'); box.appendChild(sec);
+  const { data, error } = await sb.rpc('beitrag_meldungen_liste');
+  if (error) { sec.innerHTML = '<h3 class="h3">Gemeldete Touren</h3><p class="note">Noch nicht eingerichtet (supabase/community.sql ausführen).</p>'; return; }
+  const draw = rows => {
+    sec.innerHTML = `<h3 class="h3">Gemeldete Touren</h3>` + (rows.length ? `<ul class="slist">${rows.map((r, k) => { const i = indexOfId(+r.gipfel);
+      return `<li><span><b>${esc(r.titel)}</b> von ${esc(r.autor || '?')} · ${i >= 0 ? esc(D.peaks.n[i]) : r.gipfel}<small class="note">„${esc(r.grund)}“ · ${new Date(r.created_at).toLocaleDateString('de-DE')}</small></span>` +
+        `<span class="ascbtns">${i >= 0 ? `<button type="button" class="onmap" data-open="${i}">Ansehen</button>` : ''}<button type="button" class="onmap" data-del="${k}">Beitrag löschen</button><button type="button" class="onmap" data-ok="${k}">Meldung erledigt</button></span></li>`; }).join('')}</ul>`
+      : '<p class="note">Keine offenen Meldungen.</p>');
+    sec.querySelectorAll('[data-open]').forEach(b => { b.onclick = () => { detailTab = 'routes'; explore(true); showDetail(+b.dataset.open); }; });
+    sec.querySelectorAll('[data-del]').forEach(b => { b.onclick = async () => { const r = rows[+b.dataset.del]; if (!confirm(`„${r.titel}“ löschen?`)) return; if (r.fotos && r.fotos.length) await sb.storage.from('fotos').remove(r.fotos); await sb.rpc('beitrag_entfernen', { beitrag: r.beitrag_id }); draw(rows.filter(x => x.beitrag_id !== r.beitrag_id)); }; });
+    sec.querySelectorAll('[data-ok]').forEach(b => { b.onclick = async () => { const r = rows[+b.dataset.ok]; await sb.rpc('beitrag_meldung_erledigt', { beitrag: r.beitrag_id }); draw(rows.filter(x => x.beitrag_id !== r.beitrag_id)); }; });
+  };
+  draw(data || []);
 }
 function ferGroups(net) {                         // connected via_ferrata sections: { ways, verts, len }
   const parent = net.ways.map((_, k) => k), find = k => parent[k] === k ? k : (parent[k] = find(parent[k])), grp = new Map();
@@ -1137,14 +1280,14 @@ function route() {                                  // show what the current add
   const m = location.pathname.match(/-(\d+)\.html$/), i = m ? indexOfId(+m[1]) : -1;
   if (i >= 0) { setPage(null); return showDetail(i, false, true); }
   if (selected >= 0) closeDetail(true);
-  if (location.hash === '#profil') showProfile(true); else if (location.hash === '#karte') { $('bookpanel').hidden = true; setPage(null); } else showHome(true);
+  if (location.hash === '#profil') showProfile(true); else if (location.hash === '#touren') showFeed(true); else if (location.hash === '#karte') { $('bookpanel').hidden = true; setPage(null); } else showHome(true);
 }
 
 /* ---------- start page and profile: full-width pages above the list and the map ---------- */
 let pageMode = null;                                 // null = list and map, 'home', 'profile'
 function markNav() {
-  const cur = pageMode === 'home' ? 'navstart' : pageMode === 'profile' ? 'openprofile' : !$('bookpanel').hidden ? 'openbook' : 'navexp';
-  ['navstart', 'navexp', 'openbook', 'openprofile'].forEach(id => $(id).setAttribute('aria-current', String(id === cur)));
+  const cur = pageMode === 'home' ? 'navstart' : pageMode === 'profile' ? 'openprofile' : pageMode === 'feed' ? 'navfeed' : !$('bookpanel').hidden ? 'openbook' : 'navexp';
+  ['navstart', 'navexp', 'navfeed', 'openbook', 'openprofile'].forEach(id => $(id).setAttribute('aria-current', String(id === cur)));
 }
 /* ---------- phone layout: the list is a sheet over the map (peek, half, full) ---------- */
 const MOBILE = () => matchMedia('(max-width: 760px)').matches;
@@ -1182,7 +1325,7 @@ function initSheet() {
 function setPage(mode) {
   pageMode = mode; $('page').hidden = !mode; $('app').dataset.page = mode || '';
   markNav();
-  if (mode) { $('page').scrollTop = 0; document.title = mode === 'profile' ? 'Profil – Alpengipfel' : 'Alpengipfel'; }
+  if (mode) { $('page').scrollTop = 0; document.title = mode === 'profile' ? 'Profil – Alpengipfel' : mode === 'feed' ? 'Touren der Community – Alpengipfel' : 'Alpengipfel'; }
   else if (map) setTimeout(() => map.invalidateSize(), 0);
 }
 const pushUrl = url => { if (HOSTED && location.pathname + location.hash !== url) history.pushState({}, '', url); };
@@ -1500,7 +1643,7 @@ async function loadStats() {                            // only for accounts lis
     `<div class="two"><div><h3 class="h3">Herkunft</h3><ul class="slist">${Object.entries(src).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<li><span>${SRC[k] || k}</span><b>${fmt.format(n)}</b></li>`).join('') || '<li class="note">noch keine Daten</li>'}</ul></div>` +
     `<div><h3 class="h3">Meistgeöffnete Gipfel</h3><ul class="slist">${top.map(([id, n]) => { const i = indexOfId(+id); return `<li><span>${i >= 0 ? esc(D.peaks.n[i]) : id}</span><b>${fmt.format(n)}</b></li>`; }).join('') || '<li class="note">noch keine Daten</li>'}</ul></div></div>` +
     `<p class="note">Gezählt wird jeder Seitenaufruf, ohne Cookies und ohne Wiedererkennung. Mehrere Aufrufe derselben Person zählen deshalb mehrfach. Deine eigenen Aufrufe zählen nicht, solange du mit diesem Konto angemeldet bist. Die Herkunft fehlt oft, wenn jemand den Link in der TikTok-App öffnet; dann steht er unter „direkt“.</p>`;
-  loadFeedback(box); loadReports(box);
+  loadFeedback(box); loadPostReports(box);
 }
 function initAccount() {
   if (!HOSTED || !window.supabase) return;
@@ -1959,7 +2102,7 @@ async function boot() {
   let legOpen = !MOBILE(); try { const v = localStorage.getItem('alpengipfel.legende'); if (v) legOpen = v === '1'; } catch (err) { /* default */ }
   const setLeg = open => { legOpen = open; $('legendbox').dataset.open = String(open); $('legtoggle').setAttribute('aria-expanded', String(open)); };
   setLeg(legOpen); $('legtoggle').onclick = () => { setLeg(!legOpen); try { localStorage.setItem('alpengipfel.legende', legOpen ? '1' : '0'); } catch (err) { /* not remembered */ } };
-  initSheet(); $('navexp').addEventListener('click', () => explore()); $('openprofile').addEventListener('click', () => showProfile());
+  initSheet(); $('navexp').addEventListener('click', () => explore()); $('openprofile').addEventListener('click', () => showProfile()); $('navfeed').addEventListener('click', () => showFeed());
   $('v3close').addEventListener('click', close3d);
   $('huts').checked = showHuts;
   $('huts').addEventListener('change', () => { showHuts = $('huts').checked; try { localStorage.setItem('alpengipfel.huts', showHuts ? '1' : '0'); } catch (err) { /* not remembered */ } if (map) map.closePopup(); if (peakLayer) peakLayer.redraw(); });
