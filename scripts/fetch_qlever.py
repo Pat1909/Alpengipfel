@@ -49,6 +49,8 @@ run(f'''SELECT ?n ?rel WHERE {{ {PEAK}
   SERVICE qlss: {{ {JOIN} qlss:payload ?rel .
     {{ {ROUTE} ?rel geo:hasGeometry/geo:asWKT ?rg }} }} }}''', 'data/raw/q/routes.tsv')
 run(f'SELECT ?rel ?name ?ref WHERE {{ {ROUTE} OPTIONAL {{ ?rel osmkey:name ?name }} OPTIONAL {{ ?rel osmkey:ref ?ref }} }}', 'data/raw/q/route_names.tsv')
+run(f'SELECT ?rel ?network ?distance ?from ?to ?osmc WHERE {{ {ROUTE} OPTIONAL {{ ?rel osmkey:network ?network }} OPTIONAL {{ ?rel osmkey:distance ?distance }} '
+    f'OPTIONAL {{ ?rel osmkey:from ?from }} OPTIONAL {{ ?rel osmkey:to ?to }} OPTIONAL {{ ?rel osmkey:osmc:symbol ?osmc }} }}', 'data/raw/q/route_tags.tsv')   # tells through routes apart
 # paths up to 300 m from the summit, with their distance in metres (?d)
 run(f'''SELECT ?n ?w ?d ?h ?sac ?vf ?name WHERE {{ {PEAK}
   SERVICE qlss: {{ {JOIN.replace('qlss:maxDistance 100', 'qlss:maxDistance 300')} qlss:bindDistance ?d ; qlss:payload ?w , ?h , ?sac , ?vf , ?name .

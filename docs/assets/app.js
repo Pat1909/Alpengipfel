@@ -202,7 +202,11 @@ function routesHtml(i, d) {
       `<small>${[D.c2cActs[act], rating, up ? fmt.format(up) + ' Hm Aufstieg' : ''].filter(Boolean).map(esc).join(' · ')}</small></li>`);
   });
   const near = d.nr || [], total = osm.concat(c2c).reduce((s, g) => s + g.length, 0);
-  let out = `<section class="ways"><h3 class="h3">Wege und Routen auf den Gipfel</h3>`;
+  let out = '';
+  if (HOSTED && (d.pk || d.st)) out += `<section class="ways ascent" id="ascent"><h3 class="h3">Aufstieg vom Parkplatz</h3>` +
+    `<p class="note">Berechnet einen Weg vom nächsten öffentlichen Parkplatz${d.pk ? '' : ' (hier: von der nächsten Haltestelle)'} bis auf den Gipfel, mit Strecke, Höhenmetern und Gehzeit.</p>` +
+    `<button type="button" class="primary" id="ascbtn">Aufstieg berechnen</button><div id="ascout" role="status"></div></section>`;
+  out += `<section class="ways"><h3 class="h3">Wege und Routen auf den Gipfel</h3>`;
   if (!total && !near.length) out += `<p class="note">Weder in OpenStreetMap noch bei Camptocamp ist ein Weg oder eine Route zu diesem Gipfel erfasst. Das heißt meist: wegloser Anstieg oder ein selten besuchter Nebengipfel.</p>`;
   KINDS.forEach((kind, cat) => {
     const n = osm[cat].length + c2c[cat].length;
@@ -214,7 +218,8 @@ function routesHtml(i, d) {
   });
   if (near.length) out += `<div class="kind"><div class="kh"><span class="kb kn">In Gipfelnähe</span><small>Diese Wege führen nicht bis zum Gipfel, das letzte Stück ist weglos</small></div><ul class="rts">` +
     near.map(([dist, cat, grade, vf, name]) => `<li>${esc(name || 'Weg ohne Namen')}<small>${dist} m vom Gipfel entfernt · ${KINDS[cat]}${gradeLabel(cat, grade, vf) ? ' · ' + gradeLabel(cat, grade, vf) : ''}</small></li>`).join('') + `</ul></div>`;
-  if (total || near.length) out += `<p class="note">Wege und markierte Routen: OpenStreetMap, mit der Schwierigkeit des Abschnitts am Gipfel (SAC-Wanderskala T1–T6). ` +
+  if (d.fw) out += `<p class="note fw"><b>Fernwanderwege über den Gipfel:</b> ${d.fw.map(esc).join(' · ')}. Sie führen nur hier vorbei und sind deshalb nicht als Aufstieg aufgeführt.</p>`;
+  if (total || near.length) out += `<p class="note">Markierte Routen sind nur aufgeführt, wenn sie bis zum Gipfel führen; Fernwanderwege, die nur vorbeiführen, stehen gesondert. Wege und markierte Routen: OpenStreetMap, mit der Schwierigkeit des Abschnitts am Gipfel (SAC-Wanderskala T1–T6). ` +
     `Hochtouren, Klettereien, Skitouren und weitere Routen: <a href="https://www.camptocamp.org/" target="_blank" rel="noopener">Camptocamp.org</a> (CC BY-SA 3.0), Schwierigkeit dort nach Alpinskala von F (leicht) bis ED (extrem schwierig). ` +
     `Die Angaben stammen von Freiwilligen und können fehlen oder veraltet sein.</p>`;
   return out + '</section>';
@@ -224,7 +229,7 @@ function routesHtml(i, d) {
 const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
 const SAC = { strolling: 1, hiking: 1, mountain_hiking: 2, demanding_mountain_hiking: 3, alpine_hiking: 4, demanding_alpine_hiking: 5, difficult_alpine_hiking: 6 };
 const trailCache = new Map();
-let trailLayer, hiLayer, trailsFor = -1;
+let trailLayer, hiLayer, trailsFor = -1, hiFor = -1;
 async function overpass(query) {
   for (const ep of OVERPASS) {
     const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 20000);
@@ -289,7 +294,7 @@ function drawTrails(data) {
 }
 async function loadTrails(i) {
   if (!HOSTED || !map || trailsFor === i || !$('map').clientWidth) return;      // on phones the map loads once it is opened
-  trailsFor = i; trailLayer.clearLayers(); hiLayer.clearLayers(); trailMsg('Wege um den Gipfel werden geladen …');
+  trailsFor = i; trailLayer.clearLayers(); if (hiFor !== i) hiLayer.clearLayers(); trailMsg('Wege um den Gipfel werden geladen …');
   let data = trailCache.get(i);
   if (!data) {
     try { data = await fetchTrails(i); trailCache.set(i, data); }
@@ -321,13 +326,71 @@ async function showRouteOnMap(rel, btn) {
       ll = d.elements.filter(e => e.geometry).map(e => e.geometry.map(p => [p.lat, p.lon]));
     }
     if (!ll.length) throw new Error('empty');
-    setView('map'); hiLayer.clearLayers();
+    setView('map'); hiLayer.clearLayers(); hiFor = i;
     L.polyline(ll, { color: cssColors['--surface'], weight: 9, opacity: .9, interactive: false }).addTo(hiLayer);
     const line = L.polyline(ll, { color: cssColors['--accent'], weight: 4.5, interactive: false }).addTo(hiLayer);
     map.fitBounds(line.getBounds(), { padding: [30, 30], maxZoom: 14 });
     btn.textContent = 'Auf Karte';
   } catch (err) { btn.textContent = 'Gerade nicht verfügbar'; setTimeout(() => { btn.textContent = 'Auf Karte'; }, 2500); }
   btn.disabled = false;
+}
+/* ---------- ascent from the car park: computed on request with BRouter (brouter.de, OpenStreetMap data) ---------- */
+const BROUTER = 'https://brouter.de/brouter';
+const ascCache = new Map();
+async function brouter(from, to) {
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 25000);
+  try {
+    const r = await fetch(`${BROUTER}?lonlats=${from[1]},${from[0]}|${to[1]},${to[0]}&profile=hiking-mountain&alternativeidx=0&format=geojson`, { signal: ctl.signal });
+    if (!r.ok) throw new Error(r.status);
+    const f = (await r.json()).features[0], c = f.geometry.coordinates;
+    let down = 0, ref = c[0][2];                       // descent with 5 m hysteresis against noise
+    for (const p of c) { if (p[2] == null) continue; if (p[2] > ref) ref = p[2]; else if (ref - p[2] > 5) { down += ref - p[2]; ref = p[2]; } }
+    const km = +f.properties['track-length'] / 1000, up = +f.properties['filtered ascend'] || 0;
+    const th = km / 4, tv = up / 300 + down / 500;     // DIN 33466 walking time: 4 km/h, 300 Hm up and 500 Hm down per hour
+    return { ll: c.map(p => [p[1], p[0]]), km, up: Math.round(up), down: Math.round(down), h: Math.max(th, tv) + Math.min(th, tv) / 2 };
+  } finally { clearTimeout(timer); }
+}
+const hm = h => { const m = Math.round(h * 60 / 5) * 5; return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h' + (m % 60 ? ' ' + String(m % 60).padStart(2, '0') + ' min' : ''); };
+async function computeAscent(i, d) {
+  const out = $('ascout'), btn = $('ascbtn'), P = D.peaks, top = [P.la[i], P.lo[i]];
+  const starts = (d.pk || d.st || []).slice(0, 3);
+  btn.disabled = true; btn.textContent = 'Wird berechnet …'; out.innerHTML = '';
+  let res = ascCache.get(i);
+  if (!res) {
+    res = (await Promise.all(starts.map(s => brouter([s[2], s[3]], top).then(r => ({ ...r, s }), () => null)))).filter(Boolean)
+      .filter(r => r.km < 30).sort((a, b) => a.h - b.h);
+    if (res.length) ascCache.set(i, res);
+  }
+  btn.hidden = res.length > 0; btn.disabled = false; btn.textContent = 'Erneut versuchen';
+  if (selected !== i || !out) return;
+  if (!res.length) { out.innerHTML = '<p class="note">Der Aufstieg konnte gerade nicht berechnet werden. Bei weglosen Gipfeln findet sich oft kein Weg bis ganz oben.</p>'; return; }
+  const item = (r, k) => `<li class="${k ? '' : 'best'}"><button type="button" class="ascpick" data-k="${k}" aria-pressed="${!k}">` +
+    `<b>${esc(r.s[0] || START_KIND[r.s[4]] + ' ohne Namen')}</b><span class="ascfacts"><span>${n1(r.km)} km</span><span>↑ ${fmt.format(r.up)} Hm</span>${r.down > 30 ? `<span>↓ ${fmt.format(r.down)} Hm</span>` : ''}<span>${hm(r.h)}</span></span></button>` +
+    `<a class="onmap" href="https://www.google.com/maps/dir/?api=1&destination=${r.s[2]},${r.s[3]}" target="_blank" rel="noopener">Anfahrt</a></li>`;
+  out.innerHTML = `<ul class="rts asc">${res.map(item).join('')}</ul>` +
+    `<p class="note">${res.length > 1 ? 'Der schnellste Aufstieg steht oben; tippe einen anderen an, um ihn auf der Karte zu sehen. ' : ''}` +
+    `Gehzeit nur für den Aufstieg, ohne Pausen, nach DIN 33466. Der Weg wird automatisch aus OpenStreetMap berechnet (<a href="https://brouter.de/" target="_blank" rel="noopener">BRouter</a>) ` +
+    `und ist ein Vorschlag, keine geprüfte Tour: Er kann über schwierige oder gesperrte Wege führen. Prüfe ihn vor der Tour auf einer Wanderkarte.</p>`;
+  const show = k => {
+    out.querySelectorAll('.ascpick').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.k === k)));
+    drawAscent(res[k]);
+  };
+  out.querySelectorAll('.ascpick').forEach(b => { b.onclick = () => show(+b.dataset.k); });
+  drawAscent(res[0]);
+}
+const ASC_COLOR = () => document.documentElement.dataset.theme === 'dark' || (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches) ? '#5ea8ff' : '#1d5fd6';
+function drawAscent(r) {
+  if (!map) return;
+  setView('map'); hiLayer.clearLayers(); hiFor = selected;
+  const col = ASC_COLOR();                           // blue, so it stands out from the red and orange paths
+  L.polyline(r.ll, { color: cssColors['--surface'], weight: 10, opacity: .95, interactive: false }).addTo(hiLayer);
+  const line = L.polyline(r.ll, { color: col, weight: 5, interactive: false }).addTo(hiLayer);
+  L.circleMarker(r.ll[0], { radius: 8, color: cssColors['--surface'], weight: 3, fillColor: col, fillOpacity: 1, interactive: false }).addTo(hiLayer);
+  setTimeout(() => {                                 // after the map has its final size
+    map.invalidateSize();
+    const cover = MOBILE() ? Math.min(sheetPx($('app').dataset.sheet || 'peek'), $('mapwrap').clientHeight - 120) : 0;
+    map.fitBounds(line.getBounds(), { paddingTopLeft: [30, 30], paddingBottomRight: [30, 30 + cover], maxZoom: 15 });
+  }, 60);
 }
 /* ---------- details of a summit are loaded in small files when it is opened ---------- */
 const chunkCache = new Map();
@@ -440,7 +503,8 @@ function renderDetail(i, fromMap, d) {
   $('zoomto').onclick = () => { close3d(); setView('map'); centerOn(la, lo, Math.max(map.getZoom(), 13)); };
   if (MOBILE()) setSheet(fromMap ? 'half' : 'full');
   if (map && (!fromMap || MOBILE())) centerOn(la, lo, fromMap ? map.getZoom() : Math.max(map.getZoom(), HOSTED ? 13 : 12));
-  el.querySelectorAll('.onmap').forEach(b => { b.onclick = () => showRouteOnMap(b.dataset.rel, b); });
+  el.querySelectorAll('.onmap[data-rel]').forEach(b => { b.onclick = () => showRouteOnMap(b.dataset.rel, b); });
+  if ($('ascbtn')) { $('ascbtn').onclick = () => computeAscent(i, d); if (ascCache.has(i)) computeAscent(i, d); }
   if (trailsFor !== i) clearTrails();
   loadTrails(i);
   if (peakLayer) peakLayer.redraw();
@@ -1190,6 +1254,8 @@ function initMap() {
   }
   let hasTiles = false;
   trailLayer = L.layerGroup().addTo(map); hiLayer = L.layerGroup().addTo(map);
+  map.createPane('hi').style.zIndex = 420; const hiRenderer = L.canvas({ pane: 'hi' });   // highlighted route above all paths
+  hiLayer.addLayer = (orig => function (l) { if (l.options) { l.options.renderer = hiRenderer; l.options.pane = 'hi'; } return orig.call(this, l); })(hiLayer.addLayer);
   peakLayer = new PeakLayer().addTo(map);
   const tip = $('tip');
   map.on('click', ev => {

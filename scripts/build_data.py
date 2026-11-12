@@ -144,6 +144,19 @@ for row in tsv(f'{RAW}/q/ways.tsv'): peak_ways.setdefault(nid(row['n']), {})[nid
 route_ways = {}
 for row in tsv(f'{RAW}/q/route_ways.tsv'): route_ways.setdefault(nid(row['rel']), set()).add(nid(row['w']))
 hardest = lambda infos: max(infos, key=lambda x: (x[0], x[1], x[2]))
+# Long-distance and through routes (E4, Via Alpina, Landesrundwanderwege, Höhenwege ...) only pass a summit; they are listed
+# separately and never as a way up. Network tags: iwn/nwn = international/national, rwn = regional.
+rtags = {nid(row['rel']): row for row in tsv(f'{RAW}/q/route_tags.tsv')} if os.path.exists(f'{RAW}/q/route_tags.tsv') else {}
+THROUGH = re.compile(r'fernwander|weitwander|landesrund|rundwanderweg|höhenweg|hohenweg|alpenbogen|almenweg|nordalpenweg|zentralalpenweg|voralpenweg|'
+                     r'südalpenweg|grenzweg|maximiliansweg|waldmarkweg|alpannonia|via alpina|via glaralpina|via spluga|via gottardo|alpe[- ]adria|'
+                     r'\be ?\d{1,2}\b|alta ?via|traversata|tappa|etappe|planinska pot|transverzala|slovenska|sentiero (italia|della pace|lago)|'
+                     r'gta\b|grande traversée|\bgr ?\d|tour du |vom gletscher|route si\b|^route \d$|jakobsweg|camino|pilger|wienerwald|salzsteig|theklasteig|divizije|pot čez|\b[1-9]0[1-9]\b|\b[1-9]10\b', re.I)
+def through(rid, named=False):
+    t = rtags.get(rid, {}); net = t.get('network', '').lower()
+    km = parse_num((t.get('distance') or '').replace(',', '.').replace('km', ''), 0, 5000) or 0
+    return net in ('iwn', 'nwn') or km > 30 or (not named and bool(THROUGH.search(rnames.get(rid, ''))))
+fold = lambda x: re.sub('[\u0300-\u036f]', '', unicodedata.normalize('NFD', x.lower())).replace('ß', 'ss')
+SUMMIT_D, NAMED_D, MAX_RT = 40, 100, 8   # a route reaches the summit if one of its paths comes this close (metres)
 route_list, route_idx = [], {}
 def route_ref(rid):
     if rid not in route_idx:
@@ -251,7 +264,7 @@ stops = nearest(load_points(f'{RAW}/q/stops_bus.tsv', 1) + load_points(f'{RAW}/q
 print('summits with a car park within', START_KM, 'km:', sum(1 for p in parkings if p), '; with a stop:', sum(1 for p in stops if p))
 
 country_keys = list(COUNTRIES); state_keys = list(STATES)
-cols = {k: [] for k in ['n', 'an', 'e', 'la', 'lo', 'c', 's', 'g', 'sg', 'p', 'wp', 'id', 'rt', 'ap', 'nr', 'cc', 'cw', 'k', 'pk', 'st']}
+cols = {k: [] for k in ['n', 'an', 'e', 'la', 'lo', 'c', 's', 'g', 'sg', 'p', 'wp', 'id', 'rt', 'ap', 'nr', 'cc', 'cw', 'k', 'pk', 'st', 'fw']}
 ccount = [0] * len(country_keys); scount = [0] * len(state_keys); gcount = [0] * len(groups); ungrouped = 0
 def compact(lst): return -1 if not lst else (lst[0] if len(lst) == 1 else lst)
 order = sorted(range(len(P)), key=lambda i: -(parse_num(P[i]['t'].get('ele'), 0, 4900) or -1))
@@ -279,7 +292,16 @@ for i in order:
     cols['id'].append(p['id'])
     allw = peak_ways.get(p['id'], {})
     ways = {w: c for w, (d, c) in allw.items() if d <= ROUTE_RADIUS}
-    rts = sorted(peak_routes.get(p['id'], ()), key=lambda r: rnames.get(r, '~'))
+    closest = min((d for d, _ in allw.values()), default=999)
+    pname = fold(name.split('/')[0].split(' - ')[0].strip())
+    cand, fw = [], []
+    for r in peak_routes.get(p['id'], ()):
+        dmin = min((allw[w][0] for w in route_ways.get(r, ()) if w in allw), default=999)
+        named = len(pname) >= 4 and pname in fold(rnames.get(r, ''))
+        if through(r, named):
+            if dmin <= ROUTE_RADIUS and rnames.get(r) and rnames[r] not in fw: fw.append(rnames[r])
+        elif dmin <= max(SUMMIT_D, closest + 25) or (named and dmin <= NAMED_D): cand.append((dmin, r))
+    rts = sorted([r for _, r in sorted(cand)[:MAX_RT]], key=lambda r: rnames.get(r, '~'))
     rt, used, kinds = [], set(), 0
     for r in rts:                                   # a route is as hard as its hardest stretch at the summit
         mine = route_ways.get(r, set()) & ways.keys(); used |= mine
@@ -296,6 +318,7 @@ for i in order:
     for rec in cc: kinds |= 1 << rec[2]
     if not kinds and nr: kinds = 16                 # only a path nearby
     cols['rt'].append(rt or 0); cols['ap'].append([list(x) for x in ap] or 0); cols['nr'].append(nr or 0)
+    cols['fw'].append(sorted(fw, key=len)[:4] or 0)
     cols['cc'].append(cc or 0); cols['cw'].append(c2c_wp.get(p['id'], 0)); cols['k'].append(kinds)
     cols['pk'].append(parkings[i] or 0); cols['st'].append(stops[i] or 0)
 

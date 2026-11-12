@@ -345,3 +345,15 @@ a.onmap { color: var(--ink); text-decoration: none; display: inline-block; }
   .side, .mapwrap { grid-column: 1; }
   .pstats { grid-template-columns: repeat(2, 1fr); }
 }
+/* ascent from the car park */
+.ascent { border-top: 0; padding-top: 0; }
+.ascent .primary { align-self: flex-start; border: 0; border-radius: 6px; padding: 9px 16px; background: var(--accent); color: var(--accent-ink); font: inherit; font-weight: 600; cursor: pointer; }
+.ascent .primary:disabled { opacity: .65; cursor: progress; }
+.rts.asc { list-style: none; padding: 0; gap: 6px; }
+.rts.asc li { display: flex; align-items: center; gap: 8px; }
+.ascpick { flex: 1; min-width: 0; text-align: left; border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; background: transparent; color: var(--ink); font: inherit; cursor: pointer; }
+.ascpick[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.ascpick b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ascfacts { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ascfacts span:last-child { color: var(--ink); font-weight: 600; }
+.note.fw b { color: var(--ink); font-weight: 600; }
