@@ -327,6 +327,8 @@ for i in order:
     cols['rt'].append(rt or 0); cols['ap'].append([list(x) for x in ap] or 0); cols['nr'].append(nr or 0)
     cols['ar'].append(areas.get(p['id']) or 0)
     cols['fw'].append(sorted(fw, key=len)[:4] or 0)
+    if t.get('wikipedia') or (parse_num(t.get('prominence'), 0, 4900) or 0) >= 300 or (parse_num(t.get('ele'), 0, 4900) or 0) >= 4000:
+        kinds |= 32                                 # well-known summit (Wikipedia article, prominence 300 m+, 4000 m+): candidate for the summit of the day
     cols['cc'].append(cc or 0); cols['cw'].append(c2c_wp.get(p['id'], 0)); cols['k'].append(kinds)
     cols['pk'].append(parkings[i] or 0); cols['st'].append(stops[i] or 0)
 

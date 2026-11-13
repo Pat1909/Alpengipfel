@@ -86,7 +86,7 @@ function apply() {
     if (c != null && !has(P.c[i], c)) continue;
     if (s != null && !has(P.s[i], s)) continue;
     if (g != null && !has(P.g[i], g)) continue;
-    if (kind !== '' && (kind === 'none' ? P.k[i] !== 0 : !(P.k[i] & (1 << +kind)))) continue;
+    if (kind !== '' && (kind === 'none' ? (P.k[i] & 31) !== 0 : !(P.k[i] & (1 << +kind)))) continue;
     if (q && !P.nn[i].includes(q)) continue;
     out.push(i);
   }
@@ -1411,9 +1411,15 @@ const ICON = {
   msg: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>'
 };
 const svgIcon = k => `<svg viewBox="0 0 24 24" aria-hidden="true" class="ico">${ICON[k]}</svg>`;
-function peakOfDay() {                              // the same summit for everybody on one day: one with a way to the top, above 2000 m
-  const P = D.peaks, cand = []; for (let i = 0; i < N; i++) if (P.e[i] >= 2000 && (P.k[i] & 7)) cand.push(i);
-  const day = Math.floor((Date.now() + 36e5) / 864e5); return cand.length ? cand[(day * 7919) % cand.length] : 0;
+const potdDay = () => Math.floor((Date.now() + 36e5) / 864e5);   // days since 1970, the day starting at midnight CET
+// the series starts with famous summits (episode 1 on 13 November 2026), then every well-known summit with a way to the top in turn
+const POTD_FIRST = 20770, POTD_START = [364134323, 26863041, 259486622, 26863664, 71530342, 26864958, 27384190, 26864510, 26862760, 31664302, 26863179, 26865139, 26862546,
+  281399025, 256041740, 21634385, 26865134, 26864284, 26863390, 1435708318, 26863056, 3186071317, 2622553312, 276270971, 2949081313, 26864935, 296311438, 21634651];
+const potdEpisode = (day = potdDay()) => day - POTD_FIRST + 1;
+function peakOfDay(day = potdDay()) {               // the same summit for everybody on one day: a well-known one (bit 32) with a way to the top, 1500 m or higher
+  const k = day - POTD_FIRST; if (k >= 0 && k < POTD_START.length) { const i = indexOfId(POTD_START[k]); if (i >= 0) return i; }
+  const P = D.peaks, cand = []; for (let i = 0; i < N; i++) if (P.e[i] >= 1500 && (P.k[i] & 32) && (P.k[i] & 7)) cand.push(i);
+  return cand.length ? cand[(day * 7919) % cand.length] : 0;
 }
 function renderHome() {
   const P = D.peaks, cnt = fn => { let n = 0; for (let i = 0; i < N; i++) if (fn(i)) n++; return n; };
@@ -1438,7 +1444,7 @@ function renderHome() {
       <div class="hact"><button type="button" class="primary" id="hmap">Karte und Liste öffnen</button><button type="button" id="hnear">Gipfel in meiner Nähe</button></div></div></section>
     <section class="kpis" aria-label="Alpengipfel in Zahlen"><div><b>${fmt.format(N)}</b><span>Gipfel</span></div><div><b>${fmt.format(tiles[0][1])}</b><span>Viertausender</span></div>
       <div><b>${fmt.format(GEO && GEO.huts ? GEO.huts.length : 0)}</b><span>Hütten</span></div><div><b>${lands.length}</b><span>Länder</span></div></section>
-    <section class="potd"><div class="potdtxt"><p class="eyebrow">Gipfel des Tages</p><h3>${esc(P.n[pd])}</h3>
+    <section class="potd"><div class="potdtxt"><p class="eyebrow">Gipfel des Tages${potdEpisode() >= 1 ? ' · Folge ' + potdEpisode() : ''}</p><h3>${esc(P.n[pd])}</h3>
       <p class="potdmeta">${P.e[pd] != null ? `<b>${fmt.format(P.e[pd])} m</b>` : ''}${esc([pl.g, pl.s || pl.c].filter(Boolean).join(' · '))}</p>
       <div class="potdk">${kinds.map(k => `<span class="kb k${k}">${KINDS[k]}</span>`).join('')}</div></div>
       <button type="button" class="primary" id="hpotd">Gipfel ansehen</button></section>
