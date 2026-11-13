@@ -97,6 +97,7 @@ function apply() {
   else { const col = new Intl.Collator('de'); out.sort((a, b) => col.compare(P.n[a], P.n[b])); }
   idx = out;
   $('count').textContent = fmt.format(out.length) + (out.length === N ? '' : ' von ' + fmt.format(N));
+  $('fdone').textContent = out.length ? `${fmt.format(out.length)} Gipfel anzeigen` : 'Keine Gipfel – Filter anpassen';
   $('reset').hidden = !(q || hmin != null || hmax != null || c != null || s != null || g != null || kind !== '' || bk || rad != null);
   const nAct = [hmin != null || hmax != null, c != null, s != null, g != null, kind !== '', !!bk, rad != null].filter(Boolean).length;
   $('fcount').hidden = !nAct; $('fcount').textContent = nAct;
@@ -1415,7 +1416,6 @@ const potdDay = () => Math.floor((Date.now() + 36e5) / 864e5);   // days since 1
 // the series starts with famous summits (episode 1 on 13 November 2026), then every well-known summit with a way to the top in turn
 const POTD_FIRST = 20770, POTD_START = [364134323, 26863041, 259486622, 26863664, 71530342, 26864958, 27384190, 26864510, 26862760, 31664302, 26863179, 26865139, 26862546,
   281399025, 256041740, 21634385, 26865134, 26864284, 26863390, 1435708318, 26863056, 3186071317, 2622553312, 276270971, 2949081313, 26864935, 296311438, 21634651];
-const potdEpisode = (day = potdDay()) => day - POTD_FIRST + 1;
 function peakOfDay(day = potdDay()) {               // the same summit for everybody on one day: a well-known one (bit 32) with a way to the top, 1500 m or higher
   const k = day - POTD_FIRST; if (k >= 0 && k < POTD_START.length) { const i = indexOfId(POTD_START[k]); if (i >= 0) return i; }
   const P = D.peaks, cand = []; for (let i = 0; i < N; i++) if (P.e[i] >= 1500 && (P.k[i] & 32) && (P.k[i] & 7)) cand.push(i);
@@ -1444,7 +1444,7 @@ function renderHome() {
       <div class="hact"><button type="button" class="primary" id="hmap">Karte und Liste öffnen</button><button type="button" id="hnear">Gipfel in meiner Nähe</button></div></div></section>
     <section class="kpis" aria-label="Alpengipfel in Zahlen"><div><b>${fmt.format(N)}</b><span>Gipfel</span></div><div><b>${fmt.format(tiles[0][1])}</b><span>Viertausender</span></div>
       <div><b>${fmt.format(GEO && GEO.huts ? GEO.huts.length : 0)}</b><span>Hütten</span></div><div><b>${lands.length}</b><span>Länder</span></div></section>
-    <section class="potd"><div class="potdtxt"><p class="eyebrow">Gipfel des Tages${potdEpisode() >= 1 ? ' · Folge ' + potdEpisode() : ''}</p><h3>${esc(P.n[pd])}</h3>
+    <section class="potd"><div class="potdtxt"><p class="eyebrow">Gipfel des Tages</p><h3>${esc(P.n[pd])}</h3>
       <p class="potdmeta">${P.e[pd] != null ? `<b>${fmt.format(P.e[pd])} m</b>` : ''}${esc([pl.g, pl.s || pl.c].filter(Boolean).join(' · '))}</p>
       <div class="potdk">${kinds.map(k => `<span class="kb k${k}">${KINDS[k]}</span>`).join('')}</div></div>
       <button type="button" class="primary" id="hpotd">Gipfel ansehen</button></section>
@@ -2104,6 +2104,9 @@ async function boot() {
   $('openbook').addEventListener('click', showBook);
   if ($('openfb')) $('openfb').addEventListener('click', () => openFeedback());
   $('navhome').addEventListener('click', () => showHome()); $('navstart').addEventListener('click', () => showHome());
+  const closeFilters = () => { $('filters').classList.remove('open'); $('ftoggle').setAttribute('aria-expanded', 'false'); };
+  $('fdone').onclick = () => { closeFilters(); $('list').scrollTop = 0; };
+  $('q').addEventListener('focus', closeFilters);              // typing a name: the list needs the room, not the filters
   $('ftoggle').onclick = () => { const f = $('filters'), open = !f.classList.contains('open'); f.classList.toggle('open', open); $('ftoggle').setAttribute('aria-expanded', String(open)); if (open && MOBILE()) setSheet('full'); };
   let legOpen = !MOBILE(); try { const v = localStorage.getItem('alpengipfel.legende'); if (v) legOpen = v === '1'; } catch (err) { /* default */ }
   const setLeg = open => { legOpen = open; $('legendbox').dataset.open = String(open); $('legtoggle').setAttribute('aria-expanded', String(open)); };
