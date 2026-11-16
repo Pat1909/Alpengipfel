@@ -20,7 +20,7 @@ const ALPS_BOUNDS = [[43.4, 5.0], [48.4, 16.6]];
 function bandOf(e) { if (e == null) return -1; for (let i = 0; i < BANDS.length; i++) if (e < BANDS[i][1]) return i; return BANDS.length - 1; }
 function readColors() {
   const cs = getComputedStyle(document.documentElement);
-  ['--h0','--h1','--h2','--h3','--h4','--h5','--ink','--surface','--accent','--map-alps','--map-water','--map-border','--map-group','--map-label','--map-land','--muted','--tw','--ta','--tk','--tt','--hut','--park','--stop']
+  ['--h0','--h1','--h2','--h3','--h4','--h5','--ink','--surface','--accent','--map-alps','--map-water','--map-border','--map-region','--map-group','--map-label','--map-land','--muted','--tw','--ta','--tk','--tt','--hut','--park','--stop']
     .forEach(k => cssColors[k] = cs.getPropertyValue(k).trim());
 }
 function colorOf(e) { const b = bandOf(e); return cssColors[b < 0 ? '--h4' : BANDS[b][2]]; }
@@ -1894,11 +1894,14 @@ function initMap() {
   map = L.map('map', { preferCanvas: true, zoomSnap: 0.5, minZoom: 5, maxZoom: 17, maxBounds: [[35, -4], [52, 26]] }).fitBounds(ALPS_BOUNDS);
   mapShown = $('map').clientWidth > 0;
   map.attributionControl.setPrefix(false).addAttribution('Daten © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende (ODbL)');
+  let hasTiles = false;
   const baseStyle = () => ({
     alps: { stroke: false, fillColor: cssColors['--map-alps'], fillOpacity: 1, interactive: false },
     lakes: { stroke: false, fillColor: cssColors['--map-water'], fillOpacity: 1, interactive: false },
-    groups: { color: cssColors['--map-group'], weight: 1, opacity: .75, fill: false, interactive: false },
-    borders: { color: cssColors['--map-border'], weight: 1.4, opacity: .9, dashArray: '6 4', fill: false, interactive: false }
+    groups: { color: cssColors['--map-group'], weight: 1, opacity: hasTiles ? .6 : .5, fill: false, interactive: false },
+    rborders: { color: cssColors['--map-region'], weight: 2.2, opacity: 1, dashArray: '7 5', fill: false, interactive: false },
+    halo: { color: cssColors['--surface'], weight: 7, opacity: .75, fill: false, interactive: false },
+    borders: { color: cssColors['--map-border'], weight: 2.8, opacity: 1, fill: false, interactive: false }
   });
   const layers = {};
   const st = baseStyle();
@@ -1907,6 +1910,8 @@ function initMap() {
     layers.alps = L.polygon(GEO.alps.map(poly => poly.map(toLL)), st.alps).addTo(map);
     layers.lakes = L.polygon(GEO.lakes.map(poly => poly.map(toLL)), st.lakes).addTo(map);
     layers.groups = L.polygon(GEO.groups.flatMap(g => g.p.map(poly => poly.map(toLL))), st.groups).addTo(map);
+    if (GEO.rborders) layers.rborders = L.polyline(GEO.rborders.map(toLL), st.rborders).addTo(map);
+    layers.halo = L.polyline(GEO.borders.map(toLL), st.halo).addTo(map);
     layers.borders = L.polyline(GEO.borders.map(toLL), st.borders).addTo(map);
   }
   // Background tiles are an optional extra: only added where the host page is allowed to load them.
@@ -1914,8 +1919,8 @@ function initMap() {
   probe.onload = () => {
     const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: 'Karte © OpenStreetMap' }).addTo(map);
     tiles.bringToBack();
-    if (layers.alps) { map.removeLayer(layers.alps); map.removeLayer(layers.lakes); map.removeLayer(layers.borders); layers.groups.setStyle({ opacity: .9, weight: 1.5 }); }
-    hasTiles = true; peakLayer.redraw();
+    if (layers.alps) { map.removeLayer(layers.alps); map.removeLayer(layers.lakes); }
+    hasTiles = true; if (layers.groups) layers.groups.setStyle(baseStyle().groups); peakLayer.redraw();
   };
   probe.src = 'https://tile.openstreetmap.org/6/33/22.png';
 
@@ -1955,9 +1960,26 @@ function initMap() {
       }
       // group names while zoomed out, peak names once few enough are in view
       ctx.textAlign = 'center';
+      const placed = [];
+      const area = (list, minZ, maxZ, font, color, upper, minA) => {   // country and region names
+        if (!GEO || !list || z < minZ || z >= maxZ) return;
+        ctx.font = font;
+        for (const g of list) {
+          if (g.a < minA) continue;
+          const p = m.latLngToContainerPoint([g.c[1], g.c[0]]), t = upper ? g.n.toUpperCase() : g.n;
+          if (p.x < -80 || p.y < -20 || p.x > size.x + 80 || p.y > size.y + 20) continue;
+          const tw = ctx.measureText(t).width / 2 + 6;
+          if (placed.some(q => Math.abs(q[0] - p.x) < q[2] + tw && Math.abs(q[1] - p.y) < 18)) continue;
+          placed.push([p.x, p.y, tw]);
+          label(ctx, t, p.x, p.y, color);
+        }
+      };
+      if ('letterSpacing' in ctx) ctx.letterSpacing = '3px';
+      area(GEO && GEO.countries, 5, 8, '700 17px "Barlow Condensed", "Arial Narrow", sans-serif', cssColors['--map-border'], true, z < 7 ? 0.05 : 0);
+      if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+      area(GEO && GEO.regions, 7.5, 11.5, `italic 600 ${z < 9 ? 12.5 : 14}px "Barlow", system-ui, sans-serif`, cssColors['--map-region'], false, z < 8.5 ? 0.15 : 0);
       if (GEO && z < 10.5 && z >= 6.5) {
         ctx.font = `600 ${z < 8 ? 11 : 13}px "Barlow Condensed", "Arial Narrow", sans-serif`;
-        const placed = [];
         for (const g of GEO.groups) {
           if (z < 8 && g.a < 0.12) continue;
           const p = m.latLngToContainerPoint([g.c[1], g.c[0]]);
@@ -2036,7 +2058,6 @@ function initMap() {
     ctx.lineWidth = 3; ctx.strokeStyle = cssColors['--surface']; ctx.lineJoin = 'round';
     ctx.strokeText(t, x, y); ctx.fillStyle = color; ctx.fillText(t, x, y);
   }
-  let hasTiles = false;
   trailLayer = L.layerGroup().addTo(map); hiLayer = L.layerGroup().addTo(map);
   map.createPane('hi').style.zIndex = 420; const hiRenderer = L.canvas({ pane: 'hi' });   // highlighted route above all paths
   hiLayer.addLayer = (orig => function (l) { if (l.options) { l.options.renderer = hiRenderer; l.options.pane = 'hi'; } return orig.call(this, l); })(hiLayer.addLayer);

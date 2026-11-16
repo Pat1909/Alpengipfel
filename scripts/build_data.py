@@ -386,6 +386,58 @@ merged = linemerge(lines) if lines else None
 for part in getattr(merged, 'geoms', [merged] if merged is not None else []):
     s = part.simplify(0.003)
     if s.length > 0.02: geo['borders'].append([[round(x, 3), round(y, 3)] for x, y in s.coords])
+# country and region borders from the OpenStreetMap boundaries of the states (and of the countries without states):
+# shared edges between two areas of different countries are country borders, within one country region borders.
+area = {}
+for key in list(STATES) + ['SI', 'LI', 'MC', 'HU']:
+    p = f'{RAW}/q/b_{key}.tsv'
+    if not os.path.exists(p): continue
+    gs = [shapely.from_wkt(r['wkt']) for r in tsv(p) if r['wkt']]
+    gs = [g.buffer(0) for g in gs if g is not None and not g.is_empty and g.geom_type in ('Polygon', 'MultiPolygon')]
+    if gs: area[key] = unary_union(gs).intersection(view)
+keys = sorted(area)
+cl, rl = [], []
+for a in range(len(keys)):
+    for b in range(a + 1, len(keys)):
+        A, B = area[keys[a]], area[keys[b]]
+        if not A.envelope.intersects(B.envelope): continue
+        shared = A.boundary.intersection(B.buffer(0.0005)).intersection(B.boundary.buffer(0.0005))
+        parts = [g for g in getattr(shared, 'geoms', [shared]) if g.geom_type in ('LineString', 'MultiLineString')]
+        (cl if keys[a][:2] != keys[b][:2] else rl).extend(parts)
+def line_list(parts, tol, minlen):
+    out = []
+    if not parts: return out
+    merged = linemerge(unary_union(parts))
+    for part in getattr(merged, 'geoms', [merged]):
+        sp = part.simplify(tol)
+        if sp.length > minlen: out.append([[round(x, 4), round(y, 4)] for x, y in sp.coords])
+    return out
+geo['borders'] = line_list(cl, 0.0015, 0.01)
+covered = unary_union([shapely.LineString(l) for l in geo['borders']]).buffer(0.03) if geo['borders'] else None
+ne = []                                              # Natural Earth borders where OpenStreetMap areas are missing (e.g. Czechia, Slovakia, Croatia)
+for part in getattr(merged, 'geoms', [merged] if merged is not None else []):
+    rest = part.difference(covered) if covered is not None else part
+    for p2 in getattr(rest, 'geoms', [rest]):
+        if p2.geom_type == 'LineString' and p2.length > 0.05: ne.append([[round(x, 3), round(y, 3)] for x, y in p2.simplify(0.003).coords])
+geo['borders'] += ne
+geo['rborders'] = line_list(rl, 0.0015, 0.01)
+alps_wide = alps.buffer(0.25)
+geo['regions'] = []
+for key in keys:
+    if key in STATES:
+        inside = area[key].intersection(alps_wide)
+        if inside.is_empty or inside.area < 0.02: continue
+        c = inside.representative_point()
+        geo['regions'].append({'n': STATES[key], 'c': [round(c.x, 3), round(c.y, 3)], 'a': round(inside.area, 3)})
+geo['countries'] = []
+for cc in ('AT', 'DE', 'CH', 'IT', 'FR', 'SI', 'LI'):
+    parts = [area[k] for k in keys if k[:2] == cc]
+    if not parts: continue
+    inside = unary_union(parts).intersection(alps_wide)
+    if inside.is_empty: continue
+    c = inside.representative_point()
+    geo['countries'].append({'n': COUNTRIES[cc], 'c': [round(c.x, 3), round(c.y, 3)], 'a': round(inside.area, 3)})
+print('borders', len(geo['borders']), 'region borders', len(geo['rborders']), 'regions', len(geo['regions']))
 # mountain huts: [lon, lat, name, height or 0, 0 = staffed hut / 1 = shelter, OSM reference, website or 0]
 geo['huts'] = []
 for row in tsv(f'{RAW}/q/huts.tsv'):
