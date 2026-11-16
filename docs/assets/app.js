@@ -652,7 +652,8 @@ function postBody(x, withPeak) {                    // everything below the titl
   return (chips ? `<div class="ppeaks">${chips}</div>` : '') +
     (x.fotos.length ? `<div class="pfotos n${Math.min(x.fotos.length, 4)}">${x.fotos.map((f, k) => `<button type="button" class="pfoto" data-f="${k}"><img src="${fotoUrl(f)}" alt="Foto ${k + 1} von ${esc(x.name)}" loading="lazy"></button>`).join('')}</div>` : '') +
     (x.text ? `<p class="ptext">${esc(x.text)}</p>` : '') +
-    `<div class="pbar"><button type="button" class="plike" aria-pressed="${myLikes.has(x.id)}" data-like="${x.id}">♥ <span>${x.likes || ''}</span></button>` +
+    `<div class="pbar"><span class="plikes"><button type="button" class="plike" aria-pressed="${myLikes.has(x.id)}" aria-label="Gefällt mir" data-like="${x.id}">♥</button>` +
+    `<button type="button" class="plcount" data-lk="${x.id}" aria-label="Wer hat geliked?"${x.likes ? '' : ' hidden'}>${x.likes || ''}</button></span>` +
     (social ? `<button type="button" class="plike pcmt" aria-expanded="false" data-cmt="${x.id}">💬 <span>${x.comments || ''}</span><span class="sr">Kommentare</span></button>` : '') +
     (x.trk && withPeak && i >= 0 ? `<button type="button" class="onmap" data-route="${i}">Route ansehen</button>` : '') +
     `<button type="button" class="onmap pmore" data-rep="${x.id}">Melden</button>` +
@@ -672,8 +673,11 @@ function wirePosts(box, items) {
     if (!sbUser) { b.closest('.post').querySelector('.pmsg').innerHTML = `<p class="note"><button type="button" class="linkbtn">Melde dich an</button>, um Touren zu liken.</p>`; b.closest('.post').querySelector('.pmsg .linkbtn').onclick = () => showProfile(); return; }
     const { data, error } = await sb.rpc('like_umschalten', { beitrag: b.dataset.like }); if (error) return;
     const x = byId[b.dataset.like]; x.likes = data.likes; data.liked ? myLikes.add(x.id) : myLikes.delete(x.id);
-    b.setAttribute('aria-pressed', String(data.liked)); b.querySelector('span').textContent = data.likes || '';
+    b.setAttribute('aria-pressed', String(data.liked)); const c = b.parentNode.querySelector('.plcount'); c.textContent = data.likes || ''; c.hidden = !data.likes;
+    const box = b.closest('.post').querySelector('.pmsg'); if (box.querySelector('.likers')) showLikers(x, box);
   }; });
+  box.querySelectorAll('[data-lk]').forEach(b => { b.onclick = ev => { ev.stopPropagation(); const box2 = b.closest('.post').querySelector('.pmsg');
+    if (box2.querySelector('.likers')) { box2.innerHTML = ''; return; } showLikers(byId[b.dataset.lk], box2); }; });
   box.querySelectorAll('[data-rep]').forEach(b => { b.onclick = ev => { ev.stopPropagation(); reportPost(byId[b.dataset.rep], b.closest('.post').querySelector('.pmsg')); }; });
   box.querySelectorAll('[data-del]').forEach(b => { b.onclick = ev => { ev.stopPropagation(); deletePost(byId[b.dataset.del]); }; });
   box.querySelectorAll('[data-open]').forEach(b => { b.onclick = ev => { ev.stopPropagation(); explore(true); showDetail(+b.dataset.open); }; });
@@ -875,6 +879,14 @@ function openComposer(i0) {                          // share a tour: summit, da
 }
 const timeDe = s => { const d = new Date(s), m = (Date.now() - d) / 6e4;
   return m < 1 ? 'gerade eben' : m < 60 ? `vor ${Math.round(m)} Min.` : m < 1440 ? `vor ${Math.round(m / 60)} Std.` : d.toLocaleDateString('de-DE', { day: 'numeric', month: 'short', year: 'numeric' }); };
+async function showLikers(x, box) {                 // who liked a tour, as links to their profiles
+  box.innerHTML = '<p class="note small">Wird geladen …</p>';
+  const { data, error } = await sb.rpc('likes_liste', { beitrag: x.id });
+  if (error) { box.innerHTML = '<p class="note small">Die Liste ist gleich verfügbar.</p>'; return; }
+  box.innerHTML = `<div class="likers"><p class="note small">♥ Gefällt ${data.length === 1 ? '1 Person' : data.length + ' Personen'}</p>` +
+    (data.length ? `<ul>${data.map(l => `<li><a class="puser" href="${ROOT}#nutzer/${encodeURIComponent(l.username)}" data-user="${esc(l.username)}"><span class="pav sm" aria-hidden="true">${esc(l.username.slice(0, 1).toUpperCase())}</span>${esc(l.username)}</a></li>`).join('')}</ul>` : '') + `</div>`;
+  box.querySelectorAll('[data-user]').forEach(b => { b.onclick = ev => { ev.preventDefault(); showUser(b.dataset.user); }; });
+}
 async function loadComments(x, box, btn) {          // comments below a tour: newest last, a form to write one
   box.innerHTML = '<p class="note small">Kommentare werden geladen …</p>';
   const { data, error } = await sb.from('kommentare').select('id,user_id,autor,text,created_at').eq('beitrag_id', x.id).order('created_at').limit(200);
@@ -979,8 +991,16 @@ async function renderFeed(more) {
     page.innerHTML = `<div class="home feed"><section class="feedhead"><div><p class="eyebrow">Community</p><h2>Touren der Community</h2><p class="lede">Gipfel, die andere gerade bestiegen haben – mit Bericht, Fotos und Track.</p></div>` +
       `<button type="button" class="primary sharetour" id="fshare">Tour teilen</button></section>` +
       (sbUser && social ? `<div class="seg3 ftabs" role="tablist">${[['all', 'Alle'], ['follow', 'Gefolgt']].map(([v, t]) => `<button type="button" role="tab" data-fm="${v}" aria-selected="${v === feedMode}">${t}</button>`).join('')}</div>` : '') +
+      (social ? `<div class="usearch"><label class="sr" for="uq">Nutzer suchen</label><input id="uq" type="search" autocomplete="off" placeholder="🔍 Nutzer suchen" maxlength="20"><ul class="ures" id="ures" hidden></ul></div>` : '') +
       `<ul class="asc posts" id="feedlist"><li class="note">Touren werden geladen …</li></ul><div id="feedmore"></div></div>`;
     $('fshare').onclick = () => openComposer(-1);
+    if ($('uq')) { let tmr = 0, seq = 0; $('uq').oninput = () => { clearTimeout(tmr); tmr = setTimeout(async () => {
+      const q = $('uq').value.trim(), res = $('ures'), my = ++seq; if (q.length < 2) { res.hidden = true; return; }
+      const { data, error } = await sb.rpc('nutzer_suchen', { q }); if (my !== seq || !$('ures')) return;
+      res.hidden = false;
+      res.innerHTML = error ? '<li class="note small">Die Suche ist gleich verfügbar.</li>' : data.length ? data.map(u => `<li><a class="puser" href="${ROOT}#nutzer/${encodeURIComponent(u.username)}" data-user="${esc(u.username)}"><span class="pav sm" aria-hidden="true">${esc(u.username.slice(0, 1).toUpperCase())}</span><span><b>${esc(u.username)}${u.privat ? ' 🔒' : ''}</b><small>${u.touren == 1 ? '1 geteilte Tour' : fmt.format(u.touren) + ' geteilte Touren'}</small></span></a></li>`).join('') : '<li class="note small">Niemand gefunden.</li>';
+      res.querySelectorAll('[data-user]').forEach(b => { b.onclick = ev => { ev.preventDefault(); showUser(b.dataset.user); }; });
+    }, 250); }; }
     page.querySelectorAll('[data-fm]').forEach(b => { b.onclick = () => { feedMode = b.dataset.fm; feedFollow = null; renderFeed(); }; });
     if (!sbUser) feedMode = 'all';
   }
