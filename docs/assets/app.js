@@ -934,19 +934,29 @@ async function renderUser(name) {
   if (error || !u) { page.firstChild.innerHTML = `<div class="emptybox"><h3>${error ? 'Profile sind gleich verfügbar' : 'Dieses Profil gibt es nicht'}</h3><p>${error ? 'Die Funktion wird gerade eingerichtet.' : 'Vielleicht wurde das Konto gelöscht.'}</p></div><div class="links"><button type="button" id="ufeed">Zu den Touren</button></div>`; $('ufeed').onclick = () => showFeed(); return; }
   document.title = `${u.username} – Alpengipfel`;
   const me = sbUser && sbUser.id === u.user_id;
-  const nums = [['Touren', u.touren], ['Gipfel erreicht', u.gipfel], ['Follower', u.follower], ['Folgt', u.folgt]];
-  page.firstChild.innerHTML = `<div class="phead"><div class="avatar" aria-hidden="true">${esc(u.username.slice(0, 1).toUpperCase())}</div><div><h2>${esc(u.username)}</h2><p class="note">dabei seit ${new Date(u.seit).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}</p></div>` +
-    (me ? `<button type="button" class="onmap" id="umine">Mein Konto</button>` : `<button type="button" class="primary ufollow" id="ufollow" aria-pressed="${!!u.ich_folge}">${u.ich_folge ? 'Gefolgt ✓' : 'Folgen'}</button>`) + `</div>` +
+  let status = u.status !== undefined ? u.status : u.ich_folge ? 'folgt' : null;   // my relation: 'folgt', 'angefragt' or none
+  const canSee = u.sichtbar !== false;
+  const label = () => status === 'folgt' ? 'Gefolgt ✓' : status === 'angefragt' ? 'Angefragt' : u.privat ? 'Folgen anfragen' : 'Folgen';
+  const nums = [['Geteilte Touren', u.touren], ['Gipfel erreicht', u.gipfel], ['Follower', u.follower], ['Folgt', u.folgt]];
+  page.firstChild.innerHTML = `<div class="phead"><div class="avatar" aria-hidden="true">${esc(u.username.slice(0, 1).toUpperCase())}</div><div><h2>${esc(u.username)}${u.privat ? ' <span class="lock" title="Privates Profil">🔒</span>' : ''}</h2><p class="note">dabei seit ${new Date(u.seit).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}</p></div>` +
+    (me ? `<button type="button" class="onmap" id="umine">Mein Konto</button>` : `<button type="button" class="primary ufollow" id="ufollow" aria-pressed="${!!status}">${label()}</button>`) + `</div>` +
     `<div class="pstats unums">${nums.map(([l, v], k) => `<div><span class="lab">${l}</span><b id="un${k}">${fmt.format(v)}</b></div>`).join('')}</div><p class="note small" id="umsg" role="status"></p>` +
-    `<section><h3 class="h3">Geteilte Touren</h3><ul class="asc posts" id="ulist"><li class="note">Touren werden geladen …</li></ul><div id="umore"></div></section>`;
+    (canSee ? `<section><h3 class="h3">Geteilte Touren</h3><ul class="asc posts" id="ulist"><li class="note">Touren werden geladen …</li></ul><div id="umore"></div></section>`
+      : `<div class="emptybox lockbox"><h3>🔒 Dieses Profil ist privat</h3><p id="ulock"></p></div>`);
+  const lockText = () => { if ($('ulock')) $('ulock').textContent = status === 'angefragt' ? `Deine Anfrage ist gestellt. Sobald ${u.username} sie annimmt, siehst du die geteilten Touren.` : `Folge ${u.username}, um die geteilten Touren zu sehen. ${u.username} muss deine Anfrage erst annehmen.`; };
+  lockText();
   if ($('umine')) $('umine').onclick = () => showProfile();
   if ($('ufollow')) $('ufollow').onclick = async () => {
     if (!sbUser) { $('umsg').innerHTML = '<button type="button" class="linkbtn" id="ulogin">Melde dich an</button>, um anderen zu folgen.'; $('ulogin').onclick = () => showProfile(); return; }
     const b = $('ufollow'); b.disabled = true;
+    if (status === 'angefragt' && !confirm('Anfrage zurückziehen?')) { b.disabled = false; return; }
     const { data: r, error: e2 } = await sb.rpc('folgen_umschalten', { ziel: u.user_id }); b.disabled = false;
     if (e2) { $('umsg').textContent = 'Das hat gerade nicht geklappt.'; return; }
-    b.setAttribute('aria-pressed', String(r.folge)); b.textContent = r.folge ? 'Gefolgt ✓' : 'Folgen'; $('un2').textContent = fmt.format(r.follower); feedFollow = null;
-    if (r.folge) count('folgen');
+    const was = status; status = r.status || (r.folge ? 'folgt' : null); if (status === 'keine') status = null;
+    b.setAttribute('aria-pressed', String(!!status)); b.textContent = label(); $('un2').textContent = fmt.format(r.follower); feedFollow = null;
+    $('umsg').textContent = status === 'angefragt' ? `Anfrage gesendet. ${u.username} muss sie annehmen.` : ''; lockText();
+    if (status) count(status === 'folgt' ? 'folgen' : 'folgen-anfrage');
+    if (u.privat && (was === 'folgt' || status === 'folgt')) renderUser(name);   // the tours appear or disappear
   };
   let items = [];
   const more = async () => {
@@ -960,7 +970,7 @@ async function renderUser(name) {
     $('umore').innerHTML = add.length === 15 ? '<button type="button" class="onmap" id="umorebtn">Weitere Touren laden</button>' : '';
     if ($('umorebtn')) $('umorebtn').onclick = more;
   };
-  await checkAdmin(); more();
+  await checkAdmin(); if (canSee) more();
 }
 async function renderFeed(more) {
   const page = $('page');
@@ -976,7 +986,7 @@ async function renderFeed(more) {
   }
   if (!sb) { $('feedlist').innerHTML = '<li class="note">Die Community ist nur auf alpen-gipfel.de verfügbar.</li>'; return; }
   const from = feedItems.length;
-  if (feedMode === 'follow' && !feedFollow) { const r = await sb.from('folgen').select('folgt'); feedFollow = (r.data || []).map(x => x.folgt); }
+  if (feedMode === 'follow' && !feedFollow) { const r = await sb.from('folgen').select('*'); feedFollow = (r.data || []).filter(x => x.bestaetigt !== false).map(x => x.folgt); }
   if (feedMode === 'follow' && !feedFollow.length) { $('feedlist').innerHTML = `<li class="emptybox"><h3>Du folgst noch niemandem</h3><p>Tippe bei einer Tour auf den Namen, um das Profil zu sehen und der Person zu folgen.</p></li>`; $('feedmore').innerHTML = ''; return; }
   const [{ data, error }] = await Promise.all([selectPosts(q => (feedMode === 'follow' ? q.in('user_id', feedFollow) : q).order('created_at', { ascending: false }).range(from, from + 14)), checkAdmin()]);
   if (pageMode !== 'feed') return;
@@ -1629,7 +1639,7 @@ function renderProfile() {
     headHtml = `<div class="phead"><div class="avatar" aria-hidden="true">${esc(name.slice(0, 1).toUpperCase())}</div><div><h2>${esc(name)}</h2><p class="note">${esc(sbUser.email || '')}${since ? ' · dabei seit ' + since : ''}</p></div>` +
       (uname ? `<button type="button" class="onmap" id="mypublic">Öffentliches Profil</button>` : '') + `</div>`;
   } else headHtml = `<div class="phead"><div class="avatar" aria-hidden="true">?</div><div><h2>Profil</h2><p class="note">${sb ? 'Du bist nicht angemeldet. Dein Gipfelbuch liegt nur in diesem Browser.' : 'Konten gibt es nur auf alpen-gipfel.de. Hier liegt dein Gipfelbuch in diesem Browser.'}</p></div></div>`;
-  page.innerHTML = `<div class="home profile">${headHtml}<section><h3 class="h3">Deine Gipfel</h3>${stats}${actions}</section><section class="pacct">${accountHtml()}</section>${sbUser ? '<section id="pstatsadmin"></section>' : ''}${theme}</div>`;
+  page.innerHTML = `<div class="home profile">${headHtml}<section><h3 class="h3">Deine Gipfel</h3>${stats}${actions}</section>${sbUser && social ? '<section id="psocial"></section>' : ''}<section class="pacct">${accountHtml()}</section>${sbUser ? '<section id="pstatsadmin"></section>' : ''}${theme}</div>`;
   $('pbook').onclick = showBook;
   if ($('mypublic')) $('mypublic').onclick = () => showUser(sbUser.user_metadata.username);
   if ($('pdone')) { $('pdone').onclick = () => preset({ book: 'done' }); $('pwish').onclick = () => preset({ book: 'wish' }); }
@@ -1637,6 +1647,26 @@ function renderProfile() {
   page.querySelectorAll('.seg3 button').forEach(b => { b.onclick = () => { setTheme(b.dataset.t); page.querySelectorAll('.seg3 button').forEach(x => x.setAttribute('aria-checked', String(x === b))); }; });
   wireAccount();
   loadStats();
+  if ($('psocial')) loadSocialSettings($('psocial'));
+}
+async function loadSocialSettings(box) {             // own profile: public or private, open follower requests
+  const uname = sbUser.user_metadata && sbUser.user_metadata.username; if (!uname) return;
+  const { data: u } = await sb.rpc('nutzer_profil', { name: uname });
+  if (!u || u.privat === undefined || !$('psocial')) { box.remove(); return; }
+  const draw = (priv, reqs) => {
+    box.innerHTML = `<h3 class="h3">Sichtbarkeit</h3><div class="seg3" role="radiogroup" aria-label="Profil">${[[false, 'Öffentlich'], [true, 'Privat 🔒']].map(([v, t]) => `<button type="button" role="radio" data-priv="${v}" aria-checked="${v === priv}">${t}</button>`).join('')}</div>` +
+      `<p class="note">${priv ? 'Deine geteilten Touren sehen nur Follower, die du angenommen hast. Name und Zahlen auf deinem Profil bleiben sichtbar.' : 'Alle können dein Profil und deine geteilten Touren sehen und dir direkt folgen.'}</p>` +
+      (reqs.length ? `<h3 class="h3">Follower-Anfragen <span class="badge">${reqs.length}</span></h3><ul class="slist">${reqs.map((r, k) => `<li><span><a class="puser" href="${ROOT}#nutzer/${encodeURIComponent(r.username)}" data-user="${esc(r.username)}">${esc(r.username)}</a><small class="note"> · ${timeDe(r.created_at)}</small></span>` +
+        `<span class="ascbtns"><button type="button" class="primary sharetour" data-acc="${k}">Annehmen</button><button type="button" class="onmap" data-rej="${k}">Ablehnen</button></span></li>`).join('')}</ul>` : priv ? '<p class="note small">Keine offenen Follower-Anfragen.</p>' : '');
+    box.querySelectorAll('[data-priv]').forEach(b => { b.onclick = async () => { const p = b.dataset.priv === 'true'; if (p === priv) return;
+      const { error } = await sb.rpc('profil_privat_setzen', { p }); if (error) return; draw(p, p ? reqs : []); }; });
+    box.querySelectorAll('[data-user]').forEach(b => { b.onclick = ev => { ev.preventDefault(); showUser(b.dataset.user); }; });
+    const answer = async (k, yes) => { const r = reqs[k]; await sb.rpc('anfrage_beantworten', { von: r.user_id, annehmen: yes }); draw(priv, reqs.filter(x => x !== r)); };
+    box.querySelectorAll('[data-acc]').forEach(b => { b.onclick = () => answer(+b.dataset.acc, true); });
+    box.querySelectorAll('[data-rej]').forEach(b => { b.onclick = () => answer(+b.dataset.rej, false); });
+  };
+  const { data: reqs } = u.anfragen ? await sb.rpc('anfragen_liste') : { data: [] };
+  draw(!!u.privat, reqs || []);
 }
 
 /* ---------- Gipfelbuch (kept in this browser) ---------- */
