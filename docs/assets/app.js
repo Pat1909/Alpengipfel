@@ -862,8 +862,7 @@ function openComposer(i0) {                          // share a tour: summit, da
       if (error) throw error;
       // reached summits go into the Gipfelbuch with the tour date (an earlier date already there is kept)
       let added = 0; const day = $('pdate').value;
-      picked.filter(p => p.ok).forEach(p => { const id = D.peaks.id[p.i], had = book.done[id];
-        if (had == null || !had || had > day) { if (had == null) added++; book.done[id] = day; delete book.wish[id]; } });
+      picked.filter(p => p.ok).forEach(p => { const id = D.peaks.id[p.i]; if (book.done[id] == null) added++; addVisit(id, day); });
       if (picked.some(p => p.ok)) { saveBook(); if (selected >= 0) renderBookRow(selected); renderList(); if (peakLayer) peakLayer.redraw(); }
       if (added) setTimeout(() => toast(`${added === 1 ? '1 Gipfel' : added + ' Gipfel'} ins Gipfelbuch eingetragen ✓`), 300);
     } catch (err) {
@@ -1695,6 +1694,15 @@ let book = { done: {}, wish: {} };
 try { const raw = JSON.parse(localStorage.getItem(BOOK_KEY) || 'null'); if (raw && raw.done && raw.wish) book = raw; } catch (err) { /* storage unavailable: the book lasts for this visit only */ }
 function storeBook() { try { localStorage.setItem(BOOK_KEY, JSON.stringify(book)); } catch (err) { /* see above */ } }
 function saveBook() { storeBook(); if (sbUser) { clearTimeout(pushTimer); pushTimer = setTimeout(pushBook, 800); } }
+// several ascents of one summit: book.visits[id] = all dates (only kept when there is more than one); book.done[id] = the latest date ('' = no date)
+const visitsOf = id => { const v = book.visits && book.visits[id]; return v && v.length ? v : book.done[id] != null ? [book.done[id]] : []; };
+function setVisits(id, list) {
+  list = list.filter(x => x != null).sort(); if (!book.visits) book.visits = {};
+  if (!list.length) { delete book.done[id]; delete book.visits[id]; return; }
+  book.done[id] = list.filter(Boolean).pop() || ''; delete book.wish[id];
+  if (list.length > 1) book.visits[id] = list; else delete book.visits[id];
+}
+const addVisit = (id, day) => setVisits(id, visitsOf(id).includes(day) ? visitsOf(id) : [...visitsOf(id), day]);
 
 /* ---------- account: the Gipfelbuch of a signed-in user is kept in Supabase and follows them to every device ---------- */
 const SB_URL = 'https://jhkzxneztgpezidgfhah.supabase.co', SB_KEY = 'sb_publishable_ITvFoKOEjH8mBzWuxhWOlQ_haTXZXmW';   // publishable key, safe in page code
@@ -1853,7 +1861,9 @@ async function pullBook() {
   let merged = false; try { merged = localStorage.getItem(SYNC_KEY) === user.id; } catch (err) { /* treat as first sign-in */ }
   if (merged) { if (remote) book = remote; }        // this browser was synced before: the account is the truth
   else {                                            // first sign-in here: bring this browser's entries into the account
-    book = { done: Object.assign({}, remote ? remote.done : {}, book.done), wish: Object.assign({}, remote ? remote.wish : {}, book.wish) };
+    const vis = Object.assign({}, remote && remote.visits || {});
+    for (const [id, v] of Object.entries(book.visits || {})) vis[id] = [...new Set([...(vis[id] || []), ...v])].sort();
+    book = { done: Object.assign({}, remote ? remote.done : {}, book.done), wish: Object.assign({}, remote ? remote.wish : {}, book.wish), visits: vis };
     try { localStorage.setItem(SYNC_KEY, user.id); } catch (err) { /* merges again next time, which is harmless */ }
     await pushBook();
   }
@@ -1976,13 +1986,24 @@ const today = () => { const t = new Date(); return `${t.getFullYear()}-${String(
 function renderBookRow(i) {
   const id = D.peaks.id[i], done = book.done[id] != null, wish = !!book.wish[id], el = $('bookrow');
   if (!el) return;
+  const v = visitsOf(id), dd = d => d ? d.split('-').reverse().join('.') : 'ohne Datum';
   el.innerHTML = `<button type="button" id="bdone" aria-pressed="${done}">${done ? '✓ Bestiegen' : 'Als bestiegen eintragen'}</button>` +
-    (done ? `<label class="bdate">am <input type="date" id="bdate" value="${esc(book.done[id] || '')}" max="${today()}"></label>` : `<button type="button" id="bwish" aria-pressed="${wish}">${wish ? '☆ Auf der Wunschliste' : 'Auf die Wunschliste'}</button>`);
-  $('bdone').onclick = () => { if (done) delete book.done[id]; else { book.done[id] = today(); delete book.wish[id]; } bookChanged(i); };
+    (done ? (v.length > 1 ? `<span class="bcount" title="So oft warst du oben">${v.length}× oben</span>` : `<label class="bdate">am <input type="date" id="bdate" value="${esc(v[0] || '')}" max="${today()}"></label>`) +
+      `<button type="button" id="bagain">＋ Nochmal oben gewesen</button>`
+      : `<button type="button" id="bwish" aria-pressed="${wish}">${wish ? '☆ Auf der Wunschliste' : 'Auf die Wunschliste'}</button>`) +
+    (done && v.length > 1 ? `<ul class="bvisits">${v.slice().reverse().map(d => `<li>${dd(d)}<button type="button" data-rmv="${esc(d)}" aria-label="Besteigung am ${dd(d)} entfernen">×</button></li>`).join('')}</ul>` : '') +
+    `<form class="bagainf" id="bagainf" hidden><label>Wann warst du oben? <input type="date" id="bagaind" value="${today()}" max="${today()}" required></label><button type="submit" class="primary">Eintragen</button><button type="button" id="bagainx">Abbrechen</button></form>`;
+  $('bdone').onclick = () => { if (done) { if (v.length > 1 && !confirm(`Alle ${v.length} Besteigungen von ${D.peaks.n[i]} aus dem Gipfelbuch löschen?`)) return; setVisits(id, []); } else addVisit(id, today()); bookChanged(i); };
   if ($('bwish')) $('bwish').onclick = () => { if (wish) delete book.wish[id]; else book.wish[id] = 1; bookChanged(i); };
-  if ($('bdate')) $('bdate').onchange = ev => { book.done[id] = ev.target.value; saveBook(); };
+  if ($('bdate')) $('bdate').onchange = ev => { setVisits(id, [ev.target.value]); saveBook(); };
+  if ($('bagain')) $('bagain').onclick = () => { $('bagainf').hidden = false; $('bagain').hidden = true; $('bagaind').focus(); };
+  if ($('bagainx')) $('bagainx').onclick = () => { $('bagainf').hidden = true; $('bagain').hidden = false; };
+  $('bagainf').onsubmit = ev => { ev.preventDefault(); const d = $('bagaind').value; if (!d) return;
+    if (visitsOf(id).includes(d)) { alert('An diesem Tag ist schon eine Besteigung eingetragen.'); return; } addVisit(id, d); bookChanged(i); };
+  el.querySelectorAll('[data-rmv]').forEach(b => { b.onclick = () => { const k = v.indexOf(b.dataset.rmv); if (k < 0) return; setVisits(id, v.filter((_, j) => j !== k)); bookChanged(i); }; });
 }
 function bookChanged(i) { saveBook(); renderBookRow(i); if ($('book').value) apply(); else { renderList(); if (peakLayer) peakLayer.redraw(); } }
+let bookSort = 'date';
 function showBook() {
   if (pageMode) explore();
   const P = D.peaks, doneIdx = [], el = $('bookpanel');
@@ -1994,20 +2015,20 @@ function showBook() {
   doneIdx.forEach(i => { const b = bandOf(P.e[i]); if (b >= 0) got[b]++; });
   const countries = new Set(); doneIdx.forEach(i => arr(P.c[i]).forEach(c => countries.add(c)));
   const groups = new Set(); doneIdx.forEach(i => arr(P.g[i]).forEach(g => groups.add(g)));
-  const recent = doneIdx.slice().sort((a, b) => String(book.done[P.id[b]]).localeCompare(String(book.done[P.id[a]]))).slice(0, 8);
   const dateDe = s => s ? s.split('-').reverse().join('.') : 'ohne Datum';
+  const ascents = doneIdx.reduce((sum, i) => sum + visitsOf(P.id[i]).length, 0);
   const empty = !doneIdx.length && !wishN;
   el.innerHTML = `<button class="back" id="bookback" type="button">← Zurück</button><div><h2>Gipfelbuch</h2></div>` +
     (empty ? `<div class="emptybox"><h3>Dein Gipfelbuch ist noch leer</h3><p>Öffne einen Gipfel und tippe auf „Als bestiegen eintragen“. Gipfel, die du noch vorhast, setzt du auf die Wunschliste.</p>` +
       `<p>Hier siehst du dann deine Statistik: deinen höchsten Gipfel, die Höhenmeter und wie viele Dreitausender du schon hast.</p><div class="links"><button type="button" id="bex1">Zugspitze öffnen</button><button type="button" id="bex2">Gipfel entdecken</button></div></div>` : '') +
-    (empty ? '' :     `<div class="summit"><span class="big">${fmt.format(doneIdx.length)}</span><span class="unit">Gipfel bestiegen</span>` +
+    (empty ? '' :     `<div class="summit"><span class="big">${fmt.format(doneIdx.length)}</span><span class="unit">Gipfel bestiegen${ascents > doneIdx.length ? `<small>${fmt.format(ascents)} Besteigungen</small>` : ''}</span>` +
     `<span class="rank">${wishN} auf der<br>Wunschliste</span></div>` +
     (doneIdx.length ? `<dl class="facts"><dt>Höchster</dt><dd>${top >= 0 ? esc(P.n[top]) + ', ' + fmt.format(P.e[top]) + ' m' : '–'}</dd>` +
       `<dt>Höhenmeter</dt><dd>${fmt.format(withEle.reduce((s, i) => s + P.e[i], 0))} m Gipfelhöhe zusammengezählt</dd>` +
       `<dt>Gebiete</dt><dd>${countries.size} ${countries.size === 1 ? 'Land' : 'Länder'}, ${groups.size} ${groups.size === 1 ? 'Gebirgsgruppe' : 'Gebirgsgruppen'}</dd></dl>`
       : `<p class="note">Noch kein Eintrag. Öffne einen Gipfel und wähle „Als bestiegen eintragen“ oder „Auf die Wunschliste“.</p>`) +
     `<div class="prog">${BANDS.map((b, k) => `<div><span>${b[3]} m</span><span class="bar"><i style="width:${total[k] ? Math.max(got[k] ? 2 : 0, got[k] / total[k] * 100) : 0}%;background:var(${b[2]})"></i></span><span>${fmt.format(got[k])} von ${fmt.format(total[k])}</span></div>`).join('')}</div>` +
-    (recent.length ? `<div><h3 class="h3">Zuletzt eingetragen</h3><ul class="rts">${recent.map(i => `<li><a href="${HOSTED ? peakUrl(i) : '#'}" data-i="${i}">${esc(P.n[i])}</a> · ${dateDe(book.done[P.id[i]])}</li>`).join('')}</ul></div>` : '')) +
+    (doneIdx.length ? `<section class="bklist"><div class="bkhead"><h3 class="h3">Deine Gipfel</h3><div class="seg3 bksort" role="tablist" aria-label="Sortierung">${[['date', 'Zuletzt'], ['ele', 'Höchste'], ['count', 'Am häufigsten']].map(([v, t]) => `<button type="button" role="tab" data-bs="${v}" aria-selected="${v === bookSort}">${t}</button>`).join('')}</div></div><ul class="bkcards" id="bkcards"></ul><div id="bkmore"></div></section>` : '')) +
     `<div class="links">${empty ? '' : '<button type="button" id="bshowdone">Bestiegene in der Liste zeigen</button><button type="button" id="bshowwish">Wunschliste zeigen</button>'}` +
     (HOSTED ? `<button type="button" id="bexport">Sichern (Datei)</button><button type="button" id="bimport">Wiederherstellen</button><input type="file" id="bfile" accept="application/json,.json" hidden>` : '') + `</div>` +
     `<div class="acct"><h3 class="h3">Konto</h3><p class="note">${sbUser ? 'Angemeldet als ' + esc((sbUser.user_metadata && sbUser.user_metadata.username) || sbUser.email || '') + '.' : 'Mit einem Konto bleibt dein Gipfelbuch gespeichert und ist auf jedem Gerät dasselbe.'}</p><div class="links"><button type="button" id="toprofile">${sbUser ? 'Zum Profil' : 'Anmelden oder Konto anlegen'}</button></div></div>` +
@@ -2018,6 +2039,26 @@ function showBook() {
   $('toprofile').onclick = () => showProfile();
   const show = v => { el.hidden = true; markNav(); if (selected >= 0) closeDetail(); $('book').value = v; apply(); fitToFilter(); };
   if ($('bshowdone')) { $('bshowdone').onclick = () => show('done'); $('bshowwish').onclick = () => show('wish'); }
+  let shown = 40;
+  const drawCards = () => {
+    const box = $('bkcards'); if (!box) return;
+    const last = i => { const v = visitsOf(P.id[i]); return v[v.length - 1] || ''; };
+    const order = doneIdx.slice().sort(bookSort === 'ele' ? (a, b) => (P.e[b] ?? -1) - (P.e[a] ?? -1)
+      : bookSort === 'count' ? (a, b) => visitsOf(P.id[b]).length - visitsOf(P.id[a]).length || last(b).localeCompare(last(a))
+      : (a, b) => last(b).localeCompare(last(a)) || (P.e[b] ?? -1) - (P.e[a] ?? -1));
+    box.innerHTML = order.slice(0, shown).map(i => {
+      const v = visitsOf(P.id[i]), pl = placeNames(i), n = v.length;
+      return `<li><a class="bkcard" href="${HOSTED ? peakUrl(i) : '#'}" data-i="${i}" style="--c:${colorOf(P.e[i])}">` +
+        `<span class="bkele"><b>${P.e[i] != null ? fmt.format(P.e[i]) : '–'}</b><small>m</small></span>` +
+        `<span class="bkname"><b>${esc(P.n[i])}</b><small>${esc([pl.g, pl.c].filter(Boolean).join(' · '))}</small></span>` +
+        `<span class="bkmeta">${n > 1 ? `<span class="bkn" title="${n} Besteigungen">${n}×</span>` : ''}<small>${n > 1 ? 'zuletzt ' : ''}${dateDe(v[n - 1])}</small></span></a></li>`;
+    }).join('');
+    box.querySelectorAll('a[data-i]').forEach(a => { a.onclick = ev => { ev.preventDefault(); showDetail(+a.dataset.i, false); }; });
+    $('bkmore').innerHTML = order.length > shown ? `<button type="button" class="onmap" id="bkmorebtn">Alle ${fmt.format(order.length)} Gipfel zeigen</button>` : '';
+    if ($('bkmorebtn')) $('bkmorebtn').onclick = () => { shown = order.length; drawCards(); };
+  };
+  el.querySelectorAll('[data-bs]').forEach(b => { b.onclick = () => { bookSort = b.dataset.bs; el.querySelectorAll('[data-bs]').forEach(x => x.setAttribute('aria-selected', String(x === b))); drawCards(); }; });
+  drawCards();
   el.querySelectorAll('a[data-i]').forEach(a => { a.onclick = ev => { ev.preventDefault(); showDetail(+a.dataset.i, false); }; });
   if (HOSTED) {
     $('bexport').onclick = () => {
@@ -2029,7 +2070,9 @@ function showBook() {
       try {
         const inc = JSON.parse(await ev.target.files[0].text());
         if (!inc || typeof inc.done !== 'object' || typeof inc.wish !== 'object') throw new Error('format');
-        Object.assign(book.done, inc.done); Object.assign(book.wish, inc.wish); saveBook(); apply(); showBook();
+        Object.assign(book.done, inc.done); Object.assign(book.wish, inc.wish);
+        for (const [id, v] of Object.entries(inc.visits || {})) if (Array.isArray(v)) setVisits(id, [...new Set([...visitsOf(id), ...v.map(String)])]);
+        saveBook(); apply(); showBook();
       } catch (err) { $('bookmsg').textContent = 'Diese Datei ist keine Gipfelbuch-Sicherung. Wähle eine Datei, die du hier mit „Sichern“ erzeugt hast.'; }
     };
   }
