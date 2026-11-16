@@ -659,8 +659,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
   --map-land: #e7ebe4;
   --map-alps: #f6f3ea;
   --map-water: #b9d6e6;
-  --map-border: #5e3f7d;
-  --map-region: #4f5560;
+  --map-border: #111111;
+  --map-region: #3b414b;
   --map-group: #b08a5e;
   --map-label: #6d5334;
   --h0: #5f8f4e; --h1: #a6a042; --h2: #c98a3a; --h3: #a0522d; --h4: #6f6f78; --h5: #2f7fa8;
@@ -673,14 +673,14 @@ svg.leaflet-image-layer.leaflet-interactive path {
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --paper: #151a19; --surface: #1d2423; --ink: #e6ebe8; --muted: #9aa7a2; --line: #333d3a;
   --relief: #d2a070; --glacier: #6fb7dc; --accent: #ef6a5f; --accent-ink: #1a0f0e; --hover: #262f2d;
-  --map-land: #1b2120; --map-alps: #262b27; --map-water: #1f3b4a; --map-border: #c7b2e2; --map-region: #b4bcc6; --map-group: #7d6547; --map-label: #c9ab84;
+  --map-land: #1b2120; --map-alps: #262b27; --map-water: #1f3b4a; --map-border: #111111; --map-region: #3b414b; --map-group: #7d6547; --map-label: #c9ab84;
   --h0: #7fb56b; --h1: #c7c05a; --h2: #e3a455; --h3: #d07a4f; --h4: #b3b3bd; --h5: #7cc4ea;
   --park: #93c5fd; --stop: #6ee7b7; --hut: #d8b4fe; --tw: #fb923c; --ta: #7aa5ff; --tk: #c084fc; --tt: #9ca3af; --ski: #5eead4;
   color-scheme: dark } }
 :root[data-theme="dark"] {
   --paper: #151a19; --surface: #1d2423; --ink: #e6ebe8; --muted: #9aa7a2; --line: #333d3a;
   --relief: #d2a070; --glacier: #6fb7dc; --accent: #ef6a5f; --accent-ink: #1a0f0e; --hover: #262f2d;
-  --map-land: #1b2120; --map-alps: #262b27; --map-water: #1f3b4a; --map-border: #c7b2e2; --map-region: #b4bcc6; --map-group: #7d6547; --map-label: #c9ab84;
+  --map-land: #1b2120; --map-alps: #262b27; --map-water: #1f3b4a; --map-border: #111111; --map-region: #3b414b; --map-group: #7d6547; --map-label: #c9ab84;
   --h0: #7fb56b; --h1: #c7c05a; --h2: #e3a455; --h3: #d07a4f; --h4: #b3b3bd; --h5: #7cc4ea;
   --park: #93c5fd; --stop: #6ee7b7; --hut: #d8b4fe; --tw: #fb923c; --ta: #7aa5ff; --tk: #c084fc; --tt: #9ca3af; --ski: #5eead4;
   color-scheme: dark }

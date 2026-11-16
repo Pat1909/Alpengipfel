@@ -1899,9 +1899,10 @@ function initMap() {
     alps: { stroke: false, fillColor: cssColors['--map-alps'], fillOpacity: 1, interactive: false },
     lakes: { stroke: false, fillColor: cssColors['--map-water'], fillOpacity: 1, interactive: false },
     groups: { color: cssColors['--map-group'], weight: 1, opacity: hasTiles ? .6 : .5, fill: false, interactive: false },
-    rborders: { color: cssColors['--map-region'], weight: 2.2, opacity: 1, dashArray: '7 5', fill: false, interactive: false },
-    halo: { color: cssColors['--surface'], weight: 7, opacity: .75, fill: false, interactive: false },
-    borders: { color: cssColors['--map-border'], weight: 2.8, opacity: 1, fill: false, interactive: false }
+    rhalo: { color: '#ffffff', weight: 6, opacity: .7, fill: false, interactive: false },
+    rborders: { color: cssColors['--map-region'], weight: 2.6, opacity: 1, dashArray: '9 5', fill: false, interactive: false },
+    halo: { color: '#ffffff', weight: 7, opacity: .8, fill: false, interactive: false },
+    borders: { color: cssColors['--map-border'], weight: 3, opacity: 1, fill: false, interactive: false }
   });
   const layers = {};
   const st = baseStyle();
@@ -1910,9 +1911,15 @@ function initMap() {
     layers.alps = L.polygon(GEO.alps.map(poly => poly.map(toLL)), st.alps).addTo(map);
     layers.lakes = L.polygon(GEO.lakes.map(poly => poly.map(toLL)), st.lakes).addTo(map);
     layers.groups = L.polygon(GEO.groups.flatMap(g => g.p.map(poly => poly.map(toLL))), st.groups).addTo(map);
-    if (GEO.rborders) layers.rborders = L.polyline(GEO.rborders.map(toLL), st.rborders).addTo(map);
-    layers.halo = L.polyline(GEO.borders.map(toLL), st.halo).addTo(map);
-    layers.borders = L.polyline(GEO.borders.map(toLL), st.borders).addTo(map);
+    // borders lie in their own pane above the summit dots, so they are never hidden by them
+    map.createPane('grenzen').style.zIndex = 410; map.getPane('grenzen').style.pointerEvents = 'none';
+    const gr = L.canvas({ pane: 'grenzen' });
+    if (GEO.rborders) {
+      layers.rhalo = L.polyline(GEO.rborders.map(toLL), { ...st.rhalo, renderer: gr }).addTo(map);
+      layers.rborders = L.polyline(GEO.rborders.map(toLL), { ...st.rborders, renderer: gr }).addTo(map);
+    }
+    layers.halo = L.polyline(GEO.borders.map(toLL), { ...st.halo, renderer: gr }).addTo(map);
+    layers.borders = L.polyline(GEO.borders.map(toLL), { ...st.borders, renderer: gr }).addTo(map);
   }
   // Background tiles are an optional extra: only added where the host page is allowed to load them.
   const probe = new Image();
@@ -1929,8 +1936,11 @@ function initMap() {
       this._c = L.DomUtil.create('canvas', 'leaflet-layer');
       this._c.style.pointerEvents = 'none';
       m.getPanes().overlayPane.appendChild(this._c);
+      if (!m.getPane('namen')) { m.createPane('namen').style.zIndex = 415; m.getPane('namen').style.pointerEvents = 'none'; }
+      this._l = L.DomUtil.create('canvas', 'leaflet-layer'); this._l.style.pointerEvents = 'none';   // names and huts above the borders
+      m.getPane('namen').appendChild(this._l);
       m.on('moveend zoomend resize', this.redraw, this);
-      m.on('zoomstart', () => { this._c.style.visibility = 'hidden'; });
+      m.on('zoomstart', () => { this._c.style.visibility = 'hidden'; this._l.style.visibility = 'hidden'; });
       this.redraw();
     },
     redraw() {
@@ -1939,7 +1949,9 @@ function initMap() {
       const tl = m.containerPointToLayerPoint([0, 0]);
       L.DomUtil.setPosition(c, tl);
       c.width = size.x * dpr; c.height = size.y * dpr; c.style.width = size.x + 'px'; c.style.height = size.y + 'px'; c.style.visibility = '';
-      const ctx = c.getContext('2d'); ctx.scale(dpr, dpr);
+      let ctx = c.getContext('2d'); ctx.scale(dpr, dpr);
+      const lc = this._l; L.DomUtil.setPosition(lc, tl);
+      lc.width = size.x * dpr; lc.height = size.y * dpr; lc.style.width = size.x + 'px'; lc.style.height = size.y + 'px'; lc.style.visibility = '';
       const P = D.peaks, z = m.getZoom(), b = m.getBounds().pad(0.05);
       const s = b.getSouth(), n = b.getNorth(), w = b.getWest(), e = b.getEast();
       const vis = [];
@@ -1958,7 +1970,8 @@ function initMap() {
         ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 6.2832); ctx.fill();
         if (outline) ctx.stroke();
       }
-      // group names while zoomed out, peak names once few enough are in view
+      // group names while zoomed out, peak names once few enough are in view (drawn above the borders)
+      ctx = lc.getContext('2d'); ctx.scale(dpr, dpr);
       ctx.textAlign = 'center';
       const placed = [];
       const area = (list, minZ, maxZ, font, color, upper, minA) => {   // country and region names
@@ -1971,7 +1984,7 @@ function initMap() {
           const tw = ctx.measureText(t).width / 2 + 6;
           if (placed.some(q => Math.abs(q[0] - p.x) < q[2] + tw && Math.abs(q[1] - p.y) < 18)) continue;
           placed.push([p.x, p.y, tw]);
-          label(ctx, t, p.x, p.y, color);
+          label(ctx, t, p.x, p.y, color, hasTiles ? '#ffffff' : null);
         }
       };
       if ('letterSpacing' in ctx) ctx.letterSpacing = '3px';
@@ -2054,8 +2067,8 @@ function initMap() {
       return best;
     }
   });
-  function label(ctx, t, x, y, color) {
-    ctx.lineWidth = 3; ctx.strokeStyle = cssColors['--surface']; ctx.lineJoin = 'round';
+  function label(ctx, t, x, y, color, halo) {
+    ctx.lineWidth = 3; ctx.strokeStyle = halo || cssColors['--surface']; ctx.lineJoin = 'round';
     ctx.strokeText(t, x, y); ctx.fillStyle = color; ctx.fillText(t, x, y);
   }
   trailLayer = L.layerGroup().addTo(map); hiLayer = L.layerGroup().addTo(map);

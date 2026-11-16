@@ -375,11 +375,13 @@ for i, g in enumerate(groups):
 for f in json.load(open(f'{RAW}/ne_lakes.geojson'))['features']:
     gm = shape(f['geometry'])
     if gm.intersects(view) and gm.area > 0.002: geo['lakes'] += rings(gm.intersection(view), 0.002)
-cs = [shape(f['geometry']).buffer(0) for f in json.load(open(f'{RAW}/ne_countries.geojson'))['features'] if shape(f['geometry']).intersects(view)]
+wide = box(-4, 35, 26, 52)                               # the whole area the map can show: country borders everywhere there
+cs = [shape(f['geometry']).buffer(0) for f in json.load(open(f'{RAW}/ne_countries.geojson'))['features'] if shape(f['geometry']).intersects(wide)]
 lines = []
 for a in range(len(cs)):
     for b in range(a + 1, len(cs)):
-        shared = cs[a].boundary.intersection(cs[b].boundary).intersection(view)
+        if not cs[a].envelope.intersects(cs[b].envelope): continue
+        shared = cs[a].boundary.intersection(cs[b].boundary).intersection(wide)
         for part in getattr(shared, 'geoms', [shared]):
             if part.geom_type == 'LineString' and part.length > 0: lines.append(part)
 merged = linemerge(lines) if lines else None
