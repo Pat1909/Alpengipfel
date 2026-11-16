@@ -623,12 +623,19 @@ async function checkAdmin() {
   if (sb && uid) { try { const r = await sb.rpc('ist_admin'); isAdminNow = r.data === true; } catch (err) { /* no admin */ } }
   return isAdminNow;
 }
-const POST_COLS = 'id,user_id,autor,gipfel,datum,titel,text,art,dauer_min,km,hm_auf,hm_ab,punkte,fotos,likes,created_at';
+const POST_COLS0 = 'id,user_id,autor,gipfel,datum,titel,text,art,dauer_min,km,hm_auf,hm_ab,punkte,fotos,likes,created_at';
+let social = true, POST_COLS = POST_COLS0 + ',gipfel_weitere,erreicht,kommentare';   // social: supabase/social.sql is installed
+async function selectPosts(build) {                 // runs a post query; falls back to the older columns until social.sql is installed
+  let r = await build(sb.from('beitraege').select(POST_COLS));
+  if (r.error && social && /gipfel_weitere|erreicht|kommentare|column/i.test(r.error.message || '')) { social = false; POST_COLS = POST_COLS0; r = await build(sb.from('beitraege').select(POST_COLS)); }
+  return r;
+}
 const fotoUrl = path => `${SB_URL}/storage/v1/object/public/fotos/${path}`;
 let myLikes = new Set(), pendingPost = '';
 function postItem(b) {                              // a post as an item that can be drawn on the map like an ascent
   const trk = b.punkte ? b.punkte.map(p => [p[0], p[1], p[2] == null ? null : p[2]]) : null;
   return { type: 'user', id: b.id, user_id: b.user_id, autor: b.autor, name: b.titel, cat: b.art, text: b.text, gipfel: b.gipfel, datum: b.datum, fotos: b.fotos || [], likes: b.likes,
+    peaks: [b.gipfel, ...(b.gipfel_weitere || [])].map(Number), reached: (b.erreicht || []).map(Number), comments: b.kommentare || 0,
     km: b.km, up: b.hm_auf, down: b.hm_ab, dauer: b.dauer_min, h: b.dauer_min ? b.dauer_min / 60 : b.km ? dinHours(b.km, b.hm_auf || 0, b.hm_ab || 0) : null,
     trk, ll: trk ? trk.map(p => [p[0], p[1]]) : null, fer: [] };
 }
@@ -640,20 +647,23 @@ async function loadMyLikes(ids) {
 const dateDe = s => new Date(s + 'T12:00:00').toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' });
 function postBody(x, withPeak) {                    // everything below the title: photos, text, likes, actions
   const i = withPeak ? indexOfId(x.gipfel) : -1;
-  return (withPeak && i >= 0 ? `<button type="button" class="ppeak" data-open="${i}">${esc(D.peaks.n[i])}${D.peaks.e[i] != null ? ` · ${fmt.format(D.peaks.e[i])} m` : ''}</button>` : '') +
+  const chips = withPeak || x.peaks.length > 1 || x.reached.length ? x.peaks.map(id => { const k = indexOfId(id); if (k < 0) return ''; const ok = x.reached.includes(id);
+    return `<button type="button" class="ppeak${ok ? ' ok' : ''}" data-open="${k}" title="${ok ? 'Gipfel erreicht' : 'Gipfel nicht erreicht'}">${ok ? '✓ ' : ''}${esc(D.peaks.n[k])}${D.peaks.e[k] != null ? ` · ${fmt.format(D.peaks.e[k])} m` : ''}</button>`; }).join('') : '';
+  return (chips ? `<div class="ppeaks">${chips}</div>` : '') +
     (x.fotos.length ? `<div class="pfotos n${Math.min(x.fotos.length, 4)}">${x.fotos.map((f, k) => `<button type="button" class="pfoto" data-f="${k}"><img src="${fotoUrl(f)}" alt="Foto ${k + 1} von ${esc(x.name)}" loading="lazy"></button>`).join('')}</div>` : '') +
     (x.text ? `<p class="ptext">${esc(x.text)}</p>` : '') +
     `<div class="pbar"><button type="button" class="plike" aria-pressed="${myLikes.has(x.id)}" data-like="${x.id}">♥ <span>${x.likes || ''}</span></button>` +
+    (social ? `<button type="button" class="plike pcmt" aria-expanded="false" data-cmt="${x.id}">💬 <span>${x.comments || ''}</span><span class="sr">Kommentare</span></button>` : '') +
     (x.trk && withPeak && i >= 0 ? `<button type="button" class="onmap" data-route="${i}">Route ansehen</button>` : '') +
     `<button type="button" class="onmap pmore" data-rep="${x.id}">Melden</button>` +
-    ((sbUser && sbUser.id === x.user_id) || isAdminNow ? `<button type="button" class="onmap pmore" data-del="${x.id}">Löschen</button>` : '') + `</div><div class="pmsg" data-msg="${x.id}"></div>`;
+    ((sbUser && sbUser.id === x.user_id) || isAdminNow ? `<button type="button" class="onmap pmore" data-del="${x.id}">Löschen</button>` : '') + `</div><div class="pmsg" data-msg="${x.id}"></div><div class="pcmts" data-cbox="${x.id}" hidden></div>`;
 }
 function postFacts(x) {
   const f = [x.km ? `${n1(x.km)} km` : '', x.up != null ? `↑ ${fmt.format(x.up)} Hm` : '', x.down > 30 ? `↓ ${fmt.format(x.down)} Hm` : '', x.dauer ? hm(x.dauer / 60) + ' Gehzeit' : ''].filter(Boolean);
   return f.length ? `<span class="ascfacts">${f.map(t => `<span>${t}</span>`).join('')}</span>` : '';
 }
 function postHead(x) {
-  return `<div class="phd"><span class="pav" aria-hidden="true">${esc((x.autor || '?').slice(0, 1).toUpperCase())}</span><div><b>${esc(x.autor || 'Bergfreund')}</b><small>${dateDe(x.datum)}</small></div><span class="kb k${x.cat}">${KINDS[x.cat]}</span></div>` +
+  return `<div class="phd"><span class="pav" aria-hidden="true">${esc((x.autor || '?').slice(0, 1).toUpperCase())}</span><div>${x.autor ? `<a class="puser" href="${ROOT}#nutzer/${encodeURIComponent(x.autor)}" data-user="${esc(x.autor)}">${esc(x.autor)}</a>` : '<b>Bergfreund</b>'}<small>${dateDe(x.datum)}</small></div><span class="kb k${x.cat}">${KINDS[x.cat]}</span></div>` +
     `<h3 class="ptitle">${esc(x.name)}</h3>` + postFacts(x);
 }
 function wirePosts(box, items) {
@@ -666,7 +676,10 @@ function wirePosts(box, items) {
   }; });
   box.querySelectorAll('[data-rep]').forEach(b => { b.onclick = ev => { ev.stopPropagation(); reportPost(byId[b.dataset.rep], b.closest('.post').querySelector('.pmsg')); }; });
   box.querySelectorAll('[data-del]').forEach(b => { b.onclick = ev => { ev.stopPropagation(); deletePost(byId[b.dataset.del]); }; });
-  box.querySelectorAll('[data-open]').forEach(b => { b.onclick = () => { explore(true); showDetail(+b.dataset.open); }; });
+  box.querySelectorAll('[data-open]').forEach(b => { b.onclick = ev => { ev.stopPropagation(); explore(true); showDetail(+b.dataset.open); }; });
+  box.querySelectorAll('[data-user]').forEach(b => { b.onclick = ev => { ev.preventDefault(); ev.stopPropagation(); showUser(b.dataset.user); }; });
+  box.querySelectorAll('[data-cmt]').forEach(b => { b.onclick = ev => { ev.stopPropagation(); const c = b.closest('.post').querySelector('.pcmts'), open = c.hidden;
+    c.hidden = !open; b.setAttribute('aria-expanded', String(open)); if (open) loadComments(byId[b.dataset.cmt], c, b); }; });
   box.querySelectorAll('[data-route]').forEach(b => { b.onclick = () => { const id = b.closest('.post').dataset.id; pendingPost = id; detailTab = 'routes'; explore(true); showDetail(+b.dataset.route); }; });
   box.querySelectorAll('.pfoto').forEach(b => { b.onclick = ev => { ev.stopPropagation(); const x = byId[b.closest('.post').dataset.id]; showPhoto(x, +b.dataset.f); }; });
 }
@@ -682,7 +695,8 @@ function showPhoto(x, k) {
 async function loadTracks(i) {
   const box = $('tracklist'); if (!box) return;
   if (!sb) { $('trackbox').hidden = true; return; }
-  const [{ data, error }] = await Promise.all([sb.from('beitraege').select(POST_COLS).eq('gipfel', D.peaks.id[i]).order('datum', { ascending: false }).limit(50), checkAdmin()]);
+  const pid = D.peaks.id[i];
+  const [{ data, error }] = await Promise.all([selectPosts(q => (social ? q.or(`gipfel.eq.${pid},gipfel_weitere.cs.{${pid}}`) : q.eq('gipfel', pid)).order('datum', { ascending: false }).limit(50)), checkAdmin()]);
   if (selected !== i || !$('tracklist')) return;
   renderUpload(i);
   if (error) { box.innerHTML = '<p class="note">Die Touren konnten gerade nicht geladen werden.</p>'; return; }
@@ -719,7 +733,7 @@ function simplify(pts, tol) {                      // Douglas-Peucker in metres
   return pts.filter((_, k) => keep[k]);
 }
 function gain(z, hyst) { let up = 0, down = 0, ref = z[0]; for (const h of z) { if (h - ref > hyst) { up += h - ref; ref = h; } else if (ref - h > hyst) { down += ref - h; ref = h; } } return [Math.round(up), Math.round(down)]; }
-async function parseGpx(file, top) {                // -> { punkte, km, up, down, name }; throws Error with a message for the user
+async function parseGpx(file, tops) {              // tops: [[lat, lon], ...] of the chosen summits -> { punkte, km, up, down, name }; throws Error with a message for the user
   if (file.size > 20e6) throw new Error('Die GPX-Datei ist zu groß (höchstens 20 MB).');
   const doc = new DOMParser().parseFromString(await file.text(), 'application/xml');
   if (doc.getElementsByTagName('parsererror').length) throw new Error('Das ist keine gültige GPX-Datei.');
@@ -727,10 +741,11 @@ async function parseGpx(file, top) {                // -> { punkte, km, up, down
   let pts = nodes.map(n => { const e = n.getElementsByTagName('ele')[0]; const z = e ? parseFloat(e.textContent) : NaN; return [+n.getAttribute('lat'), +n.getAttribute('lon'), Number.isFinite(z) ? z : null]; })
     .filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]) && Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180);
   if (pts.length < 10) throw new Error('In der GPX-Datei ist kein Track mit genügend Punkten.');
-  let nearest = Infinity; pts.forEach(p => { nearest = Math.min(nearest, metres(p, top)); });
-  if (nearest > 150) throw new Error(`Der Track führt nicht auf diesen Gipfel: Sein nächster Punkt ist ${nearest < 10000 ? fmt.format(Math.round(nearest / 10) * 10) + ' m' : n1(nearest / 1000) + ' km'} entfernt.`);
+  const toTop = p => Math.min(...tops.map(t => metres(p, t)));
+  let nearest = Infinity; pts.forEach(p => { nearest = Math.min(nearest, toTop(p)); });
+  if (nearest > 150) throw new Error(`Der Track führt nicht auf ${tops.length > 1 ? 'einen der Gipfel' : 'diesen Gipfel'}: Sein nächster Punkt ist ${nearest < 10000 ? fmt.format(Math.round(nearest / 10) * 10) + ' m' : n1(nearest / 1000) + ' km'} entfernt.`);
   // privacy: drop the first and last 200 m where the track starts or ends away from the summit
-  const trim = arr => { if (metres(arr[0], top) < 500) return arr; let d = 0, k = 1; while (k < arr.length - 2 && d < 200) { d += metres(arr[k - 1], arr[k]); k++; } return arr.slice(k - 1); };
+  const trim = arr => { if (toTop(arr[0]) < 500) return arr; let d = 0, k = 1; while (k < arr.length - 2 && d < 200) { d += metres(arr[k - 1], arr[k]); k++; } return arr.slice(k - 1); };
   pts = trim(pts); pts = trim(pts.reverse()).reverse();
   const hasEle = pts.filter(p => p[2] != null).length >= pts.length * 0.8;
   let tol = 4, simple = simplify(pts, tol); while (simple.length > 2500) { tol *= 1.5; simple = simplify(pts, tol); }
@@ -750,14 +765,30 @@ async function shrinkPhoto(file) {                  // re-encodes the picture: a
   throw new Error('Ein Foto ist zu groß.');
 }
 const randId = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), b => 'abcdefghijklmnopqrstuvwxyz0123456789'[b % 36]).join('');
+function peaksOnTrack(punkte) {                     // named summits within 60 m of a track point, in walking order
+  let s = 90, n = -90, w = 180, e = -180; punkte.forEach(p => { s = Math.min(s, p[0]); n = Math.max(n, p[0]); w = Math.min(w, p[1]); e = Math.max(e, p[1]); });
+  const P = D.peaks, out = [];
+  for (let k = 0; k < N; k++) {
+    const la = P.la[k], lo = P.lo[k]; if (la < s - .001 || la > n + .001 || lo < w - .0015 || lo > e + .0015) continue;
+    let bd = 60, at = -1; punkte.forEach((p, j) => { const d = metres(p, [la, lo]); if (d < bd) { bd = d; at = j; } });
+    if (at >= 0) out.push([at, k]);
+  }
+  return out.sort((a, b) => a[0] - b[0]).map(x => x[1]);
+}
+function toast(text) {
+  const t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); t.textContent = text; document.body.appendChild(t);
+  setTimeout(() => t.classList.add('out'), 3200); setTimeout(() => t.remove(), 3800);
+}
 function openComposer(i0) {                          // share a tour: summit, date, title, report, kind, time, photos, GPX
   if (!sb || !sbUser) { showProfile(); return; }
   let dlg = $('postdlg');
   if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'postdlg'; dlg.className = 'fbdlg postdlg'; document.body.appendChild(dlg); }
-  let peak = i0 != null && i0 >= 0 ? i0 : -1, gpx = null, photos = [];
+  let picked = i0 != null && i0 >= 0 ? [{ i: i0, ok: true }] : [], gpx = null, photos = [];   // the summits of the tour; ok = reached
   const today = new Date().toLocaleDateString('sv-SE');
   dlg.innerHTML = `<form class="upf" id="postf"><div class="fbhead"><h2>Tour teilen</h2><button type="button" class="fbx" id="pfx" aria-label="Schließen">×</button></div>` +
-    `<label>Gipfel<div class="hsearch"><input id="ppq" autocomplete="off" placeholder="Gipfel suchen" value="${peak >= 0 ? esc(D.peaks.n[peak]) : ''}" required><div class="hres" id="ppres" hidden></div></div></label>` +
+    `<div class="ppick"><span class="lab">Gipfel der Tour</span><ul class="pplist" id="pplist"></ul>` +
+    `<label class="sr" for="ppq">Gipfel hinzufügen</label><div class="hsearch"><input id="ppq" autocomplete="off" placeholder="${picked.length ? 'Weiteren Gipfel hinzufügen' : 'Gipfel suchen'}"><div class="hres" id="ppres" hidden></div></div>` +
+    `<p class="note small">Haken = Gipfel erreicht. Erreichte Gipfel werden mit dem Datum in dein Gipfelbuch eingetragen.</p></div>` +
     `<div class="prow"><label>Datum<input type="date" id="pdate" max="${today}" value="${today}" required></label><label>Art<select id="part">${KINDS.map((k, c) => `<option value="${c}">${k}</option>`).join('')}</select></label>` +
     `<label>Gehzeit (freiwillig)<input id="pdauer" placeholder="z. B. 4:30" inputmode="numeric" pattern="\\d{1,2}(:[0-5]\\d)?"></label></div>` +
     `<label>Titel<input id="ptitel" required minlength="3" maxlength="80" placeholder="z. B. Über den Stopselzieher bei Traumwetter"></label>` +
@@ -771,12 +802,20 @@ function openComposer(i0) {                          // share a tour: summit, da
   const msg = t => { $('pmsgc').textContent = t; };
   $('pfx').onclick = $('pcancel').onclick = () => dlg.close();
   const q = $('ppq'), res = $('ppres');
+  const drawPicked = () => {
+    $('pplist').innerHTML = picked.map((p, k) => `<li><label class="chk"><input type="checkbox" data-ok="${k}"${p.ok ? ' checked' : ''}><span><b>${esc(D.peaks.n[p.i])}</b>${D.peaks.e[p.i] != null ? ` <small>${fmt.format(D.peaks.e[p.i])} m</small>` : ''}${p.auto ? ' <small class="auto">aus dem Track</small>' : ''}</span></label>` +
+      `<button type="button" class="fbx" data-rm="${k}" aria-label="${esc(D.peaks.n[p.i])} entfernen">×</button></li>`).join('');
+    $('pplist').querySelectorAll('[data-ok]').forEach(c => { c.onchange = () => { picked[+c.dataset.ok].ok = c.checked; }; });
+    $('pplist').querySelectorAll('[data-rm]').forEach(b => { b.onclick = () => { picked.splice(+b.dataset.rm, 1); drawPicked(); }; });
+    q.placeholder = picked.length ? 'Weiteren Gipfel hinzufügen' : 'Gipfel suchen'; q.hidden = picked.length >= 10;
+  };
+  drawPicked();
   q.oninput = () => {
-    peak = -1; const s = norm(q.value.trim()), hits = [];
+    const s = norm(q.value.trim()), hits = [];
     if (s.length >= 2) for (let k = 0; k < N && hits.length < 6; k++) if (D.peaks.nn[k].includes(s)) hits.push(k);
     res.hidden = s.length < 2;
     res.innerHTML = hits.map(k => { const pl = placeNames(k); return `<button type="button" data-i="${k}"><b>${esc(D.peaks.n[k])}</b><small>${esc([pl.g, pl.s || pl.c].filter(Boolean).join(' · '))}</small><span>${D.peaks.e[k] == null ? '–' : fmt.format(D.peaks.e[k])}</span></button>`; }).join('') || '<p class="note">Kein Gipfel gefunden.</p>';
-    res.querySelectorAll('button').forEach(b => { b.onclick = () => { peak = +b.dataset.i; q.value = D.peaks.n[peak]; res.hidden = true; gpx = null; $('pgpxinfo').textContent = ''; }; });
+    res.querySelectorAll('button').forEach(b => { b.onclick = () => { const k = +b.dataset.i; if (!picked.some(p => p.i === k) && picked.length < 10) picked.push({ i: k, ok: true }); q.value = ''; res.hidden = true; drawPicked(); q.focus(); }; });
   };
   const thumbs = () => { $('pthumbs').innerHTML = photos.map((p, k) => `<span><img src="${p.url}" alt=""><button type="button" data-k="${k}" aria-label="Foto entfernen">×</button></span>`).join('');
     $('pthumbs').querySelectorAll('button').forEach(b => { b.onclick = () => { URL.revokeObjectURL(photos[+b.dataset.k].url); photos.splice(+b.dataset.k, 1); thumbs(); }; }); };
@@ -787,14 +826,18 @@ function openComposer(i0) {                          // share a tour: summit, da
   };
   $('pgpx').onchange = async ev => {
     const f = ev.target.files[0]; ev.target.value = ''; if (!f) return;
-    if (peak < 0) { msg('Wähle zuerst den Gipfel aus.'); return; }
-    try { msg('Track wird gelesen …'); gpx = await parseGpx(f, [D.peaks.la[peak], D.peaks.lo[peak]]); msg('');
-      $('pgpxinfo').textContent = `Track: ${n1(gpx.km)} km · ↑ ${fmt.format(gpx.up)} Hm · ↓ ${fmt.format(gpx.down)} Hm`; if (!$('ptitel').value && gpx.name) $('ptitel').value = gpx.name; }
+    try {
+      msg('Track wird gelesen …');
+      gpx = await parseGpx(f, picked.length ? picked.map(p => [D.peaks.la[p.i], D.peaks.lo[p.i]]) : null); msg('');
+      const found = peaksOnTrack(gpx.punkte).filter(k => !picked.some(p => p.i === k));   // summits the track passes are added and ticked
+      found.slice(0, 10 - picked.length).forEach(k => picked.push({ i: k, ok: true, auto: true })); drawPicked();
+      $('pgpxinfo').textContent = `Track: ${n1(gpx.km)} km · ↑ ${fmt.format(gpx.up)} Hm · ↓ ${fmt.format(gpx.down)} Hm` + (found.length ? ` · ${found.length === 1 ? '1 Gipfel' : found.length + ' Gipfel'} auf dem Track erkannt` : '');
+      if (!$('ptitel').value && gpx.name) $('ptitel').value = gpx.name; }
     catch (err) { gpx = null; $('pgpxinfo').textContent = ''; msg(err.message); }
   };
   $('postf').onsubmit = async ev => {
     ev.preventDefault();
-    if (peak < 0) { msg('Bitte wähle den Gipfel aus der Liste.'); return; }
+    if (!picked.length) { msg('Bitte wähle mindestens einen Gipfel aus der Liste.'); return; }
     const titel = $('ptitel').value.trim(); if (titel.length < 3) { msg('Bitte gib einen Titel ein.'); return; }
     const dm = $('pdauer').value.trim().match(/^(\d{1,2})(?::([0-5]\d))?$/), dauer = dm ? (+dm[1]) * 60 + (+(dm[2] || 0)) : null;
     const btn = dlg.querySelector('button[type=submit]'); btn.disabled = true;
@@ -807,19 +850,55 @@ function openComposer(i0) {                          // share a tour: summit, da
         if (error) throw error; paths.push(path);
       }
       msg('Wird veröffentlicht …');
-      const row = { gipfel: D.peaks.id[peak], datum: $('pdate').value, titel, text: $('ptext').value.trim(), art: +$('part').value, dauer_min: dauer && dauer >= 10 ? dauer : null, fotos: paths };
+      const ids = picked.map(p => D.peaks.id[p.i]);
+      const row = { gipfel: ids[0], datum: $('pdate').value, titel, text: $('ptext').value.trim(), art: +$('part').value, dauer_min: dauer && dauer >= 10 ? dauer : null, fotos: paths };
       if (gpx) Object.assign(row, { punkte: gpx.punkte, km: Math.round(gpx.km * 100) / 100, hm_auf: gpx.up, hm_ab: gpx.down });
+      if (social) Object.assign(row, { gipfel_weitere: ids.slice(1), erreicht: picked.filter(p => p.ok).map(p => D.peaks.id[p.i]) });
       const { error } = await sb.from('beitraege').insert(row);
       if (error) throw error;
+      // reached summits go into the Gipfelbuch with the tour date (an earlier date already there is kept)
+      let added = 0; const day = $('pdate').value;
+      picked.filter(p => p.ok).forEach(p => { const id = D.peaks.id[p.i], had = book.done[id];
+        if (had == null || !had || had > day) { if (had == null) added++; book.done[id] = day; delete book.wish[id]; } });
+      if (picked.some(p => p.ok)) { saveBook(); if (selected >= 0) renderBookRow(selected); renderList(); if (peakLayer) peakLayer.redraw(); }
+      if (added) setTimeout(() => toast(`${added === 1 ? '1 Gipfel' : added + ' Gipfel'} ins Gipfelbuch eingetragen ✓`), 300);
     } catch (err) {
       if (paths.length) sb.storage.from('fotos').remove(paths);
       msg(/Zu viele/.test(err.message || '') ? 'Du hast heute schon 10 Touren geteilt. Versuch es morgen wieder.' : 'Das hat leider nicht geklappt. Bitte versuch es noch einmal.'); btn.disabled = false; return;
     }
     photos.forEach(p => URL.revokeObjectURL(p.url));
     dlg.close(); count('tour-geteilt');
-    if (pageMode === 'feed') renderFeed(); else if (selected === peak) loadTracks(peak); else { explore(true); detailTab = 'routes'; showDetail(peak); }
+    const peak = picked[0].i;
+    if (pageMode === 'feed') renderFeed(); else if (pageMode === 'user') renderUser(sbUser.user_metadata.username); else if (selected === peak) loadTracks(peak); else { explore(true); detailTab = 'routes'; showDetail(peak); }
   };
-  dlg.showModal(); (peak >= 0 ? $('ptitel') : q).focus();
+  dlg.showModal(); (picked.length ? $('ptitel') : q).focus();
+}
+const timeDe = s => { const d = new Date(s), m = (Date.now() - d) / 6e4;
+  return m < 1 ? 'gerade eben' : m < 60 ? `vor ${Math.round(m)} Min.` : m < 1440 ? `vor ${Math.round(m / 60)} Std.` : d.toLocaleDateString('de-DE', { day: 'numeric', month: 'short', year: 'numeric' }); };
+async function loadComments(x, box, btn) {          // comments below a tour: newest last, a form to write one
+  box.innerHTML = '<p class="note small">Kommentare werden geladen …</p>';
+  const { data, error } = await sb.from('kommentare').select('id,user_id,autor,text,created_at').eq('beitrag_id', x.id).order('created_at').limit(200);
+  if (error) { box.innerHTML = '<p class="note small">Die Kommentare konnten gerade nicht geladen werden.</p>'; return; }
+  x.comments = data.length; btn.querySelector('span').textContent = data.length || '';
+  const mayDel = c => sbUser && (c.user_id === sbUser.id || x.user_id === sbUser.id || isAdminNow);
+  box.innerHTML = (data.length ? `<ul class="clist">${data.map(c => `<li><span class="pav sm" aria-hidden="true">${esc((c.autor || '?').slice(0, 1).toUpperCase())}</span><div>` +
+      `<p><a class="puser" href="${ROOT}#nutzer/${encodeURIComponent(c.autor)}" data-user="${esc(c.autor)}">${esc(c.autor || 'Bergfreund')}</a> <small>${timeDe(c.created_at)}</small>` +
+      (mayDel(c) ? ` <button type="button" class="linkbtn cdel" data-cdel="${c.id}">Löschen</button>` : '') + `</p><p class="ctext">${esc(c.text)}</p></div></li>`).join('')}</ul>`
+      : '<p class="note small">Noch keine Kommentare.</p>') +
+    (sbUser ? `<form class="cform"><textarea rows="1" maxlength="1000" required placeholder="Kommentar schreiben …" aria-label="Kommentar"></textarea><button type="submit" class="primary">Senden</button></form><p class="note small" role="status"></p>`
+      : `<p class="note small"><button type="button" class="linkbtn" data-clogin>Melde dich an</button>, um zu kommentieren.</p>`);
+  box.querySelectorAll('[data-user]').forEach(b => { b.onclick = ev => { ev.preventDefault(); showUser(b.dataset.user); }; });
+  box.querySelectorAll('[data-cdel]').forEach(b => { b.onclick = async () => { if (!confirm('Kommentar löschen?')) return; await sb.rpc('kommentar_loeschen', { k: +b.dataset.cdel }); loadComments(x, box, btn); }; });
+  if (box.querySelector('[data-clogin]')) box.querySelector('[data-clogin]').onclick = () => showProfile();
+  const f = box.querySelector('form'); if (!f) return;
+  const ta = f.querySelector('textarea'); ta.oninput = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'; };
+  f.onsubmit = async ev => {
+    ev.preventDefault(); const t = ta.value.trim(); if (!t) return;
+    f.querySelector('button').disabled = true;
+    const { error: e2 } = await sb.from('kommentare').insert({ beitrag_id: x.id, text: t });
+    if (e2) { f.querySelector('button').disabled = false; box.querySelector('[role=status]').textContent = /Zu viele/.test(e2.message || '') ? 'Du hast gerade sehr viele Kommentare geschrieben. Versuch es später wieder.' : 'Der Kommentar konnte nicht gesendet werden.'; return; }
+    count('kommentar'); loadComments(x, box, btn);
+  };
 }
 function reportPost(x, box) {
   box.innerHTML = `<form class="upf" data-repf><label>Was stimmt mit diesem Beitrag nicht?<textarea minlength="3" maxlength="500" rows="2" required placeholder="z. B. fremdes Foto, falsche oder gefährliche Angaben"></textarea></label>` +
@@ -839,19 +918,67 @@ async function deletePost(x) {
   if (pageMode === 'feed') renderFeed(); else if (selected >= 0) loadTracks(selected);
 }
 // the feed page: newest tours first, 15 at a time
-let feedItems = [];
+let feedItems = [], feedMode = 'all', feedFollow = null;
 function showFeed(noPush) { if (selected >= 0) closeDetail(true); $('bookpanel').hidden = true; setPage('feed'); renderFeed(); if (!noPush) pushUrl(ROOT + '#touren'); }
+// a user's public page: name, numbers, follow button, their shared tours
+function showUser(name, noPush) {
+  if (selected >= 0) closeDetail(true); $('bookpanel').hidden = true; setPage('user'); renderUser(name);
+  if (!noPush) pushUrl(ROOT + '#nutzer/' + encodeURIComponent(name));
+}
+async function renderUser(name) {
+  const page = $('page');
+  page.innerHTML = `<div class="home profile upage"><p class="note">Profil wird geladen …</p></div>`;
+  if (!sb) { page.firstChild.innerHTML = '<p class="note">Profile gibt es nur auf alpen-gipfel.de.</p>'; return; }
+  const { data: u, error } = await sb.rpc('nutzer_profil', { name });
+  if (pageMode !== 'user') return;
+  if (error || !u) { page.firstChild.innerHTML = `<div class="emptybox"><h3>${error ? 'Profile sind gleich verfügbar' : 'Dieses Profil gibt es nicht'}</h3><p>${error ? 'Die Funktion wird gerade eingerichtet.' : 'Vielleicht wurde das Konto gelöscht.'}</p></div><div class="links"><button type="button" id="ufeed">Zu den Touren</button></div>`; $('ufeed').onclick = () => showFeed(); return; }
+  document.title = `${u.username} – Alpengipfel`;
+  const me = sbUser && sbUser.id === u.user_id;
+  const nums = [['Touren', u.touren], ['Gipfel erreicht', u.gipfel], ['Follower', u.follower], ['Folgt', u.folgt]];
+  page.firstChild.innerHTML = `<div class="phead"><div class="avatar" aria-hidden="true">${esc(u.username.slice(0, 1).toUpperCase())}</div><div><h2>${esc(u.username)}</h2><p class="note">dabei seit ${new Date(u.seit).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}</p></div>` +
+    (me ? `<button type="button" class="onmap" id="umine">Mein Konto</button>` : `<button type="button" class="primary ufollow" id="ufollow" aria-pressed="${!!u.ich_folge}">${u.ich_folge ? 'Gefolgt ✓' : 'Folgen'}</button>`) + `</div>` +
+    `<div class="pstats unums">${nums.map(([l, v], k) => `<div><span class="lab">${l}</span><b id="un${k}">${fmt.format(v)}</b></div>`).join('')}</div><p class="note small" id="umsg" role="status"></p>` +
+    `<section><h3 class="h3">Geteilte Touren</h3><ul class="asc posts" id="ulist"><li class="note">Touren werden geladen …</li></ul><div id="umore"></div></section>`;
+  if ($('umine')) $('umine').onclick = () => showProfile();
+  if ($('ufollow')) $('ufollow').onclick = async () => {
+    if (!sbUser) { $('umsg').innerHTML = '<button type="button" class="linkbtn" id="ulogin">Melde dich an</button>, um anderen zu folgen.'; $('ulogin').onclick = () => showProfile(); return; }
+    const b = $('ufollow'); b.disabled = true;
+    const { data: r, error: e2 } = await sb.rpc('folgen_umschalten', { ziel: u.user_id }); b.disabled = false;
+    if (e2) { $('umsg').textContent = 'Das hat gerade nicht geklappt.'; return; }
+    b.setAttribute('aria-pressed', String(r.folge)); b.textContent = r.folge ? 'Gefolgt ✓' : 'Folgen'; $('un2').textContent = fmt.format(r.follower); feedFollow = null;
+    if (r.folge) count('folgen');
+  };
+  let items = [];
+  const more = async () => {
+    const { data, error: e3 } = await selectPosts(q => q.eq('user_id', u.user_id).order('datum', { ascending: false }).range(items.length, items.length + 14));
+    if (pageMode !== 'user' || !$('ulist')) return;
+    if (e3) { $('ulist').innerHTML = '<li class="note">Die Touren konnten gerade nicht geladen werden.</li>'; return; }
+    const add = data.map(postItem); await loadMyLikes(add.map(x => x.id)); const first = !items.length; items = items.concat(add);
+    if (first) $('ulist').innerHTML = items.length ? '' : `<li class="note">${me ? 'Du hast' : esc(u.username) + ' hat'} noch keine Tour geteilt.</li>`;
+    $('ulist').insertAdjacentHTML('beforeend', add.map(x => `<li class="post" data-id="${x.id}"><div class="ascpick static">${postHead(x)}</div>${postBody(x, true)}</li>`).join(''));
+    wirePosts($('ulist'), items);
+    $('umore').innerHTML = add.length === 15 ? '<button type="button" class="onmap" id="umorebtn">Weitere Touren laden</button>' : '';
+    if ($('umorebtn')) $('umorebtn').onclick = more;
+  };
+  await checkAdmin(); more();
+}
 async function renderFeed(more) {
   const page = $('page');
   if (!more) {
     feedItems = [];
     page.innerHTML = `<div class="home feed"><section class="feedhead"><div><p class="eyebrow">Community</p><h2>Touren der Community</h2><p class="lede">Gipfel, die andere gerade bestiegen haben – mit Bericht, Fotos und Track.</p></div>` +
-      `<button type="button" class="primary sharetour" id="fshare">Tour teilen</button></section><ul class="asc posts" id="feedlist"><li class="note">Touren werden geladen …</li></ul><div id="feedmore"></div></div>`;
+      `<button type="button" class="primary sharetour" id="fshare">Tour teilen</button></section>` +
+      (sbUser && social ? `<div class="seg3 ftabs" role="tablist">${[['all', 'Alle'], ['follow', 'Gefolgt']].map(([v, t]) => `<button type="button" role="tab" data-fm="${v}" aria-selected="${v === feedMode}">${t}</button>`).join('')}</div>` : '') +
+      `<ul class="asc posts" id="feedlist"><li class="note">Touren werden geladen …</li></ul><div id="feedmore"></div></div>`;
     $('fshare').onclick = () => openComposer(-1);
+    page.querySelectorAll('[data-fm]').forEach(b => { b.onclick = () => { feedMode = b.dataset.fm; feedFollow = null; renderFeed(); }; });
+    if (!sbUser) feedMode = 'all';
   }
   if (!sb) { $('feedlist').innerHTML = '<li class="note">Die Community ist nur auf alpen-gipfel.de verfügbar.</li>'; return; }
   const from = feedItems.length;
-  const [{ data, error }] = await Promise.all([sb.from('beitraege').select(POST_COLS).order('created_at', { ascending: false }).range(from, from + 14), checkAdmin()]);
+  if (feedMode === 'follow' && !feedFollow) { const r = await sb.from('folgen').select('folgt'); feedFollow = (r.data || []).map(x => x.folgt); }
+  if (feedMode === 'follow' && !feedFollow.length) { $('feedlist').innerHTML = `<li class="emptybox"><h3>Du folgst noch niemandem</h3><p>Tippe bei einer Tour auf den Namen, um das Profil zu sehen und der Person zu folgen.</p></li>`; $('feedmore').innerHTML = ''; return; }
+  const [{ data, error }] = await Promise.all([selectPosts(q => (feedMode === 'follow' ? q.in('user_id', feedFollow) : q).order('created_at', { ascending: false }).range(from, from + 14)), checkAdmin()]);
   if (pageMode !== 'feed') return;
   if (error) { $('feedlist').innerHTML = '<li class="note">Die Touren konnten gerade nicht geladen werden.</li>'; return; }
   const items = data.map(postItem); await loadMyLikes(items.map(x => x.id)); feedItems = feedItems.concat(items);
@@ -1281,13 +1408,14 @@ function route() {                                  // show what the current add
   const m = location.pathname.match(/-(\d+)\.html$/), i = m ? indexOfId(+m[1]) : -1;
   if (i >= 0) { setPage(null); return showDetail(i, false, true); }
   if (selected >= 0) closeDetail(true);
-  if (location.hash === '#profil') showProfile(true); else if (location.hash === '#touren') showFeed(true); else if (location.hash === '#karte') { $('bookpanel').hidden = true; setPage(null); } else showHome(true);
+  const um = location.hash.match(/^#nutzer\/(.+)$/);
+  if (um) showUser(decodeURIComponent(um[1]), true); else if (location.hash === '#profil') showProfile(true); else if (location.hash === '#touren') showFeed(true); else if (location.hash === '#karte') { $('bookpanel').hidden = true; setPage(null); } else showHome(true);
 }
 
 /* ---------- start page and profile: full-width pages above the list and the map ---------- */
 let pageMode = null;                                 // null = list and map, 'home', 'profile'
 function markNav() {
-  const cur = pageMode === 'home' ? 'navstart' : pageMode === 'profile' ? 'openprofile' : pageMode === 'feed' ? 'navfeed' : !$('bookpanel').hidden ? 'openbook' : 'navexp';
+  const cur = pageMode === 'home' ? 'navstart' : pageMode === 'profile' ? 'openprofile' : pageMode === 'feed' || pageMode === 'user' ? 'navfeed' : !$('bookpanel').hidden ? 'openbook' : 'navexp';
   ['navstart', 'navexp', 'navfeed', 'openbook', 'openprofile'].forEach(id => $(id).setAttribute('aria-current', String(id === cur)));
 }
 /* ---------- phone layout: the list is a sheet over the map (peek, half, full) ---------- */
@@ -1326,7 +1454,7 @@ function initSheet() {
 function setPage(mode) {
   pageMode = mode; $('page').hidden = !mode; $('app').dataset.page = mode || '';
   markNav();
-  if (mode) { $('page').scrollTop = 0; document.title = mode === 'profile' ? 'Profil – Alpengipfel' : mode === 'feed' ? 'Touren der Community – Alpengipfel' : 'Alpengipfel'; }
+  if (mode) { $('page').scrollTop = 0; document.title = mode === 'profile' ? 'Profil – Alpengipfel' : mode === 'user' ? 'Bergfreund – Alpengipfel' : mode === 'feed' ? 'Touren der Community – Alpengipfel' : 'Alpengipfel'; }
   else if (map) setTimeout(() => map.invalidateSize(), 0);
 }
 const pushUrl = url => { if (HOSTED && location.pathname + location.hash !== url) history.pushState({}, '', url); };
@@ -1497,10 +1625,13 @@ function renderProfile() {
   let headHtml;
   if (sbUser) {
     const name = (sbUser.user_metadata && sbUser.user_metadata.username) || sbUser.email || '', since = sbUser.created_at ? new Date(sbUser.created_at).toLocaleDateString('de-DE') : '';
-    headHtml = `<div class="phead"><div class="avatar" aria-hidden="true">${esc(name.slice(0, 1).toUpperCase())}</div><div><h2>${esc(name)}</h2><p class="note">${esc(sbUser.email || '')}${since ? ' · dabei seit ' + since : ''}</p></div></div>`;
+    const uname = (sbUser.user_metadata && sbUser.user_metadata.username) || '';
+    headHtml = `<div class="phead"><div class="avatar" aria-hidden="true">${esc(name.slice(0, 1).toUpperCase())}</div><div><h2>${esc(name)}</h2><p class="note">${esc(sbUser.email || '')}${since ? ' · dabei seit ' + since : ''}</p></div>` +
+      (uname ? `<button type="button" class="onmap" id="mypublic">Öffentliches Profil</button>` : '') + `</div>`;
   } else headHtml = `<div class="phead"><div class="avatar" aria-hidden="true">?</div><div><h2>Profil</h2><p class="note">${sb ? 'Du bist nicht angemeldet. Dein Gipfelbuch liegt nur in diesem Browser.' : 'Konten gibt es nur auf alpen-gipfel.de. Hier liegt dein Gipfelbuch in diesem Browser.'}</p></div></div>`;
   page.innerHTML = `<div class="home profile">${headHtml}<section><h3 class="h3">Deine Gipfel</h3>${stats}${actions}</section><section class="pacct">${accountHtml()}</section>${sbUser ? '<section id="pstatsadmin"></section>' : ''}${theme}</div>`;
   $('pbook').onclick = showBook;
+  if ($('mypublic')) $('mypublic').onclick = () => showUser(sbUser.user_metadata.username);
   if ($('pdone')) { $('pdone').onclick = () => preset({ book: 'done' }); $('pwish').onclick = () => preset({ book: 'wish' }); }
   if ($('pexp')) $('pexp').onclick = () => showHome();
   page.querySelectorAll('.seg3 button').forEach(b => { b.onclick = () => { setTheme(b.dataset.t); page.querySelectorAll('.seg3 button').forEach(x => x.setAttribute('aria-checked', String(x === b))); }; });

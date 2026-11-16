@@ -85,6 +85,12 @@ werden die ersten und letzten 200 Meter abgeschnitten. Der Beitrag wird mit Ihre
 Wenn Sie einen Beitrag mit „Gefällt mir“ markieren, speichern wir diese Zuordnung zu Ihrem Konto; öffentlich sichtbar ist nur die Anzahl.
 Alles wird bei Supabase gespeichert (Speicherort {region}), bis Sie den Beitrag löschen (beim Beitrag: „Löschen“) oder Ihr Konto löschen. Rechtsgrundlage ist die Bereitstellung der von Ihnen gewünschten Funktion (Art. 6 Abs. 1 lit. b DSGVO).
 Meldet jemand einen Beitrag, speichern wir den angegebenen Grund ohne Angaben zur meldenden Person. Zeigen Ihre Fotos andere erkennbare Personen, brauchen Sie deren Einverständnis.</p>
+<h2>Profile, Folgen und Kommentare</h2>
+<p>Zu jedem Konto gibt es ein öffentliches Profil mit Benutzername, dem Monat der Anmeldung, Ihren geteilten Touren und Zahlen dazu (Touren, in Touren erreichte Gipfel, Follower und wie vielen Sie folgen).
+Ihr Gipfelbuch bleibt privat; ins Gipfelbuch eingetragen werden Gipfel einer geteilten Tour nur, wenn Sie bei ihnen den Haken „erreicht“ setzen.
+Wenn Sie anderen folgen, speichern wir diese Zuordnung; öffentlich sichtbar ist nur die Anzahl. Kommentare zu Touren erscheinen öffentlich mit Ihrem Benutzernamen und dem Zeitpunkt.
+Sie können eigene Kommentare jederzeit löschen; die Person, deren Tour kommentiert wurde, und der Betreiber können Kommentare ebenfalls entfernen.
+Alles liegt bei Supabase (Speicherort {region}) bis zur Löschung oder bis Sie Ihr Konto löschen. Rechtsgrundlage ist die Bereitstellung der gewünschten Funktion (Art. 6 Abs. 1 lit. b DSGVO).</p>
 <h2>Feedback</h2>
 <p>Über „Feedback“ können Sie uns eine Nachricht schicken, auch ohne Konto. Gespeichert werden Ihre Nachricht, die gewählte Art (zum Beispiel Idee oder Fehler), die Seite, auf der Sie das Formular geöffnet haben,
 eine freiwillig angegebene E-Mail-Adresse für eine Antwort und, wenn Sie angemeldet sind, Ihr Benutzername. Die Nachrichten liegen bei Supabase (Speicherort {region}) und können nur vom Betreiber gelesen werden.
@@ -137,6 +143,7 @@ Verboten sind beleidigende, werbliche oder rechtswidrige Inhalte sowie Angaben, 
 Für Inhalt und Richtigkeit Ihres Beitrags sind Sie selbst verantwortlich; wir prüfen Beiträge nicht vorab. Touren anderer Nutzer sind keine geprüften Touren, die Nutzung erfolgt auf eigene Gefahr.</p>
 <p>Jeder Beitrag lässt sich über „Melden“ melden; Hinweise auf rechtswidrige Inhalte können Sie auch per E-Mail an die im Impressum genannte Adresse senden.
 Wir prüfen Meldungen zeitnah und entfernen Beiträge, die gegen diese Bedingungen oder geltendes Recht verstoßen. Wer wiederholt solche Inhalte teilt, kann gesperrt werden.</p>
+<p>Für Kommentare gilt dasselbe: Bleiben Sie freundlich und sachlich. Kommentare, die beleidigen, werben oder andere gefährden, werden entfernt.</p>
 <h2>4. Erlaubte Nutzung</h2>
 <p>Sie dürfen Alpengipfel für private Zwecke nutzen. Nicht erlaubt ist es, den Dienst zu stören, Schutzmaßnahmen zu umgehen oder Inhalte automatisiert in großem Umfang abzurufen.
 Die Daten selbst stehen unter den im Impressum genannten freien Lizenzen und können bei den jeweiligen Quellen bezogen werden.</p>
