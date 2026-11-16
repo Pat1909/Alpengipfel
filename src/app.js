@@ -1895,7 +1895,7 @@ function initMap() {
   mapShown = $('map').clientWidth > 0;
   map.attributionControl.setPrefix(false).addAttribution('Daten © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende (ODbL)');
   let hasTiles = false;
-  const bw = () => { const z = map.getZoom(); return z >= 9 ? 1 : z <= 6 ? .5 : .5 + (z - 6) / 6; };   // thinner borders when zoomed out
+  const bw = () => { const z = map.getZoom(); return z >= 10 ? 1 : z <= 7 ? .45 : .45 + (z - 7) * .55 / 3; };   // thinner borders when zoomed out
   const baseStyle = () => ({
     alps: { stroke: false, fillColor: cssColors['--map-alps'], fillOpacity: 1, interactive: false },
     lakes: { stroke: false, fillColor: cssColors['--map-water'], fillOpacity: 1, interactive: false },

@@ -27,6 +27,8 @@ assert '__SHELL__' not in js
 os.makedirs('docs/assets', exist_ok=True); os.makedirs('dist', exist_ok=True)
 open('docs/assets/app.css', 'w').write(css)
 open('docs/assets/app.js', 'w').write(js)
+import hashlib
+V = hashlib.sha1((css + js).encode()).hexdigest()[:10]   # changes with every new build, so browsers never keep an old copy
 
 # vendored libraries and fonts
 for f in ('leaflet.js', 'supabase.js', 'maplibre-gl.js', 'maplibre-gl.css'): shutil.copy(f'src/vendor/{f}', f'docs/assets/{f}')
@@ -44,7 +46,7 @@ open('docs/assets/fonts.css', 'w').write('\n'.join(faces) + '\n')
 LEGAL = json.load(open('src/legal.json')) if os.path.exists('src/legal.json') else None
 def legal_page(title, body):
     return ('<!doctype html>\n<html lang="de">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-            f'<title>{title} – Alpengipfel</title>\n<meta name="robots" content="noindex">\n<link rel="stylesheet" href="assets/fonts.css">\n<link rel="stylesheet" href="assets/app.css">\n'
+            f'<title>{title} – Alpengipfel</title>\n<meta name="robots" content="noindex">\n<link rel="stylesheet" href="assets/fonts.css">\n<link rel="stylesheet" href="assets/app.css?v={V}">\n'
             '<script>try{var t=localStorage.getItem(\'alpengipfel.theme\');if(t)document.documentElement.setAttribute(\'data-theme\',t)}catch(e){}</script>\n'
             '<style>html{color-scheme:light}body{margin:0}</style>\n</head>\n<body>\n'
             f'<article class="static legal"><p><a href="./">← Alpengipfel</a></p>{body}</article>\n</body>\n</html>\n')
@@ -84,9 +86,9 @@ def page(base, title, desc, canonical, static, extra_head='', peak=None):
             f'<meta property="og:title" content="{E(title)}">\n<meta property="og:description" content="{E(desc)}">\n{extra_head}'
             '<script>try{var t=localStorage.getItem(\'alpengipfel.theme\');if(t)document.documentElement.setAttribute(\'data-theme\',t)}catch(e){}</script>\n'
             f'<link rel="manifest" href="{base}manifest.webmanifest">\n<meta name="theme-color" content="#1d2623">\n<link rel="apple-touch-icon" href="{base}assets/icon-180.png">\n<link rel="icon" href="{base}assets/icon-192.png">\n'
-            f'<link rel="stylesheet" href="{base}assets/fonts.css">\n<link rel="stylesheet" href="{base}assets/app.css">\n'
+            f'<link rel="stylesheet" href="{base}assets/fonts.css">\n<link rel="stylesheet" href="{base}assets/app.css?v={V}">\n'
             '<style>html{color-scheme:light}body{margin:0}[hidden]{display:none!important}</style>\n</head>\n<body>\n'
-            f'<div id="app-root" style="height:100%">{static}</div>\n<script src="{base}assets/leaflet.js"></script>\n<script src="{base}assets/supabase.js"></script>\n{boot}\n<script src="{base}assets/app.js"></script>\n</body>\n</html>\n')
+            f'<div id="app-root" style="height:100%">{static}</div>\n<script src="{base}assets/leaflet.js"></script>\n<script src="{base}assets/supabase.js"></script>\n{boot}\n<script src="{base}assets/app.js?v={V}"></script>\n</body>\n</html>\n')
 
 intro = ('<article class="static"><h1>Alpengipfel</h1>'
          f'<p>Alle {num(N)} benannten Gipfel der Alpen aus OpenStreetMap: filterbar nach Höhe, Land, Bundesland und Gebirgsgruppe, '
@@ -195,7 +197,7 @@ def hub_page(path, title, desc, body, depth=1):
             f'<title>{E(title)}</title>\n<meta name="description" content="{E(desc)}">\n<link rel="canonical" href="{SITE_URL}{path}">\n'
             f'<meta property="og:title" content="{E(title)}">\n<meta property="og:description" content="{E(desc)}">\n' + og_tags(title, desc, SITE_URL + path) +
             '<script>try{var t=localStorage.getItem(\'alpengipfel.theme\');if(t)document.documentElement.setAttribute(\'data-theme\',t)}catch(e){}</script>\n'
-            f'<link rel="icon" href="{base}assets/icon-192.png">\n<link rel="stylesheet" href="{base}assets/fonts.css">\n<link rel="stylesheet" href="{base}assets/app.css">\n'
+            f'<link rel="icon" href="{base}assets/icon-192.png">\n<link rel="stylesheet" href="{base}assets/fonts.css">\n<link rel="stylesheet" href="{base}assets/app.css?v={V}">\n'
             '<style>body{margin:0}</style>\n</head>\n<body class="hubbody">\n')
     top = (f'<header class="hubtop"><a class="brand" href="{base}"><img class="logo" src="{base}assets/icon-192.png" alt=""><span>Alpengipfel</span></a>'
            f'<nav><a href="{base}">Start</a><a href="{base}#karte">Karte</a><a href="{base}listen/viertausender.html">Viertausender</a><a href="{base}gebirge/">Gebirgsgruppen</a></nav></header>')
