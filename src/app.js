@@ -1895,14 +1895,15 @@ function initMap() {
   mapShown = $('map').clientWidth > 0;
   map.attributionControl.setPrefix(false).addAttribution('Daten © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende (ODbL)');
   let hasTiles = false;
+  const bw = () => { const z = map.getZoom(); return z >= 9 ? 1 : z <= 6 ? .5 : .5 + (z - 6) / 6; };   // thinner borders when zoomed out
   const baseStyle = () => ({
     alps: { stroke: false, fillColor: cssColors['--map-alps'], fillOpacity: 1, interactive: false },
     lakes: { stroke: false, fillColor: cssColors['--map-water'], fillOpacity: 1, interactive: false },
     groups: { color: cssColors['--map-group'], weight: 1, opacity: hasTiles ? .6 : .5, fill: false, interactive: false },
-    rhalo: { color: '#ffffff', weight: 6, opacity: .7, fill: false, interactive: false },
-    rborders: { color: cssColors['--map-region'], weight: 2.6, opacity: 1, dashArray: '9 5', fill: false, interactive: false },
-    halo: { color: '#ffffff', weight: 7, opacity: .8, fill: false, interactive: false },
-    borders: { color: cssColors['--map-border'], weight: 3, opacity: 1, fill: false, interactive: false }
+    rhalo: { color: '#ffffff', weight: 6 * bw(), opacity: .7, fill: false, interactive: false },
+    rborders: { color: cssColors['--map-region'], opacity: 1, weight: 2.6 * bw(), dashArray: bw() < .75 ? '6 4' : '9 5', fill: false, interactive: false },
+    halo: { color: '#ffffff', weight: 7 * bw(), opacity: .8, fill: false, interactive: false },
+    borders: { color: cssColors['--map-border'], weight: 3 * bw(), opacity: 1, fill: false, interactive: false }
   });
   const layers = {};
   const st = baseStyle();
@@ -1920,6 +1921,7 @@ function initMap() {
     }
     layers.halo = L.polyline(GEO.borders.map(toLL), { ...st.halo, renderer: gr }).addTo(map);
     layers.borders = L.polyline(GEO.borders.map(toLL), { ...st.borders, renderer: gr }).addTo(map);
+    map.on('zoomend', () => { const s2 = baseStyle(); for (const k of ['rhalo', 'rborders', 'halo', 'borders']) if (layers[k]) layers[k].setStyle(s2[k]); });
   }
   // Background tiles are an optional extra: only added where the host page is allowed to load them.
   const probe = new Image();
