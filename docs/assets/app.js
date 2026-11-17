@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 const $ = id => document.getElementById(id);
-const SHELL = "<div class=\"app\" id=\"app\" data-view=\"list\" data-sheet=\"half\">\n  <header class=\"top\">\n    <h1><button type=\"button\" id=\"navhome\" class=\"brand\" aria-label=\"Alpengipfel, zur Startseite\"><svg class=\"logo\" viewBox=\"0 0 32 32\" aria-hidden=\"true\"><rect width=\"32\" height=\"32\" rx=\"8\" fill=\"#1f2a27\"/><path d=\"M4.5 25 12.2 11.3l3.6 5.8 3.4-5.3L27.5 25z\" fill=\"#f3f6f3\"/><path d=\"m10.4 14.5 1.8-3.2 1.9 3-1.2-.6zM17.7 14.1l1.5-2.3 1.6 2.4-1.1-.5z\" fill=\"#8fb8d6\"/><circle cx=\"12.2\" cy=\"8.6\" r=\"2.3\" fill=\"#c62828\" stroke=\"#f3f6f3\" stroke-width=\"1\"/><\/svg><span>Alpengipfel<\/span><\/button><\/h1>\n    <span class=\"sub\" id=\"sub\">Alle benannten Gipfel der Alpen aus OpenStreetMap<\/span>\n    <nav class=\"nav\" aria-label=\"Bereiche\"><button id=\"navstart\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 11.5 12 4l9 7.5\"/><path d=\"M5.5 10v9.5h13V10\"/><\/svg><span>Start<\/span><\/button><button id=\"navexp\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M2.5 19.5 9 8l3.5 6 2.5-4 6.5 9.5z\"/><\/svg><span>Gipfel<\/span><\/button><button id=\"navfeed\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"8.5\" cy=\"8\" r=\"3\"/><circle cx=\"16.5\" cy=\"9\" r=\"2.5\"/><path d=\"M3 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5\"/><path d=\"M14.5 14.3c.6-.2 1.3-.3 2-.3 2.3 0 4 1.4 4.5 4\"/><\/svg><span>Touren<\/span><\/button><button id=\"openbook\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 4.5h11a2 2 0 0 1 2 2v13H7a2 2 0 0 1-2-2z\"/><path d=\"M5 17.5a2 2 0 0 1 2-2h11\"/><path d=\"m9 9.5 2 2 3.5-3.5\"/><\/svg><span>Gipfelbuch<\/span><\/button><button id=\"openprofile\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"8.5\" r=\"3.5\"/><path d=\"M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5\"/><\/svg><span>Profil<\/span><\/button><\/nav>\n    <button type=\"button\" id=\"openbell\" class=\"fbbtn bellbtn\" aria-label=\"Benachrichtigungen\" hidden><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z\"/><path d=\"M10 20.5a2.2 2.2 0 0 0 4 0\"/><\/svg><span class=\"bcnt\" id=\"bellcnt\" hidden><\/span><\/button>\n    <button type=\"button\" id=\"openfb\" class=\"fbbtn\" aria-label=\"Feedback geben\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 5h16v11H9l-5 4z\"/><path d=\"M8 9.5h8M8 12.5h5\"/><\/svg><span>Feedback<\/span><\/button>\n    <div class=\"tabs\" role=\"group\" aria-label=\"Ansicht\">\n      <button id=\"tab-list\" type=\"button\" aria-pressed=\"true\">Liste<\/button>\n      <button id=\"tab-map\" type=\"button\" aria-pressed=\"false\">Karte<\/button>\n    <\/div>\n  <\/header>\n\n  <main class=\"page\" id=\"page\" hidden><\/main>\n\n  <section class=\"side\" id=\"side\">\n    <div class=\"grab\" id=\"grab\" aria-hidden=\"true\"><span><\/span><\/div>\n    <div class=\"filters\" id=\"filters\">\n      <div class=\"f wide fq\"><label for=\"q\">Name<\/label><div class=\"qrow\"><input id=\"q\" type=\"search\" placeholder=\"Gipfel suchen, z. B. Großglockner\" autocomplete=\"off\"><button type=\"button\" class=\"ftoggle\" id=\"ftoggle\" aria-expanded=\"false\" aria-controls=\"filters\">Filter<b id=\"fcount\" hidden><\/b><\/button><\/div><\/div>\n      <div class=\"f wide\">\n        <span class=\"lab\">Höhe in Metern<\/span>\n        <div class=\"hrow\"><input id=\"hmin\" type=\"number\" inputmode=\"numeric\" min=\"0\" max=\"4900\" step=\"50\" placeholder=\"von\" aria-label=\"Mindesthöhe\"><span>bis<\/span><input id=\"hmax\" type=\"number\" inputmode=\"numeric\" min=\"0\" max=\"4900\" step=\"50\" placeholder=\"bis\" aria-label=\"Maximalhöhe\"><\/div>\n        <div class=\"bands\" id=\"bands\"><\/div>\n      <\/div>\n      <div class=\"f\"><label for=\"country\">Land<\/label><select id=\"country\"><\/select><\/div>\n      <div class=\"f\"><label for=\"state\">Bundesland / Region<\/label><select id=\"state\"><\/select><\/div>\n      <div class=\"f wide\"><label for=\"group\">Gebirgsgruppe<\/label><select id=\"group\"><\/select><\/div>\n      <div class=\"f wide\"><label for=\"kind\">Weg zum Gipfel<\/label><select id=\"kind\"><option value=\"\">Alle Gipfel<\/option><option value=\"0\">Wandern (bis T3)<\/option><option value=\"1\">Hochalpin (T4–T6)<\/option><option value=\"2\">Klettersteig<\/option><option value=\"3\">Skitour<\/option><option value=\"4\">Nur Weg in Gipfelnähe<\/option><option value=\"none\">Kein Weg, keine Route erfasst<\/option><\/select><\/div>\n      <div class=\"f\"><label for=\"book\">Gipfelbuch<\/label><select id=\"book\"><option value=\"\">Alle Gipfel<\/option><option value=\"done\">Bestiegen<\/option><option value=\"todo\">Noch nicht bestiegen<\/option><option value=\"wish\">Wunschliste<\/option><\/select><\/div>\n      <div class=\"f\"><span class=\"lab\">In meiner Nähe<\/span><div class=\"hrow\"><button class=\"nearbtn\" id=\"near\" type=\"button\">Standort verwenden<\/button><select id=\"radius\" aria-label=\"Umkreis\" hidden><option value=\"\">beliebig weit<\/option><option value=\"10\">10 km<\/option><option value=\"25\">25 km<\/option><option value=\"50\">50 km<\/option><option value=\"100\">100 km<\/option><\/select><\/div><\/div>\n      <div class=\"f wide note\" id=\"nearmsg\" hidden><\/div>\n      <div class=\"f wide fdone\"><button type=\"button\" id=\"fdone\">Gipfel anzeigen<\/button><\/div>\n    <\/div>\n    <div class=\"status\">\n      <span><strong id=\"count\">–<\/strong> Gipfel<\/span>\n      <button class=\"reset\" id=\"reset\" type=\"button\" hidden>Filter zurücksetzen<\/button>\n      <select id=\"sort\" aria-label=\"Sortierung\">\n        <option value=\"hd\">Höchste zuerst<\/option>\n        <option value=\"ha\">Niedrigste zuerst<\/option>\n        <option value=\"na\">Name A–Z<\/option>\n        <option value=\"near\">Nächste zuerst<\/option>\n      <\/select>\n    <\/div>\n    <div class=\"list\" id=\"list\" tabindex=\"0\"><div class=\"spacer\" id=\"spacer\"><\/div><\/div>\n    <footer class=\"foot\" id=\"foot\" hidden><\/footer>\n    <div class=\"detail\" id=\"detail\" hidden><\/div>\n    <div class=\"detail\" id=\"bookpanel\" hidden><\/div>\n    <div class=\"loading\" id=\"loading\">Gipfeldaten werden geladen …<\/div>\n  <\/section>\n\n  <section class=\"mapwrap\" id=\"mapwrap\">\n    <div id=\"map\"><\/div>\n    <div class=\"legend\" id=\"legendbox\" data-open=\"true\"><button type=\"button\" class=\"legtoggle\" id=\"legtoggle\" aria-expanded=\"true\" aria-controls=\"legbody\">Legende<\/button><div class=\"lrow note\" id=\"tmsg\" role=\"status\" hidden><\/div><div class=\"legbody\" id=\"legbody\"><div class=\"lrow\" id=\"legend\"><\/div><div class=\"lrow\" id=\"tlegend\" hidden><\/div><div class=\"lrow\"><span><i class=\"bd\"><\/i>Landesgrenze<\/span><span><i class=\"rb\"><\/i>Bundesland / Region<\/span><\/div><label class=\"lrow hutrow\"><input type=\"checkbox\" id=\"huts\" checked><i class=\"sq\"><\/i>Hütten anzeigen (ab mittlerer Zoomstufe)<\/label><\/div><\/div>\n    <div class=\"tip\" id=\"tip\" hidden><\/div>\n    <div class=\"view3d\" id=\"view3d\" hidden><div id=\"v3map\"><\/div><button class=\"back\" id=\"v3close\" type=\"button\">← Zur flachen Karte<\/button><div class=\"v3hint\">Ziehen: verschieben · rechte Maustaste oder zwei Finger: drehen und kippen<\/div><div class=\"v3msg\" id=\"v3msg\" role=\"status\"><\/div><\/div>\n  <\/section>\n<\/div>\n";
+const SHELL = "<div class=\"app\" id=\"app\" data-view=\"list\" data-sheet=\"half\">\n  <header class=\"top\">\n    <h1><button type=\"button\" id=\"navhome\" class=\"brand\" aria-label=\"Alpengipfel, zur Startseite\"><svg class=\"logo\" viewBox=\"0 0 32 32\" aria-hidden=\"true\"><rect width=\"32\" height=\"32\" rx=\"8\" fill=\"#1f2a27\"/><path d=\"M4.5 25 12.2 11.3l3.6 5.8 3.4-5.3L27.5 25z\" fill=\"#f3f6f3\"/><path d=\"m10.4 14.5 1.8-3.2 1.9 3-1.2-.6zM17.7 14.1l1.5-2.3 1.6 2.4-1.1-.5z\" fill=\"#8fb8d6\"/><circle cx=\"12.2\" cy=\"8.6\" r=\"2.3\" fill=\"#c62828\" stroke=\"#f3f6f3\" stroke-width=\"1\"/><\/svg><span>Alpengipfel<\/span><\/button><\/h1>\n    <span class=\"sub\" id=\"sub\">Alle benannten Gipfel der Alpen aus OpenStreetMap<\/span>\n    <nav class=\"nav\" aria-label=\"Bereiche\"><button id=\"navstart\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 11.5 12 4l9 7.5\"/><path d=\"M5.5 10v9.5h13V10\"/><\/svg><span>Start<\/span><\/button><button id=\"navexp\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M2.5 19.5 9 8l3.5 6 2.5-4 6.5 9.5z\"/><\/svg><span>Gipfel<\/span><\/button><button id=\"navfeed\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"8.5\" cy=\"8\" r=\"3\"/><circle cx=\"16.5\" cy=\"9\" r=\"2.5\"/><path d=\"M3 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5\"/><path d=\"M14.5 14.3c.6-.2 1.3-.3 2-.3 2.3 0 4 1.4 4.5 4\"/><\/svg><span>Touren<\/span><\/button><button id=\"navplan\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M7 7.5V6a5 5 0 0 1 10 0v1.5\"/><rect x=\"4.5\" y=\"7.5\" width=\"15\" height=\"13\" rx=\"3\"/><path d=\"M4.5 13h15\"/><path d=\"M10 13v2h4v-2\"/><\/svg><span>Planen<\/span><\/button><button id=\"openbook\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 4.5h11a2 2 0 0 1 2 2v13H7a2 2 0 0 1-2-2z\"/><path d=\"M5 17.5a2 2 0 0 1 2-2h11\"/><path d=\"m9 9.5 2 2 3.5-3.5\"/><\/svg><span>Gipfelbuch<\/span><\/button><button id=\"openprofile\" type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"8.5\" r=\"3.5\"/><path d=\"M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5\"/><\/svg><span>Profil<\/span><\/button><\/nav>\n    <button type=\"button\" id=\"openbell\" class=\"fbbtn bellbtn\" aria-label=\"Benachrichtigungen\" hidden><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z\"/><path d=\"M10 20.5a2.2 2.2 0 0 0 4 0\"/><\/svg><span class=\"bcnt\" id=\"bellcnt\" hidden><\/span><\/button>\n    <button type=\"button\" id=\"openfb\" class=\"fbbtn\" aria-label=\"Feedback geben\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 5h16v11H9l-5 4z\"/><path d=\"M8 9.5h8M8 12.5h5\"/><\/svg><span>Feedback<\/span><\/button>\n    <div class=\"tabs\" role=\"group\" aria-label=\"Ansicht\">\n      <button id=\"tab-list\" type=\"button\" aria-pressed=\"true\">Liste<\/button>\n      <button id=\"tab-map\" type=\"button\" aria-pressed=\"false\">Karte<\/button>\n    <\/div>\n  <\/header>\n\n  <main class=\"page\" id=\"page\" hidden><\/main>\n\n  <section class=\"side\" id=\"side\">\n    <div class=\"grab\" id=\"grab\" aria-hidden=\"true\"><span><\/span><\/div>\n    <div class=\"filters\" id=\"filters\">\n      <div class=\"f wide fq\"><label for=\"q\">Name<\/label><div class=\"qrow\"><input id=\"q\" type=\"search\" placeholder=\"Gipfel suchen, z. B. Großglockner\" autocomplete=\"off\"><button type=\"button\" class=\"ftoggle\" id=\"ftoggle\" aria-expanded=\"false\" aria-controls=\"filters\">Filter<b id=\"fcount\" hidden><\/b><\/button><\/div><\/div>\n      <div class=\"f wide\">\n        <span class=\"lab\">Höhe in Metern<\/span>\n        <div class=\"hrow\"><input id=\"hmin\" type=\"number\" inputmode=\"numeric\" min=\"0\" max=\"4900\" step=\"50\" placeholder=\"von\" aria-label=\"Mindesthöhe\"><span>bis<\/span><input id=\"hmax\" type=\"number\" inputmode=\"numeric\" min=\"0\" max=\"4900\" step=\"50\" placeholder=\"bis\" aria-label=\"Maximalhöhe\"><\/div>\n        <div class=\"bands\" id=\"bands\"><\/div>\n      <\/div>\n      <div class=\"f\"><label for=\"country\">Land<\/label><select id=\"country\"><\/select><\/div>\n      <div class=\"f\"><label for=\"state\">Bundesland / Region<\/label><select id=\"state\"><\/select><\/div>\n      <div class=\"f wide\"><label for=\"group\">Gebirgsgruppe<\/label><select id=\"group\"><\/select><\/div>\n      <div class=\"f wide\"><label for=\"kind\">Weg zum Gipfel<\/label><select id=\"kind\"><option value=\"\">Alle Gipfel<\/option><option value=\"0\">Wandern (bis T3)<\/option><option value=\"1\">Hochalpin (T4–T6)<\/option><option value=\"2\">Klettersteig<\/option><option value=\"3\">Skitour<\/option><option value=\"4\">Nur Weg in Gipfelnähe<\/option><option value=\"none\">Kein Weg, keine Route erfasst<\/option><\/select><\/div>\n      <div class=\"f\"><label for=\"book\">Gipfelbuch<\/label><select id=\"book\"><option value=\"\">Alle Gipfel<\/option><option value=\"done\">Bestiegen<\/option><option value=\"todo\">Noch nicht bestiegen<\/option><option value=\"wish\">Wunschliste<\/option><\/select><\/div>\n      <div class=\"f\"><span class=\"lab\">In meiner Nähe<\/span><div class=\"hrow\"><button class=\"nearbtn\" id=\"near\" type=\"button\">Standort verwenden<\/button><select id=\"radius\" aria-label=\"Umkreis\" hidden><option value=\"\">beliebig weit<\/option><option value=\"10\">10 km<\/option><option value=\"25\">25 km<\/option><option value=\"50\">50 km<\/option><option value=\"100\">100 km<\/option><\/select><\/div><\/div>\n      <div class=\"f wide note\" id=\"nearmsg\" hidden><\/div>\n      <div class=\"f wide fdone\"><button type=\"button\" id=\"fdone\">Gipfel anzeigen<\/button><\/div>\n    <\/div>\n    <div class=\"status\">\n      <span><strong id=\"count\">–<\/strong> Gipfel<\/span>\n      <button class=\"reset\" id=\"reset\" type=\"button\" hidden>Filter zurücksetzen<\/button>\n      <select id=\"sort\" aria-label=\"Sortierung\">\n        <option value=\"hd\">Höchste zuerst<\/option>\n        <option value=\"ha\">Niedrigste zuerst<\/option>\n        <option value=\"na\">Name A–Z<\/option>\n        <option value=\"near\">Nächste zuerst<\/option>\n      <\/select>\n    <\/div>\n    <div class=\"list\" id=\"list\" tabindex=\"0\"><div class=\"spacer\" id=\"spacer\"><\/div><\/div>\n    <footer class=\"foot\" id=\"foot\" hidden><\/footer>\n    <div class=\"detail\" id=\"detail\" hidden><\/div>\n    <div class=\"detail\" id=\"bookpanel\" hidden><\/div>\n    <div class=\"loading\" id=\"loading\">Gipfeldaten werden geladen …<\/div>\n  <\/section>\n\n  <section class=\"mapwrap\" id=\"mapwrap\">\n    <div id=\"map\"><\/div>\n    <div class=\"legend\" id=\"legendbox\" data-open=\"true\"><button type=\"button\" class=\"legtoggle\" id=\"legtoggle\" aria-expanded=\"true\" aria-controls=\"legbody\">Legende<\/button><div class=\"lrow note\" id=\"tmsg\" role=\"status\" hidden><\/div><div class=\"legbody\" id=\"legbody\"><div class=\"lrow\" id=\"legend\"><\/div><div class=\"lrow\" id=\"tlegend\" hidden><\/div><div class=\"lrow\"><span><i class=\"bd\"><\/i>Landesgrenze<\/span><span><i class=\"rb\"><\/i>Bundesland / Region<\/span><\/div><label class=\"lrow hutrow\"><input type=\"checkbox\" id=\"huts\" checked><i class=\"sq\"><\/i>Hütten anzeigen (ab mittlerer Zoomstufe)<\/label><\/div><\/div>\n    <div class=\"tip\" id=\"tip\" hidden><\/div>\n    <div class=\"view3d\" id=\"view3d\" hidden><div id=\"v3map\"><\/div><button class=\"back\" id=\"v3close\" type=\"button\">← Zur flachen Karte<\/button><div class=\"v3hint\">Ziehen: verschieben · rechte Maustaste oder zwei Finger: drehen und kippen<\/div><div class=\"v3msg\" id=\"v3msg\" role=\"status\"><\/div><\/div>\n  <\/section>\n<\/div>\n";
 // the summit page's own text (written for search engines) stays visible in the summit's overview tab
 const SEO_TEXT = (() => { const a = document.querySelector('#app-root article.seo'); return a ? { id: window.AG_PEAK, html: a.innerHTML.replace(/<h1>[\s\S]*?<\/h1>/, '') } : null; })();
 if ($('app-root')) $('app-root').innerHTML = SHELL;
@@ -1313,7 +1313,7 @@ function renderDetail(i, fromMap, d) {
     (d.p ? `<dt>Schartenhöhe</dt><dd>${fmt.format(d.p)} m</dd>` : '') +
     `<dt>Wege und Routen</dt><dd>${nR ? `${nR} erfasst · <button type="button" class="linkbtn" data-goto="routes">ansehen</button>` : 'keine erfasst'}</dd>` +
     `</dl>` +
-    `<div class="links"><button type="button" id="zoomto">Auf Karte zeigen</button>${HOSTED ? '<button type="button" id="show3d">3D-Ansicht</button><button type="button" id="share">Teilen</button>' : ''}` +
+    `<div class="links"><button type="button" id="zoomto">Auf Karte zeigen</button>${HOSTED ? '<button type="button" id="show3d">3D-Ansicht</button><button type="button" id="planit">Tour planen</button><button type="button" id="share">Teilen</button>' : ''}` +
     `<a href="https://www.openstreetmap.org/node/${P.id[i]}" target="_blank" rel="noopener">OpenStreetMap</a>${wpLink}` +
     `<a href="https://www.opentopomap.org/#marker=15/${la}/${lo}" target="_blank" rel="noopener">Topokarte</a></div>` +
     (SEO_TEXT && SEO_TEXT.id === P.id[i] ? `<section class="about">${SEO_TEXT.html}</section>` : '') + `</section>` +
@@ -1336,6 +1336,7 @@ function renderDetail(i, fromMap, d) {
   renderBookRow(i);
   if (d.im && $('dbimg')) loadBanner(i, d.im);
   if ($('show3d')) $('show3d').onclick = () => open3d(i);
+  if ($('planit')) $('planit').onclick = () => newPlan(i);
   ['share', 'share2'].forEach(id => { if ($(id)) $(id).onclick = () => sharePeak(i); });
   $('zoomto').onclick = () => { close3d(); setView('map'); centerOn(la, lo, Math.max(map.getZoom(), 13)); };
   if (MOBILE()) setSheet(fromMap ? 'half' : 'full');
@@ -1491,14 +1492,16 @@ function route() {                                  // show what the current add
   if (i >= 0) { setPage(null); return showDetail(i, false, true); }
   if (selected >= 0) closeDetail(true);
   const um = location.hash.match(/^#nutzer\/(.+)$/);
+  const pm = location.hash.match(/^#plan\/([0-9a-f-]{36})$/);
+  if (pm) showPlan(pm[1], true); else if (location.hash === '#planen') showPlans(true); else
   if (um) showUser(decodeURIComponent(um[1]), true); else if (location.hash === '#profil') showProfile(true); else if (location.hash === '#touren') showFeed(true); else if (location.hash === '#karte') { $('bookpanel').hidden = true; setPage(null); } else showHome(true);
 }
 
 /* ---------- start page and profile: full-width pages above the list and the map ---------- */
 let pageMode = null;                                 // null = list and map, 'home', 'profile'
 function markNav() {
-  const cur = pageMode === 'home' ? 'navstart' : pageMode === 'profile' ? 'openprofile' : pageMode === 'feed' || pageMode === 'user' ? 'navfeed' : !$('bookpanel').hidden ? 'openbook' : 'navexp';
-  ['navstart', 'navexp', 'navfeed', 'openbook', 'openprofile'].forEach(id => $(id).setAttribute('aria-current', String(id === cur)));
+  const cur = pageMode === 'home' ? 'navstart' : pageMode === 'profile' ? 'openprofile' : pageMode === 'feed' || pageMode === 'user' ? 'navfeed' : pageMode === 'plan' ? 'navplan' : !$('bookpanel').hidden ? 'openbook' : 'navexp';
+  ['navstart', 'navexp', 'navfeed', 'navplan', 'openbook', 'openprofile'].forEach(id => $(id).setAttribute('aria-current', String(id === cur)));
 }
 /* ---------- phone layout: the list is a sheet over the map (peek, half, full) ---------- */
 const MOBILE = () => matchMedia('(max-width: 760px)').matches;
@@ -1536,7 +1539,7 @@ function initSheet() {
 function setPage(mode) {
   pageMode = mode; $('page').hidden = !mode; $('app').dataset.page = mode || '';
   markNav();
-  if (mode) { $('page').scrollTop = 0; document.title = mode === 'profile' ? 'Profil – Alpengipfel' : mode === 'user' ? 'Bergfreund – Alpengipfel' : mode === 'feed' ? 'Touren der Community – Alpengipfel' : 'Alpengipfel'; }
+  if (mode) { $('page').scrollTop = 0; document.title = mode === 'profile' ? 'Profil – Alpengipfel' : mode === 'user' ? 'Bergfreund – Alpengipfel' : mode === 'plan' ? 'Tour planen – Alpengipfel' : mode === 'feed' ? 'Touren der Community – Alpengipfel' : 'Alpengipfel'; }
   else if (map) setTimeout(() => map.invalidateSize(), 0);
 }
 const pushUrl = url => { if (HOSTED && location.pathname + location.hash !== url) history.pushState({}, '', url); };
@@ -1907,6 +1910,182 @@ function initAccount() {
     if (changed) { refreshAccount(); if (!$('bookpanel').hidden) showBook(); if (pageMode === 'home') renderHome(); myTours = null; updateBell(); }
   });
 }
+/* ---------- Planen: a tour with date and summit, a group, everyone's packing list, group gear and a checklist ---------- */
+const PACK = {
+  base: ['Rucksack', 'Feste Bergschuhe', 'Regenjacke', 'Warme Schicht (Fleece oder Daune)', 'Mütze und Handschuhe', 'Sonnenbrille', 'Sonnencreme', 'Trinkflasche (mind. 1,5 l)', 'Proviant', 'Handy geladen + Powerbank', 'Ausweis und Geld', 'Persönliche Medikamente', 'Blasenpflaster'],
+  0: ['Wanderstöcke'], 1: ['Helm', 'Klettergurt', 'Steigeisen', 'Pickel', 'Stirnlampe', 'Gletscherbrille'], 2: ['Helm', 'Klettergurt', 'Klettersteigset', 'Klettersteighandschuhe'],
+  3: ['Tourenski mit Fellen', 'Skitourenschuhe', 'LVS-Gerät', 'Schaufel', 'Sonde', 'Helm', 'Skibrille'] };
+const GROUPGEAR = { base: ['Erste-Hilfe-Set', 'Rettungsdecke / Biwaksack', 'Route offline auf dem Handy oder Karte'], 0: [], 1: ['Seil', 'Bandschlingen und Karabiner'], 2: [], 3: ['Reparaturset für Ski und Felle'] };
+const CHECKS = { base: ['Wetterbericht geprüft', 'Route und Gehzeit besprochen', 'Umkehrzeit festgelegt', 'Hütte / Einkehr geklärt (Öffnungszeiten, Reservierung)', 'Anfahrt, Parkplatz oder Öffis geklärt', 'Jemandem Bescheid gesagt, wohin es geht', 'Notrufnummern gespeichert (112, Bergrettung)'],
+  0: [], 1: ['Verhältnisse am Gletscher geklärt'], 2: ['Klettersteig offen und Schwierigkeit passt für alle'], 3: ['Lawinenlagebericht geprüft', 'LVS-Check vor dem Start'] };
+const tpl = (T, art) => [...T.base, ...(T[art] || [])].filter((x, k, a) => a.indexOf(x) === k);
+let planState = null, planTimer = 0;
+const wday = s => s ? new Date(s + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'Datum noch offen';
+function needLogin(page, what) {
+  page.innerHTML = `<div class="home plans"><section class="feedhead"><div><p class="eyebrow">Planen</p><h2>Touren planen</h2><p class="lede">${what}</p></div></section>` +
+    `<div class="emptybox"><h3>Melde dich an</h3><p>Pläne, Gruppen und Packlisten gibt es mit einem kostenlosen Konto.</p><div class="links"><button type="button" class="primary sharetour" id="plogin">Anmelden oder Konto anlegen</button></div></div></div>`;
+  $('plogin').onclick = () => showProfile();
+}
+function showPlans(noPush) { if (selected >= 0) closeDetail(true); $('bookpanel').hidden = true; setPage('plan'); clearInterval(planTimer); renderPlans(); if (!noPush) pushUrl(ROOT + '#planen'); }
+async function renderPlans() {
+  const page = $('page');
+  if (!sb || !sbUser) return needLogin(page, 'Plane deine nächste Tour mit Freunden: Gipfel und Datum, wer dabei ist, wer was mitbringt und ob alles gecheckt ist.');
+  page.innerHTML = `<div class="home plans"><section class="feedhead"><div><p class="eyebrow">Planen</p><h2>Deine Touren</h2><p class="lede">Gipfel und Datum, die Gruppe, Packlisten für jeden und eine Checkliste, damit nichts vergessen wird.</p></div>` +
+    `<button type="button" class="primary sharetour" id="newplan">＋ Neue Tour planen</button></section><div id="plist"><p class="note">Wird geladen …</p></div></div>`;
+  $('newplan').onclick = () => newPlan(-1);
+  const { data, error } = await sb.rpc('meine_plaene');
+  if (pageMode !== 'plan' || !$('plist')) return;
+  if (error) { $('plist').innerHTML = '<p class="note">Das Planen wird gerade eingerichtet. Schau gleich noch einmal vorbei.</p>'; return; }
+  const today0 = today(), inv = data.filter(p => p.mein_status === 'eingeladen'), rest = data.filter(p => p.mein_status !== 'eingeladen');
+  const soon = rest.filter(p => !p.datum || p.datum >= today0), past = rest.filter(p => p.datum && p.datum < today0).reverse();
+  const card = p => { const i = p.gipfel ? indexOfId(+p.gipfel) : -1;
+    return `<li><button type="button" class="plcard" data-plan="${p.id}"><span class="pldate">${p.datum ? `<b>${new Date(p.datum + 'T12:00:00').getDate()}</b><small>${new Date(p.datum + 'T12:00:00').toLocaleDateString('de-DE', { month: 'short' })}</small>` : '<b>?</b><small>offen</small>'}</span>` +
+      `<span class="pltext"><b>${esc(p.titel)}</b><small>${[i >= 0 ? `${D.peaks.n[i]}${D.peaks.e[i] != null ? ' · ' + fmt.format(D.peaks.e[i]) + ' m' : ''}` : '', KINDS[p.art], `${p.personen} ${p.personen == 1 ? 'Person' : 'Personen'}`].filter(Boolean).map(esc).join(' · ')}</small>` +
+      `${p.mein_status !== 'besitzer' ? `<small>von ${esc(p.owner_name)}</small>` : ''}</span><span class="chev" aria-hidden="true">›</span></button>` +
+      (p.mein_status === 'eingeladen' ? `<div class="plinv"><button type="button" class="primary sharetour" data-yes="${p.id}">Zusagen</button><button type="button" class="onmap" data-no="${p.id}">Absagen</button></div>` : '') + `</li>`; };
+  $('plist').innerHTML = (inv.length ? `<h3 class="h3">Einladungen <span class="badge">${inv.length}</span></h3><ul class="plans">${inv.map(card).join('')}</ul>` : '') +
+    (soon.length ? `<h3 class="h3">Geplant</h3><ul class="plans">${soon.map(card).join('')}</ul>` : '') +
+    (past.length ? `<h3 class="h3">Vergangen</h3><ul class="plans past">${past.map(card).join('')}</ul>` : '') +
+    (!data.length ? `<div class="emptybox"><h3>Noch keine Tour geplant</h3><p>Leg los: Gipfel und Datum wählen, Freunde per Benutzername einladen, und jeder sieht die Packliste der ganzen Gruppe. Den Gipfel kannst du auch auf seiner Seite über „Tour planen“ wählen.</p></div>` : '');
+  $('plist').querySelectorAll('[data-plan]').forEach(b => { b.onclick = () => showPlan(b.dataset.plan); });
+  $('plist').querySelectorAll('[data-yes],[data-no]').forEach(b => { b.onclick = async () => { const yes = !!b.dataset.yes, id = b.dataset.yes || b.dataset.no;
+    await planAnswer(id, yes); if (yes) showPlan(id); else renderPlans(); }; });
+}
+async function planAnswer(id, yes) {
+  const { error } = await sb.rpc('plan_antworten', { p: id, zusage: yes }); if (error) { toast('Das hat nicht geklappt.'); return false; }
+  if (yes) {                                            // your own packing list starts from the template of the tour kind
+    const { data: pl } = await sb.from('plaene').select('art').eq('id', id).single();
+    const { data: mine } = await sb.from('plan_eintraege').select('id').eq('plan_id', id).eq('art', 'persoenlich').eq('user_id', sbUser.id).limit(1);
+    if (pl && !(mine || []).length) await sb.from('plan_eintraege').insert(tpl(PACK, pl.art).map((t, k) => ({ plan_id: id, art: 'persoenlich', user_id: sbUser.id, text: t, pos: k })));
+    toast('Du bist dabei 🎒');
+  }
+  return true;
+}
+function newPlan(i0, edit) {                            // create (or edit) a plan: title, summit, date, kind, meeting point, note
+  if (!sb || !sbUser) { setPage('plan'); return needLogin($('page'), 'Plane deine nächste Tour mit Freunden.'); }
+  let dlg = $('plandlg'); if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'plandlg'; dlg.className = 'fbdlg postdlg'; document.body.appendChild(dlg); }
+  let peak = edit ? (edit.gipfel ? indexOfId(+edit.gipfel) : -1) : i0 != null && i0 >= 0 ? i0 : -1;
+  const e = edit || {}, title = e.titel || (peak >= 0 ? D.peaks.n[peak] : '');
+  dlg.innerHTML = `<form class="upf" id="planf"><div class="fbhead"><h2>${edit ? 'Plan bearbeiten' : 'Neue Tour planen'}</h2><button type="button" class="fbx" id="plx" aria-label="Schließen">×</button></div>` +
+    `<label>Name der Tour<input id="pltitel" required minlength="3" maxlength="80" value="${esc(title)}" placeholder="z. B. Zugspitze über das Höllental"></label>` +
+    `<label>Gipfel (freiwillig)<div class="hsearch"><input id="plq" autocomplete="off" placeholder="Gipfel suchen" value="${peak >= 0 ? esc(D.peaks.n[peak]) : ''}"><div class="hres" id="plres" hidden></div></div></label>` +
+    `<div class="prow"><label>Datum<input type="date" id="pldate" value="${esc(e.datum || '')}" min="${edit ? '' : today()}"></label><label>Art<select id="plart">${KINDS.map((k, c) => `<option value="${c}"${c === (e.art || 0) ? ' selected' : ''}>${k}</option>`).join('')}</select></label></div>` +
+    `<label>Treffpunkt und Uhrzeit (freiwillig)<input id="pltreff" maxlength="200" value="${esc(e.treffpunkt || '')}" placeholder="z. B. 6:30 Uhr Parkplatz Hammersbach"></label>` +
+    `<label>Notiz für die Gruppe (freiwillig)<textarea id="plnotiz" maxlength="2000" rows="3" placeholder="Plan B bei schlechtem Wetter, Fahrgemeinschaft …">${esc(e.notiz || '')}</textarea></label>` +
+    (edit ? '' : `<p class="note small">Packliste, Gruppenausrüstung und Checkliste werden passend zur Art vorbefüllt. Du kannst alles ändern.</p>`) +
+    `<div class="ascbtns"><button type="submit" class="primary">${edit ? 'Speichern' : 'Plan anlegen'}</button><button type="button" class="onmap" id="plcancel">Abbrechen</button></div><p class="note" id="plmsg" role="status"></p></form>`;
+  $('plx').onclick = $('plcancel').onclick = () => dlg.close();
+  const q = $('plq'), res = $('plres');
+  q.oninput = () => { peak = -1; const t = norm(q.value.trim()), hits = [];
+    if (t.length >= 2) for (let k = 0; k < N && hits.length < 6; k++) if (D.peaks.nn[k].includes(t)) hits.push(k);
+    res.hidden = t.length < 2;
+    res.innerHTML = hits.map(k => { const pl = placeNames(k); return `<button type="button" data-i="${k}"><b>${esc(D.peaks.n[k])}</b><small>${esc([pl.g, pl.s || pl.c].filter(Boolean).join(' · '))}</small><span>${D.peaks.e[k] == null ? '–' : fmt.format(D.peaks.e[k])}</span></button>`; }).join('') || '<p class="note">Kein Gipfel gefunden.</p>';
+    res.querySelectorAll('button').forEach(b => { b.onclick = () => { peak = +b.dataset.i; q.value = D.peaks.n[peak]; res.hidden = true; if (!$('pltitel').value.trim()) $('pltitel').value = D.peaks.n[peak]; }; }); };
+  $('planf').onsubmit = async ev => {
+    ev.preventDefault(); const btn = dlg.querySelector('button[type=submit]'); btn.disabled = true;
+    const row = { titel: $('pltitel').value.trim(), gipfel: peak >= 0 ? D.peaks.id[peak] : null, datum: $('pldate').value || null, art: +$('plart').value, treffpunkt: $('pltreff').value.trim(), notiz: $('plnotiz').value.trim() };
+    if (row.titel.length < 3) { $('plmsg').textContent = 'Bitte gib der Tour einen Namen.'; btn.disabled = false; return; }
+    if (edit) { const { error } = await sb.from('plaene').update(row).eq('id', edit.id); btn.disabled = false; if (error) { $('plmsg').textContent = 'Das hat nicht geklappt.'; return; } dlg.close(); showPlan(edit.id, true); return; }
+    const { data, error } = await sb.from('plaene').insert(row).select('id').single();
+    if (error) { $('plmsg').textContent = /plaene|relation/.test(error.message || '') ? 'Das Planen wird gerade eingerichtet. Versuch es gleich noch einmal.' : 'Das hat nicht geklappt.'; btn.disabled = false; return; }
+    const items = [...tpl(PACK, row.art).map((t, k) => ({ plan_id: data.id, art: 'persoenlich', user_id: sbUser.id, text: t, pos: k })),
+      ...tpl(GROUPGEAR, row.art).map((t, k) => ({ plan_id: data.id, art: 'gruppe', text: t, pos: k })), ...tpl(CHECKS, row.art).map((t, k) => ({ plan_id: data.id, art: 'check', text: t, pos: k }))];
+    await sb.from('plan_eintraege').insert(items);
+    dlg.close(); count('plan-angelegt'); showPlan(data.id);
+  };
+  dlg.showModal(); (edit ? $('pltitel') : peak >= 0 ? $('pldate') : q).focus();
+}
+function showPlan(id, noPush) {
+  if (selected >= 0) closeDetail(true); $('bookpanel').hidden = true; setPage('plan'); clearInterval(planTimer);
+  if (!noPush) pushUrl(ROOT + '#plan/' + id);
+  planState = { id, tab: sbUser ? sbUser.id : '' }; loadPlan(true);
+  planTimer = setInterval(() => { if (!document.hidden && pageMode === 'plan' && planState && planState.id === id && !document.activeElement.closest('#page input, #page select, #page textarea')) loadPlan(false); }, 20000);
+}
+async function loadPlan(first) {
+  const page = $('page'), st = planState; if (!st) return;
+  if (!sb || !sbUser) return needLogin(page, 'Dieser Plan ist nur für die Gruppe sichtbar.');
+  if (first) page.innerHTML = '<div class="home plans"><p class="note">Plan wird geladen …</p></div>';
+  const [p, g, it] = await Promise.all([sb.from('plaene').select('*').eq('id', st.id).maybeSingle(), sb.rpc('plan_gruppe', { p: st.id }), sb.from('plan_eintraege').select('*').eq('plan_id', st.id).order('pos').order('id')]);
+  if (planState !== st || pageMode !== 'plan') return;
+  if (p.error || !p.data) { page.innerHTML = `<div class="home plans"><div class="emptybox"><h3>Plan nicht gefunden</h3><p>Vielleicht wurde er gelöscht, oder du gehörst nicht (mehr) zur Gruppe.</p><div class="links"><button type="button" id="pback">Zu deinen Touren</button></div></div></div>`; $('pback').onclick = () => showPlans(); return; }
+  st.plan = p.data; st.group = (g.data || []).filter(x => x.status !== 'abgesagt'); st.items = it.data || [];
+  st.group.forEach(x => { if (x.bild !== undefined) avatars.set(x.username.toLowerCase(), x.bild || ''); });
+  if (!st.group.some(x => x.user_id === st.tab)) st.tab = sbUser.id;
+  renderPlan(first);
+}
+function renderPlan(first) {
+  const st = planState, pl = st.plan, page = $('page'), me = sbUser.id, owner = pl.owner === me, i = pl.gipfel ? indexOfId(+pl.gipfel) : -1;
+  const myRow = st.group.find(x => x.user_id === me), invited = myRow && myRow.status === 'eingeladen';
+  const name = uid => (st.group.find(x => x.user_id === uid) || {}).username || '?';
+  const items = a => st.items.filter(x => x.art === a), pers = uid => st.items.filter(x => x.art === 'persoenlich' && x.user_id === uid);
+  const prog = list => list.length ? `<span class="plprog"><i style="width:${Math.round(list.filter(x => x.erledigt).length / list.length * 100)}%"></i></span><small>${list.filter(x => x.erledigt).length} von ${list.length}</small>` : '';
+  const row = (x, canEdit, extra = '') => `<li class="${x.erledigt ? 'done' : ''}"><label class="plchk"><input type="checkbox" data-tick="${x.id}"${x.erledigt ? ' checked' : ''}${canEdit ? '' : ' disabled'}><span>${esc(x.text)}</span></label>` +
+    `${x.erledigt && x.erledigt_von && x.art !== 'persoenlich' ? `<small class="who">✓ ${esc(name(x.erledigt_von))}</small>` : ''}${extra}${canEdit ? `<button type="button" class="plrm" data-rm="${x.id}" aria-label="${esc(x.text)} entfernen">×</button>` : ''}</li>`;
+  const addForm = (art, ph) => `<form class="pladd" data-add="${art}"><input maxlength="120" placeholder="${ph}" aria-label="${ph}"><button type="submit" class="onmap">＋</button></form>`;
+  const past = pl.datum && pl.datum < today();
+  const tab = st.tab, tabList = pers(tab), mine = tab === me;
+  const gear = items('gruppe'), checks = items('check');
+  const body = `<div class="home plans plan">` +
+    `<div class="dtop"><button class="back" id="plback" type="button">← Deine Touren</button>${owner ? `<span class="ascbtns"><button type="button" class="onmap" id="pledit">Bearbeiten</button><button type="button" class="onmap pmore" id="pldel">Löschen</button></span>` : `<button type="button" class="onmap pmore" id="plleave">Plan verlassen</button>`}</div>` +
+    `<section class="plhead"><p class="eyebrow">${esc(KINDS[pl.art])}</p><h2>${esc(pl.titel)}</h2><p class="pldt">📅 ${esc(wday(pl.datum))}</p>` +
+    (i >= 0 ? `<button type="button" class="ppeak" id="plpeak">🏔️ ${esc(D.peaks.n[i])}${D.peaks.e[i] != null ? ` · ${fmt.format(D.peaks.e[i])} m` : ''}</button>` : '') +
+    (pl.treffpunkt ? `<p>📍 ${esc(pl.treffpunkt)}</p>` : '') + (pl.notiz ? `<p class="plnote">${esc(pl.notiz)}</p>` : '') + `</section>` +
+    (invited ? `<div class="plinvite"><b>${esc(name(pl.owner))} hat dich eingeladen.</b><span class="ascbtns"><button type="button" class="primary sharetour" id="plyes">Zusagen</button><button type="button" class="onmap" id="plno">Absagen</button></span></div>` : '') +
+    (i >= 0 ? `<section class="plwx" id="plwx"><h3 class="h3">Wetter am Gipfel</h3><p class="note">Wird geladen …</p></section>` : '') +
+    `<section><h3 class="h3">Gruppe <span class="badge">${st.group.length}</span></h3><ul class="plgroup">${st.group.map(x => { const l = pers(x.user_id), d = l.filter(y => y.erledigt).length;
+      return `<li>${av(x.username, 'sm')}<span><b>${esc(x.username)}</b>${x.besitzer ? ' <small class="tag">plant</small>' : ''}<small>${x.status === 'eingeladen' ? '⏳ eingeladen' : l.length ? `🎒 ${d} von ${l.length} gepackt` : '✓ dabei'}</small></span>` +
+        (owner && !x.besitzer ? `<button type="button" class="plrm" data-kick="${x.user_id}" aria-label="${esc(x.username)} entfernen">×</button>` : '') + `</li>`; }).join('')}</ul>` +
+    (owner ? `<form class="pladd plinvf" id="plinvf"><div class="hsearch"><input id="plinvq" autocomplete="off" maxlength="20" placeholder="Freund per Benutzername einladen" aria-label="Benutzername"><div class="hres" id="plinvres" hidden></div></div><button type="submit" class="primary sharetour">Einladen</button></form><p class="note small" id="plinvmsg" role="status"></p>` : '') + `</section>` +
+    `<section><div class="plsec"><h3 class="h3">Checkliste</h3>${prog(checks)}</div><ul class="plitems">${checks.map(x => row(x, !invited)).join('')}</ul>${invited ? '' : addForm('check', 'Punkt hinzufügen, z. B. Bahn-Tickets gekauft')}</section>` +
+    `<section><div class="plsec"><h3 class="h3">Für die ganze Gruppe</h3>${prog(gear)}</div><ul class="plitems">${gear.map(x => row(x, !invited,
+      `<select class="plwho" data-who="${x.id}"${invited ? ' disabled' : ''} aria-label="Wer bringt es mit?"><option value="">Wer bringt's mit?</option>${st.group.filter(y => y.status !== 'eingeladen').map(y => `<option value="${y.user_id}"${y.user_id === x.user_id ? ' selected' : ''}>${esc(y.username)}</option>`).join('')}</select>`)).join('')}</ul>${invited ? '' : addForm('gruppe', 'Gemeinsamer Gegenstand, z. B. Seil')}</section>` +
+    `<section><div class="plsec"><h3 class="h3">Packlisten</h3></div><div class="seg3 pltabs" role="tablist">${st.group.filter(x => x.status !== 'eingeladen').map(x => `<button type="button" role="tab" data-tab="${x.user_id}" aria-selected="${x.user_id === tab}">${x.user_id === me ? 'Ich' : esc(x.username)}</button>`).join('')}</div>` +
+    `<div class="plsec sub">${prog(tabList)}</div><ul class="plitems">${tabList.map(x => row(x, mine)).join('') || `<li class="note">${mine ? 'Noch nichts auf deiner Liste.' : 'Noch keine Packliste.'}</li>`}</ul>${mine && !invited ? addForm('persoenlich', 'Eigenen Gegenstand hinzufügen') : ''}</section>` +
+    (past && i >= 0 ? `<section class="plafter"><h3 class="h3">Wie war's?</h3><p class="note">Teile die Tour mit Fotos und Track. Erreichte Gipfel kommen ins Gipfelbuch.</p><div class="links"><button type="button" class="primary sharetour" id="plshare">Tour teilen</button></div></section>` : '') + `</div>`;
+  const y = page.scrollTop; page.innerHTML = body; if (!first) page.scrollTop = y;
+  document.title = `${pl.titel} – Alpengipfel`;
+  $('plback').onclick = () => showPlans();
+  if ($('plpeak')) $('plpeak').onclick = () => { explore(true); showDetail(i); };
+  if ($('pledit')) $('pledit').onclick = () => newPlan(-1, pl);
+  if ($('pldel')) $('pldel').onclick = async () => { if (!confirm(`Plan „${pl.titel}“ für alle löschen?`)) return; await sb.from('plaene').delete().eq('id', pl.id); showPlans(); };
+  if ($('plleave')) $('plleave').onclick = async () => { if (!confirm('Plan verlassen? Deine Packliste wird gelöscht.')) return; await sb.rpc('plan_entfernen', { p: pl.id, wer: me }); showPlans(); };
+  if ($('plyes')) { $('plyes').onclick = async () => { if (await planAnswer(pl.id, true)) loadPlan(false); }; $('plno').onclick = async () => { await planAnswer(pl.id, false); showPlans(); }; }
+  if ($('plshare')) $('plshare').onclick = () => openComposer(i);
+  const upd = async (id, patch) => { const x = st.items.find(z => z.id === id); Object.assign(x, patch); const { error } = await sb.from('plan_eintraege').update(patch).eq('id', id); if (error) toast('Das hat nicht geklappt.'); loadPlan(false); };
+  page.querySelectorAll('[data-tick]').forEach(c => { c.onchange = () => upd(+c.dataset.tick, { erledigt: c.checked }); });
+  page.querySelectorAll('[data-who]').forEach(c => { c.onchange = () => upd(+c.dataset.who, { user_id: c.value || null }); });
+  page.querySelectorAll('[data-rm]').forEach(b => { b.onclick = async () => { await sb.from('plan_eintraege').delete().eq('id', +b.dataset.rm); loadPlan(false); }; });
+  page.querySelectorAll('[data-kick]').forEach(b => { b.onclick = async () => { if (!confirm(`${name(b.dataset.kick)} aus der Gruppe entfernen?`)) return; await sb.rpc('plan_entfernen', { p: pl.id, wer: b.dataset.kick }); loadPlan(false); }; });
+  page.querySelectorAll('[data-tab]').forEach(b => { b.onclick = () => { st.tab = b.dataset.tab; renderPlan(false); }; });
+  page.querySelectorAll('form[data-add]').forEach(f => { f.onsubmit = async ev => { ev.preventDefault(); const t = f.querySelector('input').value.trim(); if (!t) return; const art = f.dataset.add;
+    const row2 = { plan_id: pl.id, art, text: t.slice(0, 120), pos: st.items.filter(x => x.art === art).length + 100 }; if (art === 'persoenlich') row2.user_id = me;
+    const { error } = await sb.from('plan_eintraege').insert(row2); if (error) toast('Das hat nicht geklappt.'); f.querySelector('input').value = ''; await loadPlan(false); }; });
+  if ($('plinvf')) {
+    const q = $('plinvq'), res = $('plinvres'); let tmr = 0;
+    q.oninput = () => { clearTimeout(tmr); tmr = setTimeout(async () => { const t = q.value.trim(); if (t.length < 2) { res.hidden = true; return; }
+      const { data } = await sb.rpc('nutzer_suchen', { q: t }); const list = (data || []).filter(u => !st.group.some(x => x.username.toLowerCase() === u.username.toLowerCase())).slice(0, 6);
+      res.hidden = !list.length; res.innerHTML = list.map(u => `<button type="button" data-n="${esc(u.username)}">${av(u.username, 'sm')}<b>${esc(u.username)}</b></button>`).join('');
+      res.querySelectorAll('button').forEach(b => { b.onclick = () => { q.value = b.dataset.n; res.hidden = true; $('plinvf').requestSubmit(); }; }); }, 250); };
+    $('plinvf').onsubmit = async ev => { ev.preventDefault(); const n = q.value.trim(); if (!n) return;
+      const { data, error } = await sb.rpc('plan_einladen', { p: pl.id, name: n });
+      $('plinvmsg').textContent = error ? 'Das hat nicht geklappt.' : data === 'unbekannt' ? `Niemand heißt „${n}“.` : data === 'selbst' ? 'Du bist schon dabei 😉' : data === 'voll' ? 'Die Gruppe ist voll (höchstens 20).' : `${n} ist eingeladen und bekommt eine Benachrichtigung.`;
+      if (!error && data === 'ok') { q.value = ''; loadPlan(false); } };
+  }
+  if (i >= 0 && $('plwx')) planWeather(i, pl.datum);
+}
+async function planWeather(i, datum) {                // the forecast for the tour day at the summit (up to 16 days ahead)
+  const box = $('plwx'), P = D.peaks; if (!box) return;
+  const days = datum ? Math.round((new Date(datum + 'T12:00:00') - new Date(today() + 'T12:00:00')) / 864e5) : null;
+  if (days == null || days < 0 || days > 15) { box.innerHTML = `<h3 class="h3">Wetter am Gipfel</h3><p class="note">${days == null ? 'Sobald ein Datum feststeht, siehst du hier die Vorhersage für den Tourentag.' : days < 0 ? 'Die Tour liegt in der Vergangenheit.' : 'Die Vorhersage gibt es ab etwa 16 Tagen vor der Tour.'}</p>`; return; }
+  try {
+    const u = `https://api.open-meteo.com/v1/forecast?latitude=${P.la[i]}&longitude=${P.lo[i]}${P.e[i] != null ? '&elevation=' + P.e[i] : ''}&daily=weather_code,temperature_2m_min,temperature_2m_max,precipitation_sum,precipitation_probability_max,snowfall_sum,wind_gusts_10m_max&timezone=Europe%2FBerlin&start_date=${datum}&end_date=${datum}`;
+    const d = (await (await fetch(u)).json()).daily, n0 = v => v == null ? '–' : Math.round(v);
+    if (!$('plwx')) return;
+    const warn = [d.wind_gusts_10m_max[0] >= 60 ? 'Sturmböen' : '', d.precipitation_probability_max[0] >= 60 ? 'Niederschlag wahrscheinlich' : '', d.snowfall_sum[0] >= 2 ? 'Neuschnee' : ''].filter(Boolean);
+    box.innerHTML = `<h3 class="h3">Wetter am Gipfel · ${esc(wday(datum))}</h3><div class="plwxrow"><b>${WMO[d.weather_code[0]] || '–'}</b><span>${n0(d.temperature_2m_min[0])} / ${n0(d.temperature_2m_max[0])} °C</span><span>Böen ${n0(d.wind_gusts_10m_max[0])} km/h</span><span>${n0(d.precipitation_probability_max[0])} % Regen · ${String(d.precipitation_sum[0] ?? 0).replace('.', ',')} mm</span></div>` +
+      (warn.length ? `<p class="plwarn">⚠️ ${warn.join(' · ')}</p>` : '') + `<p class="note small">Modellvorhersage von Open-Meteo für ${P.e[i] != null ? fmt.format(P.e[i]) + ' m' : 'den Gipfel'}${days > 3 ? ', so weit voraus noch unsicher' : ''}. Bitte zusätzlich den Bergwetterbericht lesen.</p>`;
+  } catch (err) { if ($('plwx')) $('plwx').innerHTML = '<h3 class="h3">Wetter am Gipfel</h3><p class="note">Die Vorhersage ist gerade nicht erreichbar.</p>'; }
+}
 /* ---------- notifications: likes, comments, followers, requests ---------- */
 async function updateBell() {
   const b = $('openbell'); if (!b) return;
@@ -1928,13 +2107,14 @@ async function openBell() {
   const what = n => {
     const t = n.text ? `„${esc(n.text.length > 70 ? n.text.slice(0, 70) + '…' : n.text)}“` : '';
     return n.art === 'like' ? `gefällt deine Tour ${t}` : n.art === 'kommentar' ? `hat deine Tour kommentiert: ${t}` : n.art === 'folgt' ? 'folgt dir jetzt'
-      : n.art === 'anfrage' ? 'möchte dir folgen' : 'hat deine Anfrage angenommen. Du siehst jetzt die Touren.';
+      : n.art === 'anfrage' ? 'möchte dir folgen' : n.art === 'plan' ? `lädt dich zur Tour ${t} ein` : n.art === 'zusage' ? `ist bei ${t} dabei` : 'hat deine Anfrage angenommen. Du siehst jetzt die Touren.';
   };
-  const icon = { like: '♥', kommentar: '💬', folgt: '👤', anfrage: '🔒', angenommen: '✓' };
+  const icon = { like: '♥', kommentar: '💬', folgt: '👤', anfrage: '🔒', angenommen: '✓', plan: '🎒', zusage: '🎒' };
   list.innerHTML = data.length ? data.map((n, k) => `<li class="${n.gelesen ? '' : 'new'}"><button type="button" class="bnitem" data-k="${k}">${av(n.username || '?', 'sm')}<span class="bntext"><b>${esc(n.username || 'Jemand')}</b> ${what(n)}<small>${icon[n.art] || ''} ${timeDe(n.created_at)}</small></span></button></li>`).join('')
     : '<li class="emptybox"><h3>Noch nichts Neues</h3><p>Hier siehst du, wenn jemand deine Touren liked oder kommentiert oder dir folgt.</p></li>';
   list.querySelectorAll('.bnitem').forEach(b => { b.onclick = () => { const n = data[+b.dataset.k]; dlg.close();
-    if (n.art === 'anfrage') { showProfile(); setTimeout(() => { const el = $('psocial'); if (el) el.scrollIntoView({ block: 'start' }); }, 600); }
+    if ((n.art === 'plan' || n.art === 'zusage') && n.plan_id) showPlan(n.plan_id);
+    else if (n.art === 'anfrage') { showProfile(); setTimeout(() => { const el = $('psocial'); if (el) el.scrollIntoView({ block: 'start' }); }, 600); }
     else if ((n.art === 'like' || n.art === 'kommentar') && n.gipfel) { const i = indexOfId(+n.gipfel); if (i >= 0) { pendingPost = n.beitrag_id; detailTab = 'routes'; explore(true); showDetail(i); } }
     else if (n.username) showUser(n.username); }; });
   if (data.some(n => !n.gelesen)) { await sb.rpc('benachrichtigungen_gelesen'); updateBell(); }
@@ -2539,7 +2719,7 @@ async function boot() {
   let legOpen = !MOBILE(); try { const v = localStorage.getItem('alpengipfel.legende'); if (v) legOpen = v === '1'; } catch (err) { /* default */ }
   const setLeg = open => { legOpen = open; $('legendbox').dataset.open = String(open); $('legtoggle').setAttribute('aria-expanded', String(open)); };
   setLeg(legOpen); $('legtoggle').onclick = () => { setLeg(!legOpen); try { localStorage.setItem('alpengipfel.legende', legOpen ? '1' : '0'); } catch (err) { /* not remembered */ } };
-  initSheet(); $('navexp').addEventListener('click', () => explore()); $('openprofile').addEventListener('click', () => showProfile()); $('navfeed').addEventListener('click', () => showFeed());
+  initSheet(); $('navexp').addEventListener('click', () => explore()); $('openprofile').addEventListener('click', () => showProfile()); $('navfeed').addEventListener('click', () => showFeed()); $('navplan').addEventListener('click', () => showPlans());
   $('v3close').addEventListener('click', close3d);
   $('huts').checked = showHuts;
   $('huts').addEventListener('change', () => { showHuts = $('huts').checked; try { localStorage.setItem('alpengipfel.huts', showHuts ? '1' : '0'); } catch (err) { /* not remembered */ } if (map) map.closePopup(); if (peakLayer) peakLayer.redraw(); });
