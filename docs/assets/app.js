@@ -1997,7 +1997,7 @@ function newPlan(i0, edit) {                            // create (or edit) a pl
     if (row.titel.length < 3) { $('plmsg').textContent = 'Bitte gib der Tour einen Namen.'; btn.disabled = false; return; }
     if (edit) { const { error } = await sb.from('plaene').update(row).eq('id', edit.id); btn.disabled = false; if (error) { $('plmsg').textContent = 'Das hat nicht geklappt.'; return; } dlg.close(); showPlan(edit.id, true); return; }
     const { data, error } = await sb.from('plaene').insert(row).select('id').single();
-    if (error) { $('plmsg').textContent = /plaene|relation/.test(error.message || '') ? 'Das Planen wird gerade eingerichtet. Versuch es gleich noch einmal.' : 'Das hat nicht geklappt.'; btn.disabled = false; return; }
+    if (error) { console.warn('Plan anlegen:', error); $('plmsg').textContent = /does not exist|relation/.test(error.message || '') ? 'Das Planen wird gerade eingerichtet. Versuch es gleich noch einmal.' : 'Der Plan konnte nicht angelegt werden. Bitte versuch es noch einmal.'; btn.disabled = false; return; }
     const items = [...tplCat(PACK, row.art).map(([c, t], k) => ({ plan_id: data.id, art: 'persoenlich', user_id: sbUser.id, kategorie: c, text: t, pos: k })),
       ...tplCat(GROUPGEAR, row.art).map(([c, t], k) => ({ plan_id: data.id, art: 'gruppe', kategorie: c, text: t, pos: k })), ...tpl(CHECKS, row.art).map((t, k) => ({ plan_id: data.id, art: 'check', text: t, pos: k }))];
     await sb.from('plan_eintraege').insert(items);

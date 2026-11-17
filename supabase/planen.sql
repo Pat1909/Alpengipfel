@@ -57,7 +57,7 @@ drop policy if exists "Pläne lesen" on public.plaene;
 drop policy if exists "Pläne anlegen" on public.plaene;
 drop policy if exists "Pläne ändern" on public.plaene;
 drop policy if exists "Pläne löschen" on public.plaene;
-create policy "Pläne lesen" on public.plaene for select to authenticated using (public.plan_mitglied(id));
+create policy "Pläne lesen" on public.plaene for select to authenticated using (owner = (select auth.uid()) or public.plan_mitglied(id));
 create policy "Pläne anlegen" on public.plaene for insert to authenticated with check ((select auth.uid()) = owner);
 create policy "Pläne ändern" on public.plaene for update to authenticated using ((select auth.uid()) = owner) with check ((select auth.uid()) = owner);
 create policy "Pläne löschen" on public.plaene for delete to authenticated using ((select auth.uid()) = owner);
