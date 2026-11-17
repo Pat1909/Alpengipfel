@@ -983,7 +983,7 @@ async function renderUser(name) {
   page.firstChild.innerHTML = `<div class="phead">${av(u.username, 'avatar')}<div><h2>${esc(u.username)}${u.privat ? ' <span class="lock" title="Privates Profil">🔒</span>' : ''}</h2><p class="note">dabei seit ${new Date(u.seit).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}</p></div>` +
     (me ? `<button type="button" class="onmap" id="umine">Mein Konto</button>` : `<button type="button" class="primary ufollow" id="ufollow" aria-pressed="${!!status}">${label()}</button>`) + `</div>` +
     `<div class="pstats unums">${nums.map(([l, v], k) => `<div><span class="lab">${l}</span><b id="un${k}">${fmt.format(v)}</b></div>`).join('')}</div><p class="note small" id="umsg" role="status"></p>` +
-    ((u.abzeichen || []).length ? `<section><h3 class="h3">Auszeichnungen <span class="badge">${u.abzeichen.length}</span></h3>${awardsHtml(u.abzeichen.map(awardInfo).filter(Boolean), true)}</section>` : '') +
+    ((u.abzeichen || []).length ? awardsFold('user', 'Auszeichnungen', u.abzeichen.map(awardInfo).filter(Boolean), awardsHtml(u.abzeichen.map(awardInfo).filter(Boolean), true)) : '') +
     (canSee ? `<section><h3 class="h3">Geteilte Touren</h3><ul class="asc posts" id="ulist"><li class="note">Touren werden geladen …</li></ul><div id="umore"></div></section>`
       : `<div class="emptybox lockbox"><h3>🔒 Dieses Profil ist privat</h3><p id="ulock"></p></div>`);
   const lockText = () => { if ($('ulock')) $('ulock').textContent = status === 'angefragt' ? `Deine Anfrage ist gestellt. Sobald ${u.username} sie annimmt, siehst du die geteilten Touren.` : `Folge ${u.username}, um die geteilten Touren zu sehen. ${u.username} muss deine Anfrage erst annehmen.`; };
@@ -1236,7 +1236,7 @@ function startHtml(d) {
 // summit picture from Wikimedia Commons (the Wikidata image of the summit), with author and licence as Commons requires
 const bannerCache = new Map();
 async function loadBanner(i, file) {
-  const fig = $('dbanner'); if (!fig) return;
+  const fig = $('dhero'); if (!fig || !$('dbimg')) return;
   try {
     let info = bannerCache.get(file);
     if (!info) {
@@ -1247,10 +1247,10 @@ async function loadBanner(i, file) {
       info = { src: ii.thumburl || ii.url, page: ii.descriptionurl, artist: txt(m.Artist && m.Artist.value).slice(0, 60), lic: txt(m.LicenseShortName && m.LicenseShortName.value), licUrl: m.LicenseUrl ? m.LicenseUrl.value : '' };
       bannerCache.set(file, info);
     }
-    if (selected !== i || !$('dbanner')) return;
-    const img = $('dbimg'); img.onload = () => fig.classList.add('on'); img.onerror = () => fig.remove(); img.src = info.src;
+    if (selected !== i || !$('dbimg')) return;
+    const img = $('dbimg'); img.onload = () => fig.classList.add('img'); img.onerror = () => img.remove(); img.src = info.src;
     $('dbcap').innerHTML = `Foto: <a href="${esc(info.page)}" target="_blank" rel="noopener">${esc(info.artist || 'Wikimedia Commons')}</a>` + (info.lic ? ` · ${info.licUrl ? `<a href="${esc(info.licUrl)}" target="_blank" rel="noopener">${esc(info.lic)}</a>` : esc(info.lic)}` : '');
-  } catch (err) { if ($('dbanner')) $('dbanner').remove(); }
+  } catch (err) { if ($('dbimg')) $('dbimg').remove(); }
 }
 function showDetail(i, fromMap, noPush) {
   count('gipfel:' + D.peaks.id[i]);
@@ -1295,11 +1295,11 @@ function renderDetail(i, fromMap, d) {
   const el = $('detail'), nR = (d.rt || []).length + (d.ap || []).length + (d.cc || []).length, nS = (d.pk || []).length + (d.st || []).length;
   const tabs = [['over', 'Übersicht', ''], ['routes', 'Routen', HOSTED ? '' : nR || ''], ['wx', 'Wetter', ''], ['go', 'Anfahrt', nS || '']];
   el.innerHTML =
+    `<div class="dhero" id="dhero">${d.im && HOSTED ? `<img class="dhimg" id="dbimg" alt="" aria-hidden="true"><span class="dhcap" id="dbcap"></span>` : ''}` +
     `<div class="dtop"><button class="back" id="back" type="button">← Zur Liste</button>${HOSTED ? `<button type="button" class="sharebtn" id="share2" aria-label="${esc(P.n[i])} teilen">${SHARE_ICON}<span>Teilen</span></button>` : ''}</div>` +
-    (d.im && HOSTED ? `<figure class="dbanner" id="dbanner"><img id="dbimg" alt="Foto: ${esc(P.n[i])}"><figcaption id="dbcap"></figcaption></figure>` : '') +
     `<div><h2>${esc(P.n[i])}</h2>${P.an[i] ? `<div class="alt">auch: ${esc(P.an[i])}</div>` : ''}</div>` +
     `<div class="summit"><span class="big">${e == null ? '–' : fmt.format(e)}</span><span class="unit">m Höhe</span>` +
-    (e != null ? `<span class="rank">Rang ${fmt.format(rankByEle[i])}<br>von ${fmt.format(N)} Gipfeln</span>` : `<span class="rank">Höhe in OpenStreetMap<br>nicht eingetragen</span>`) + `</div>` +
+    (e != null ? `<span class="rank">Rang ${fmt.format(rankByEle[i])}<br>von ${fmt.format(N)} Gipfeln</span>` : `<span class="rank">Höhe in OpenStreetMap<br>nicht eingetragen</span>`) + `</div></div>` +
     `<button type="button" class="wxnow" id="wxnow"><span class="lab">Heute am Gipfel</span><span id="wxnowt">Wetter wird geladen …</span></button>` +
     `<div class="dtabs" role="tablist" aria-label="Angaben zum Gipfel">${tabs.map(([k, t, n]) => `<button type="button" role="tab" id="dt-${k}" aria-controls="dp-${k}" data-k="${k}">${t}${n ? `<span>${n}</span>` : ''}</button>`).join('')}</div>` +
     `<section class="dpanel" role="tabpanel" id="dp-over" aria-labelledby="dt-over">` +
@@ -1334,7 +1334,7 @@ function renderDetail(i, fromMap, d) {
   loadWeather(i);
   $('back').onclick = () => closeDetail();
   renderBookRow(i);
-  if (d.im && $('dbanner')) loadBanner(i, d.im);
+  if (d.im && $('dbimg')) loadBanner(i, d.im);
   if ($('show3d')) $('show3d').onclick = () => open3d(i);
   ['share', 'share2'].forEach(id => { if ($(id)) $(id).onclick = () => sharePeak(i); });
   $('zoomto').onclick = () => { close3d(); setView('map'); centerOn(la, lo, Math.max(map.getZoom(), 13)); };
@@ -1713,7 +1713,7 @@ function renderProfile() {
   } else headHtml = `<div class="phead"><div class="avatar" aria-hidden="true">?</div><div><h2>Profil</h2><p class="note">${sb ? 'Du bist nicht angemeldet. Dein Gipfelbuch liegt nur in diesem Browser.' : 'Konten gibt es nur auf alpen-gipfel.de. Hier liegt dein Gipfelbuch in diesem Browser.'}</p></div></div>`;
   const myAw = empty ? [] : computeAwards().got.map(awardInfo).filter(Boolean);
   page.innerHTML = `<div class="home profile">${headHtml}<section><h3 class="h3">Deine Gipfel</h3>${stats}${actions}</section>` +
-    (myAw.length ? `<section><h3 class="h3">Deine Auszeichnungen <span class="badge">${myAw.length}</span></h3>${awardsHtml(myAw, true)}<div class="links"><button type="button" id="pawall">Alle im Gipfelbuch ansehen</button></div></section>` : '') + `${sbUser && social ? '<section id="psocial"></section>' : ''}<section class="pacct">${accountHtml()}</section>${sbUser ? '<section id="pstatsadmin"></section>' : ''}${theme}</div>`;
+    (myAw.length ? awardsFold('profile', 'Deine Auszeichnungen', myAw, awardsHtml(myAw, true) + `<div class="links"><button type="button" id="pawall">Alle im Gipfelbuch ansehen</button></div>`) : '') + `${sbUser && social ? '<section id="psocial"></section>' : ''}<section class="pacct">${accountHtml()}</section>${sbUser ? '<section id="pstatsadmin"></section>' : ''}${theme}</div>`;
   $('pbook').onclick = showBook; if ($('pawall')) $('pawall').onclick = showBook;
   if ($('mypublic')) $('mypublic').onclick = () => showUser(sbUser.user_metadata.username);
   if ($('avbtn')) { $('avbtn').onclick = () => $('avfile').click(); $('avfile').onchange = ev => { const f = ev.target.files[0]; ev.target.value = ''; if (f) setAvatar(f); }; }
@@ -2148,6 +2148,11 @@ function awardsHtml(list, compact) {                  // list of { icon, name, d
   return `<ul class="awards${compact ? ' compact' : ''}">` + list.map(a => `<li class="aw${a.need ? ' lock' : ''}" title="${esc(a.desc)}"><span class="awi" aria-hidden="true">${a.icon}</span><span class="awt"><b>${esc(a.name)}</b>` +
     (compact ? '' : `<small>${esc(a.desc)}</small>`) + (a.need ? `<span class="awbar"><i style="width:${Math.min(100, a.have / a.need * 100)}%"></i></span><small>${fmt.format(a.have)} von ${fmt.format(a.need)}</small>` : '') + `</span></li>`).join('') + '</ul>';
 }
+// awards fold away; the summary shows the count and the first icons, the open state is remembered per place
+const awOpen = k => { try { return localStorage.getItem('alpengipfel.awards.' + k) === '1'; } catch (err) { return false; } };
+const awardsFold = (key, title, list, body) => `<details class="awsec awdet" data-awk="${key}"${awOpen(key) ? ' open' : ''}><summary><span class="awsum"><span class="h3">${title}</span><span class="badge">${list.length}</span>` +
+  `<span class="awprev" aria-hidden="true">${list.slice(0, 7).map(a => `<i>${a.icon}</i>`).join('')}${list.length > 7 ? '<i class="more">…</i>' : ''}</span></span><span class="chev" aria-hidden="true"></span></summary><div class="awbody">${body}</div></details>`;
+document.addEventListener('toggle', ev => { const d = ev.target; if (d.dataset && d.dataset.awk) try { localStorage.setItem('alpengipfel.awards.' + d.dataset.awk, d.open ? '1' : '0'); } catch (err) { /* not remembered */ } }, true);
 function checkNewAwards() {                          // after a change in the Gipfelbuch: announce new awards, store them on the profile
   const { got } = computeAwards(), now = new Set(got);
   if (awardsKnown) { const fresh = got.filter(x => !awardsKnown.has(x)).map(awardInfo).filter(Boolean); if (fresh.length) toast(`🏅 Neue Auszeichnung: ${fresh.map(a => a.name).slice(0, 2).join(', ')}${fresh.length > 2 ? ' …' : ''}`); }
@@ -2186,7 +2191,7 @@ function showBook() {
       : `<p class="note">Noch kein Eintrag. Öffne einen Gipfel und wähle „Als bestiegen eintragen“ oder „Auf die Wunschliste“.</p>`) +
     `<div class="prog">${BANDS.map((b, k) => `<div><span>${b[3]} m</span><span class="bar"><i style="width:${total[k] ? Math.max(got[k] ? 2 : 0, got[k] / total[k] * 100) : 0}%;background:var(${b[2]})"></i></span><span>${fmt.format(got[k])} von ${fmt.format(total[k])}</span></div>`).join('')}</div>` +
     (doneIdx.length ? (() => { const a = computeAwards(), got = a.got.map(awardInfo).filter(Boolean), nx = a.next.slice().sort((x, y) => y.have / y.need - x.have / x.need).slice(0, 4).map(x => ({ ...awardInfo(x.id), have: x.have, need: x.need }));
-      return `<section class="awsec"><h3 class="h3">Auszeichnungen <span class="badge">${got.length}</span></h3>${awardsHtml(got, false)}${nx.length ? `<h3 class="h3">Als Nächstes</h3>${awardsHtml(nx, false)}` : ''}</section>`; })() : '') +
+      return awardsFold('book', 'Auszeichnungen', got, awardsHtml(got, false) + (nx.length ? `<h3 class="h3">Als Nächstes</h3>${awardsHtml(nx, false)}` : '')); })() : '') +
     (doneIdx.length ? `<section class="bklist"><div class="bkhead"><h3 class="h3">Deine Gipfel</h3><div class="seg3 bksort" role="tablist" aria-label="Sortierung">${[['date', 'Zuletzt'], ['ele', 'Höchste'], ['count', 'Am häufigsten']].map(([v, t]) => `<button type="button" role="tab" data-bs="${v}" aria-selected="${v === bookSort}">${t}</button>`).join('')}</div></div><ul class="bkcards" id="bkcards"></ul><div id="bkmore"></div></section>` : '')) +
     `<div class="links">${empty ? '' : '<button type="button" id="bshowdone">Bestiegene in der Liste zeigen</button><button type="button" id="bshowwish">Wunschliste zeigen</button>'}` +
     (HOSTED ? `<button type="button" id="bexport">Sichern (Datei)</button><button type="button" id="bimport">Wiederherstellen</button><input type="file" id="bfile" accept="application/json,.json" hidden>` : '') + `</div>` +
