@@ -1911,13 +1911,23 @@ function initAccount() {
   });
 }
 /* ---------- Planen: a tour with date and summit, a group, everyone's packing list, group gear and a checklist ---------- */
+const CATS = ['Kleidung', 'Essen & Trinken', 'Ausrüstung', 'Sicherheit & Gesundheit', 'Sonstiges'];
+// packing list templates: category -> items, the base list plus extras for each kind of tour (0 Wandern, 1 Hochalpin, 2 Klettersteig, 3 Skitour)
 const PACK = {
-  base: ['Rucksack', 'Feste Bergschuhe', 'Regenjacke', 'Warme Schicht (Fleece oder Daune)', 'Mütze und Handschuhe', 'Sonnenbrille', 'Sonnencreme', 'Trinkflasche (mind. 1,5 l)', 'Proviant', 'Handy geladen + Powerbank', 'Ausweis und Geld', 'Persönliche Medikamente', 'Blasenpflaster'],
-  0: ['Wanderstöcke'], 1: ['Helm', 'Klettergurt', 'Steigeisen', 'Pickel', 'Stirnlampe', 'Gletscherbrille'], 2: ['Helm', 'Klettergurt', 'Klettersteigset', 'Klettersteighandschuhe'],
-  3: ['Tourenski mit Fellen', 'Skitourenschuhe', 'LVS-Gerät', 'Schaufel', 'Sonde', 'Helm', 'Skibrille'] };
-const GROUPGEAR = { base: ['Erste-Hilfe-Set', 'Rettungsdecke / Biwaksack', 'Route offline auf dem Handy oder Karte'], 0: [], 1: ['Seil', 'Bandschlingen und Karabiner'], 2: [], 3: ['Reparaturset für Ski und Felle'] };
-const CHECKS = { base: ['Wetterbericht geprüft', 'Route und Gehzeit besprochen', 'Umkehrzeit festgelegt', 'Hütte / Einkehr geklärt (Öffnungszeiten, Reservierung)', 'Anfahrt, Parkplatz oder Öffis geklärt', 'Jemandem Bescheid gesagt, wohin es geht', 'Notrufnummern gespeichert (112, Bergrettung)'],
+  base: { 'Kleidung': ['Feste Bergschuhe', 'Funktionsshirt + Wechselshirt', 'Wanderhose', 'Warme Schicht (Fleece oder Daune)', 'Regenjacke', 'Mütze', 'Handschuhe', 'Wandersocken (+ Ersatzpaar)', 'Sonnenhut oder Kappe'],
+    'Essen & Trinken': ['Trinkflasche / Trinkblase (mind. 1,5 l)', 'Brotzeit / Proviant', 'Riegel, Nüsse oder Trockenobst', 'Elektrolyte für heiße Tage'],
+    'Ausrüstung': ['Rucksack'],
+    'Sicherheit & Gesundheit': ['Sonnenbrille', 'Sonnencreme und Lippenschutz', 'Persönliche Medikamente', 'Blasenpflaster'],
+    'Sonstiges': ['Handy geladen + Powerbank', 'Ausweis, Geld / Hüttengeld', 'Alpenvereinsausweis', 'Taschentücher', 'Müllbeutel'] },
+  0: { 'Ausrüstung': ['Wanderstöcke'] },
+  1: { 'Kleidung': ['Regenhose', 'Gamaschen', 'Dicke Handschuhe'], 'Essen & Trinken': ['Thermoskanne mit Tee'], 'Ausrüstung': ['Helm', 'Klettergurt', 'Steigeisen', 'Pickel', 'Wanderstöcke'], 'Sicherheit & Gesundheit': ['Stirnlampe', 'Gletscherbrille'] },
+  2: { 'Kleidung': ['Klettersteighandschuhe'], 'Ausrüstung': ['Helm', 'Klettergurt', 'Klettersteigset'], 'Sicherheit & Gesundheit': ['Stirnlampe'] },
+  3: { 'Kleidung': ['Skitourenhose', 'Daunenjacke für den Gipfel', 'Zweites Paar Handschuhe'], 'Essen & Trinken': ['Thermoskanne mit Tee'], 'Ausrüstung': ['Tourenski mit Fellen', 'Skitourenschuhe', 'Harscheisen', 'Skistöcke', 'Helm', 'Skibrille'], 'Sicherheit & Gesundheit': ['LVS-Gerät', 'Schaufel', 'Sonde', 'Stirnlampe'] } };
+const GROUPGEAR = { base: { 'Sicherheit & Gesundheit': ['Erste-Hilfe-Set', 'Rettungsdecke / Biwaksack'], 'Ausrüstung': ['Route offline auf dem Handy oder Karte'], 'Essen & Trinken': ['Gemeinsame Gipfelbrotzeit'] },
+  0: {}, 1: { 'Ausrüstung': ['Seil', 'Bandschlingen und Karabiner'] }, 2: {}, 3: { 'Ausrüstung': ['Reparaturset für Ski und Felle'] } };
+const CHECKS = { base: ['Wetterbericht geprüft', 'Route und Gehzeit besprochen', 'Umkehrzeit festgelegt', 'Hütte / Einkehr geklärt (Öffnungszeiten, Reservierung)', 'Anfahrt, Parkplatz oder Öffis geklärt', 'Jemandem Bescheid gesagt, wohin es geht', 'Notrufnummern gespeichert (112, Bergrettung)', 'Alle haben ihre Packliste abgehakt'],
   0: [], 1: ['Verhältnisse am Gletscher geklärt'], 2: ['Klettersteig offen und Schwierigkeit passt für alle'], 3: ['Lawinenlagebericht geprüft', 'LVS-Check vor dem Start'] };
+const tplCat = (T, art) => { const out = []; for (const c of CATS) { const seen = new Set(); [...((T.base || {})[c] || []), ...((T[art] || {})[c] || [])].forEach(t => { if (!seen.has(t)) { seen.add(t); out.push([c, t]); } }); } return out; };
 const tpl = (T, art) => [...T.base, ...(T[art] || [])].filter((x, k, a) => a.indexOf(x) === k);
 let planState = null, planTimer = 0;
 const wday = s => s ? new Date(s + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'Datum noch offen';
@@ -1956,7 +1966,7 @@ async function planAnswer(id, yes) {
   if (yes) {                                            // your own packing list starts from the template of the tour kind
     const { data: pl } = await sb.from('plaene').select('art').eq('id', id).single();
     const { data: mine } = await sb.from('plan_eintraege').select('id').eq('plan_id', id).eq('art', 'persoenlich').eq('user_id', sbUser.id).limit(1);
-    if (pl && !(mine || []).length) await sb.from('plan_eintraege').insert(tpl(PACK, pl.art).map((t, k) => ({ plan_id: id, art: 'persoenlich', user_id: sbUser.id, text: t, pos: k })));
+    if (pl && !(mine || []).length) await sb.from('plan_eintraege').insert(tplCat(PACK, pl.art).map(([c, t], k) => ({ plan_id: id, art: 'persoenlich', user_id: sbUser.id, kategorie: c, text: t, pos: k })));
     toast('Du bist dabei 🎒');
   }
   return true;
@@ -1988,8 +1998,8 @@ function newPlan(i0, edit) {                            // create (or edit) a pl
     if (edit) { const { error } = await sb.from('plaene').update(row).eq('id', edit.id); btn.disabled = false; if (error) { $('plmsg').textContent = 'Das hat nicht geklappt.'; return; } dlg.close(); showPlan(edit.id, true); return; }
     const { data, error } = await sb.from('plaene').insert(row).select('id').single();
     if (error) { $('plmsg').textContent = /plaene|relation/.test(error.message || '') ? 'Das Planen wird gerade eingerichtet. Versuch es gleich noch einmal.' : 'Das hat nicht geklappt.'; btn.disabled = false; return; }
-    const items = [...tpl(PACK, row.art).map((t, k) => ({ plan_id: data.id, art: 'persoenlich', user_id: sbUser.id, text: t, pos: k })),
-      ...tpl(GROUPGEAR, row.art).map((t, k) => ({ plan_id: data.id, art: 'gruppe', text: t, pos: k })), ...tpl(CHECKS, row.art).map((t, k) => ({ plan_id: data.id, art: 'check', text: t, pos: k }))];
+    const items = [...tplCat(PACK, row.art).map(([c, t], k) => ({ plan_id: data.id, art: 'persoenlich', user_id: sbUser.id, kategorie: c, text: t, pos: k })),
+      ...tplCat(GROUPGEAR, row.art).map(([c, t], k) => ({ plan_id: data.id, art: 'gruppe', kategorie: c, text: t, pos: k })), ...tpl(CHECKS, row.art).map((t, k) => ({ plan_id: data.id, art: 'check', text: t, pos: k }))];
     await sb.from('plan_eintraege').insert(items);
     dlg.close(); count('plan-angelegt'); showPlan(data.id);
   };
@@ -2021,7 +2031,10 @@ function renderPlan(first) {
   const prog = list => list.length ? `<span class="plprog"><i style="width:${Math.round(list.filter(x => x.erledigt).length / list.length * 100)}%"></i></span><small>${list.filter(x => x.erledigt).length} von ${list.length}</small>` : '';
   const row = (x, canEdit, extra = '') => `<li class="${x.erledigt ? 'done' : ''}"><label class="plchk"><input type="checkbox" data-tick="${x.id}"${x.erledigt ? ' checked' : ''}${canEdit ? '' : ' disabled'}><span>${esc(x.text)}</span></label>` +
     `${x.erledigt && x.erledigt_von && x.art !== 'persoenlich' ? `<small class="who">✓ ${esc(name(x.erledigt_von))}</small>` : ''}${extra}${canEdit ? `<button type="button" class="plrm" data-rm="${x.id}" aria-label="${esc(x.text)} entfernen">×</button>` : ''}</li>`;
-  const addForm = (art, ph) => `<form class="pladd" data-add="${art}"><input maxlength="120" placeholder="${ph}" aria-label="${ph}"><button type="submit" class="onmap">＋</button></form>`;
+  const addForm = (art, ph, cats) => `<form class="pladd" data-add="${art}">${cats ? `<select class="plcat" aria-label="Kategorie">${CATS.map(c => `<option${c === (st.lastCat || 'Sonstiges') ? ' selected' : ''}>${c}</option>`).join('')}</select>` : ''}<input maxlength="120" placeholder="${ph}" aria-label="${ph}"><button type="submit" class="onmap">＋</button></form>`;
+  const grouped = (list, fn) => { const by = c => list.filter(x => (CATS.includes(x.kategorie) ? x.kategorie : 'Sonstiges') === c);
+    return CATS.map(c => { const l = by(c); if (!l.length) return ''; const d = l.filter(x => x.erledigt).length;
+      return `<li class="plcathead"><b>${c}</b><small>${d} / ${l.length}</small></li>` + l.map(fn).join(''); }).join(''); };
   const past = pl.datum && pl.datum < today();
   const tab = st.tab, tabList = pers(tab), mine = tab === me;
   const gear = items('gruppe'), checks = items('check');
@@ -2037,10 +2050,10 @@ function renderPlan(first) {
         (owner && !x.besitzer ? `<button type="button" class="plrm" data-kick="${x.user_id}" aria-label="${esc(x.username)} entfernen">×</button>` : '') + `</li>`; }).join('')}</ul>` +
     (owner ? `<form class="pladd plinvf" id="plinvf"><div class="hsearch"><input id="plinvq" autocomplete="off" maxlength="20" placeholder="Freund per Benutzername einladen" aria-label="Benutzername"><div class="hres" id="plinvres" hidden></div></div><button type="submit" class="primary sharetour">Einladen</button></form><p class="note small" id="plinvmsg" role="status"></p>` : '') + `</section>` +
     `<section><div class="plsec"><h3 class="h3">Checkliste</h3>${prog(checks)}</div><ul class="plitems">${checks.map(x => row(x, !invited)).join('')}</ul>${invited ? '' : addForm('check', 'Punkt hinzufügen, z. B. Bahn-Tickets gekauft')}</section>` +
-    `<section><div class="plsec"><h3 class="h3">Für die ganze Gruppe</h3>${prog(gear)}</div><ul class="plitems">${gear.map(x => row(x, !invited,
-      `<select class="plwho" data-who="${x.id}"${invited ? ' disabled' : ''} aria-label="Wer bringt es mit?"><option value="">Wer bringt's mit?</option>${st.group.filter(y => y.status !== 'eingeladen').map(y => `<option value="${y.user_id}"${y.user_id === x.user_id ? ' selected' : ''}>${esc(y.username)}</option>`).join('')}</select>`)).join('')}</ul>${invited ? '' : addForm('gruppe', 'Gemeinsamer Gegenstand, z. B. Seil')}</section>` +
+    `<section><div class="plsec"><h3 class="h3">Für die ganze Gruppe</h3>${prog(gear)}</div><ul class="plitems">${grouped(gear, x => row(x, !invited,
+      `<select class="plwho" data-who="${x.id}"${invited ? ' disabled' : ''} aria-label="Wer bringt es mit?"><option value="">Wer bringt's mit?</option>${st.group.filter(y => y.status !== 'eingeladen').map(y => `<option value="${y.user_id}"${y.user_id === x.user_id ? ' selected' : ''}>${esc(y.username)}</option>`).join('')}</select>`))}</ul>${invited ? '' : addForm('gruppe', 'Gemeinsamer Gegenstand, z. B. Seil', true)}</section>` +
     `<section><div class="plsec"><h3 class="h3">Packlisten</h3></div><div class="seg3 pltabs" role="tablist">${st.group.filter(x => x.status !== 'eingeladen').map(x => `<button type="button" role="tab" data-tab="${x.user_id}" aria-selected="${x.user_id === tab}">${x.user_id === me ? 'Ich' : esc(x.username)}</button>`).join('')}</div>` +
-    `<div class="plsec sub">${prog(tabList)}</div><ul class="plitems">${tabList.map(x => row(x, mine)).join('') || `<li class="note">${mine ? 'Noch nichts auf deiner Liste.' : 'Noch keine Packliste.'}</li>`}</ul>${mine && !invited ? addForm('persoenlich', 'Eigenen Gegenstand hinzufügen') : ''}</section>` +
+    `<div class="plsec sub">${prog(tabList)}</div><ul class="plitems">${grouped(tabList, x => row(x, mine)) || `<li class="note">${mine ? 'Noch nichts auf deiner Liste.' : 'Noch keine Packliste.'}</li>`}</ul>${mine && !invited ? addForm('persoenlich', 'Eigenen Gegenstand hinzufügen', true) : ''}</section>` +
     (past && i >= 0 ? `<section class="plafter"><h3 class="h3">Wie war's?</h3><p class="note">Teile die Tour mit Fotos und Track. Erreichte Gipfel kommen ins Gipfelbuch.</p><div class="links"><button type="button" class="primary sharetour" id="plshare">Tour teilen</button></div></section>` : '') + `</div>`;
   const y = page.scrollTop; page.innerHTML = body; if (!first) page.scrollTop = y;
   document.title = `${pl.titel} – Alpengipfel`;
@@ -2059,6 +2072,7 @@ function renderPlan(first) {
   page.querySelectorAll('[data-tab]').forEach(b => { b.onclick = () => { st.tab = b.dataset.tab; renderPlan(false); }; });
   page.querySelectorAll('form[data-add]').forEach(f => { f.onsubmit = async ev => { ev.preventDefault(); const t = f.querySelector('input').value.trim(); if (!t) return; const art = f.dataset.add;
     const row2 = { plan_id: pl.id, art, text: t.slice(0, 120), pos: st.items.filter(x => x.art === art).length + 100 }; if (art === 'persoenlich') row2.user_id = me;
+    if (f.querySelector('.plcat')) { row2.kategorie = f.querySelector('.plcat').value; st.lastCat = row2.kategorie; }
     const { error } = await sb.from('plan_eintraege').insert(row2); if (error) toast('Das hat nicht geklappt.'); f.querySelector('input').value = ''; await loadPlan(false); }; });
   if ($('plinvf')) {
     const q = $('plinvq'), res = $('plinvres'); let tmr = 0;

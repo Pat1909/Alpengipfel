@@ -39,6 +39,7 @@ create table if not exists public.plan_eintraege (
   created_at timestamptz not null default now()
 );
 create index if not exists plan_eintraege_plan on public.plan_eintraege (plan_id, art, pos);
+alter table public.plan_eintraege add column if not exists kategorie text not null default '' check (char_length(kategorie) <= 30);   -- Kleidung, Essen & Trinken, …
 
 -- Wer gehört zum Plan? (Besitzer oder eingeladen/zugesagt)
 create or replace function public.plan_mitglied(p uuid) returns boolean
@@ -82,8 +83,8 @@ create policy "Einträge ändern" on public.plan_eintraege for update to authent
 create policy "Einträge löschen" on public.plan_eintraege for delete to authenticated
   using (public.plan_mitglied(plan_id) and (art <> 'persoenlich' or user_id = (select auth.uid())));
 grant select, delete on public.plan_eintraege to authenticated;
-grant insert (plan_id, art, user_id, text, erledigt, pos) on public.plan_eintraege to authenticated;
-grant update (user_id, text, erledigt, pos) on public.plan_eintraege to authenticated;
+grant insert (plan_id, art, user_id, text, erledigt, pos, kategorie) on public.plan_eintraege to authenticated;
+grant update (user_id, text, erledigt, pos, kategorie) on public.plan_eintraege to authenticated;
 
 -- Wer etwas abhakt, wird vermerkt; höchstens 300 Einträge je Plan
 create or replace function public.plan_eintrag_pruefen() returns trigger

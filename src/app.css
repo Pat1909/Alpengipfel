@@ -786,3 +786,9 @@ ul.plans.past { opacity: .75; }
 .pltabs button { padding: 6px 12px; }
 .plafter { border-top: 3px solid var(--relief); padding-top: 12px; }
 @media (max-width: 760px) { .nav button span { font-size: 10.5px; } }
+
+.plitems li.plcathead { background: var(--hover); padding: 5px 10px; display: flex; justify-content: space-between; }
+.plitems li.plcathead b { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.plitems li.plcathead small { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.plcat { font: inherit; font-size: 14px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 6px; background: var(--surface); color: var(--ink); max-width: 150px; }
+@media (max-width: 520px) { .pladd { flex-wrap: wrap; } .pladd .plcat { max-width: none; flex-basis: 100%; } }
