@@ -663,8 +663,20 @@ function postFacts(x) {
   const f = [x.km ? `${n1(x.km)} km` : '', x.up != null ? `↑ ${fmt.format(x.up)} Hm` : '', x.down > 30 ? `↓ ${fmt.format(x.down)} Hm` : '', x.dauer ? hm(x.dauer / 60) + ' Gehzeit' : ''].filter(Boolean);
   return f.length ? `<span class="ascfacts">${f.map(t => `<span>${t}</span>`).join('')}</span>` : '';
 }
+// profile pictures: every avatar is drawn as a letter with data-av=name; a watcher swaps in the picture once known
+const avatars = new Map();                           // lower-case user name -> picture path or ''
+const av = (name, cls = '') => `<span class="pav ${cls}" aria-hidden="true" data-av="${esc(name || '')}">${avatars.get((name || '').toLowerCase()) ? `<img src="${fotoUrl(avatars.get((name || '').toLowerCase()))}" alt="">` : esc((name || '?').slice(0, 1).toUpperCase())}</span>`;
+let avTimer = 0;
+async function fillAvatars() {
+  if (!sb || !social) return;
+  const els = [...document.querySelectorAll('[data-av]')], want = [...new Set(els.map(e => e.dataset.av.toLowerCase()).filter(n => n && !avatars.has(n)))];
+  if (want.length) { want.forEach(n => avatars.set(n, ''));
+    const { data } = await sb.rpc('profilbilder', { namen: want.slice(0, 300) }); (data || []).forEach(r => avatars.set(r.username.toLowerCase(), r.bild || '')); }
+  document.querySelectorAll('[data-av]').forEach(e => { const p = avatars.get(e.dataset.av.toLowerCase()); if (p && !e.querySelector('img')) e.innerHTML = `<img src="${fotoUrl(p)}" alt="" loading="lazy">`; });
+}
+new MutationObserver(() => { clearTimeout(avTimer); avTimer = setTimeout(fillAvatars, 60); }).observe(document.documentElement, { childList: true, subtree: true });
 function postHead(x) {
-  return `<div class="phd"><span class="pav" aria-hidden="true">${esc((x.autor || '?').slice(0, 1).toUpperCase())}</span><div>${x.autor ? `<a class="puser" href="${ROOT}#nutzer/${encodeURIComponent(x.autor)}" data-user="${esc(x.autor)}">${esc(x.autor)}</a>` : '<b>Bergfreund</b>'}<small>${dateDe(x.datum)}</small></div><span class="kb k${x.cat}">${KINDS[x.cat]}</span></div>` +
+  return `<div class="phd">${av(x.autor)}<div>${x.autor ? `<a class="puser" href="${ROOT}#nutzer/${encodeURIComponent(x.autor)}" data-user="${esc(x.autor)}">${esc(x.autor)}</a>` : '<b>Bergfreund</b>'}<small>${dateDe(x.datum)}</small></div><span class="kb k${x.cat}">${KINDS[x.cat]}</span></div>` +
     `<h3 class="ptitle">${esc(x.name)}</h3>` + postFacts(x);
 }
 function wirePosts(box, items) {
@@ -779,6 +791,24 @@ function peaksOnTrack(punkte) {                     // named summits within 60 m
   }
   return out.sort((a, b) => a[0] - b[0]).map(x => x[1]);
 }
+async function squarePhoto(file) {                   // a 400 px square from the middle of the picture, as JPEG without metadata
+  const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }), s = Math.min(bmp.width, bmp.height), c = document.createElement('canvas');
+  c.width = c.height = 400; c.getContext('2d').drawImage(bmp, (bmp.width - s) / 2, (bmp.height - s) / 2, s, s, 0, 0, 400, 400);
+  return await new Promise(r => c.toBlob(r, 'image/jpeg', .85));
+}
+async function setAvatar(file) {
+  if (!sb || !sbUser) return;
+  const name = (sbUser.user_metadata && sbUser.user_metadata.username || '').toLowerCase();
+  try {
+    toast('Profilbild wird hochgeladen …');
+    const blob = await squarePhoto(file), path = `${sbUser.id}/${randId()}.jpg`, old = avatars.get(name);
+    const up = await sb.storage.from('fotos').upload(path, blob, { contentType: 'image/jpeg', upsert: false }); if (up.error) throw up.error;
+    const { error } = await sb.rpc('profil_bild_setzen', { pfad: path }); if (error) { sb.storage.from('fotos').remove([path]); throw error; }
+    if (old) sb.storage.from('fotos').remove([old]);
+    avatars.set(name, path); document.querySelectorAll('[data-av]').forEach(e => { if (e.dataset.av.toLowerCase() === name) e.innerHTML = `<img src="${fotoUrl(path)}" alt="">`; });
+    toast('Profilbild gespeichert ✓');
+  } catch (err) { toast('Das Profilbild konnte nicht gespeichert werden.'); }
+}
 function toast(text) {
   const t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); t.textContent = text; document.body.appendChild(t);
   setTimeout(() => t.classList.add('out'), 3200); setTimeout(() => t.remove(), 3800);
@@ -870,7 +900,7 @@ function openComposer(i0) {                          // share a tour: summit, da
       msg(/Zu viele/.test(err.message || '') ? 'Du hast heute schon 10 Touren geteilt. Versuch es morgen wieder.' : 'Das hat leider nicht geklappt. Bitte versuch es noch einmal.'); btn.disabled = false; return;
     }
     photos.forEach(p => URL.revokeObjectURL(p.url));
-    dlg.close(); count('tour-geteilt');
+    dlg.close(); count('tour-geteilt'); if (myTours != null) { myTours++; setTimeout(checkNewAwards, 400); }
     const peak = picked[0].i;
     if (pageMode === 'feed') renderFeed(); else if (pageMode === 'user') renderUser(sbUser.user_metadata.username); else if (selected === peak) loadTracks(peak); else { explore(true); detailTab = 'routes'; showDetail(peak); }
   };
@@ -883,7 +913,7 @@ async function showLikers(x, box) {                 // who liked a tour, as link
   const { data, error } = await sb.rpc('likes_liste', { beitrag: x.id });
   if (error) { box.innerHTML = '<p class="note small">Die Liste ist gleich verfügbar.</p>'; return; }
   box.innerHTML = `<div class="likers"><p class="note small">♥ Gefällt ${data.length === 1 ? '1 Person' : data.length + ' Personen'}</p>` +
-    (data.length ? `<ul>${data.map(l => `<li><a class="puser" href="${ROOT}#nutzer/${encodeURIComponent(l.username)}" data-user="${esc(l.username)}"><span class="pav sm" aria-hidden="true">${esc(l.username.slice(0, 1).toUpperCase())}</span>${esc(l.username)}</a></li>`).join('')}</ul>` : '') + `</div>`;
+    (data.length ? `<ul>${data.map(l => `<li><a class="puser" href="${ROOT}#nutzer/${encodeURIComponent(l.username)}" data-user="${esc(l.username)}">${av(l.username, 'sm')}${esc(l.username)}</a></li>`).join('')}</ul>` : '') + `</div>`;
   box.querySelectorAll('[data-user]').forEach(b => { b.onclick = ev => { ev.preventDefault(); showUser(b.dataset.user); }; });
 }
 async function loadComments(x, box, btn) {          // comments below a tour: newest last, a form to write one
@@ -892,7 +922,7 @@ async function loadComments(x, box, btn) {          // comments below a tour: ne
   if (error) { box.innerHTML = '<p class="note small">Die Kommentare konnten gerade nicht geladen werden.</p>'; return; }
   x.comments = data.length; btn.querySelector('span').textContent = data.length || '';
   const mayDel = c => sbUser && (c.user_id === sbUser.id || x.user_id === sbUser.id || isAdminNow);
-  box.innerHTML = (data.length ? `<ul class="clist">${data.map(c => `<li><span class="pav sm" aria-hidden="true">${esc((c.autor || '?').slice(0, 1).toUpperCase())}</span><div>` +
+  box.innerHTML = (data.length ? `<ul class="clist">${data.map(c => `<li>${av(c.autor, 'sm')}<div>` +
       `<p><a class="puser" href="${ROOT}#nutzer/${encodeURIComponent(c.autor)}" data-user="${esc(c.autor)}">${esc(c.autor || 'Bergfreund')}</a> <small>${timeDe(c.created_at)}</small>` +
       (mayDel(c) ? ` <button type="button" class="linkbtn cdel" data-cdel="${c.id}">Löschen</button>` : '') + `</p><p class="ctext">${esc(c.text)}</p></div></li>`).join('')}</ul>`
       : '<p class="note small">Noch keine Kommentare.</p>') +
@@ -949,9 +979,11 @@ async function renderUser(name) {
   const canSee = u.sichtbar !== false;
   const label = () => status === 'folgt' ? 'Gefolgt ✓' : status === 'angefragt' ? 'Angefragt' : u.privat ? 'Folgen anfragen' : 'Folgen';
   const nums = [['Geteilte Touren', u.touren], ['Gipfel erreicht', u.gipfel], ['Follower', u.follower], ['Folgt', u.folgt]];
-  page.firstChild.innerHTML = `<div class="phead"><div class="avatar" aria-hidden="true">${esc(u.username.slice(0, 1).toUpperCase())}</div><div><h2>${esc(u.username)}${u.privat ? ' <span class="lock" title="Privates Profil">🔒</span>' : ''}</h2><p class="note">dabei seit ${new Date(u.seit).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}</p></div>` +
+  if (u.bild !== undefined) avatars.set(u.username.toLowerCase(), u.bild || '');
+  page.firstChild.innerHTML = `<div class="phead">${av(u.username, 'avatar')}<div><h2>${esc(u.username)}${u.privat ? ' <span class="lock" title="Privates Profil">🔒</span>' : ''}</h2><p class="note">dabei seit ${new Date(u.seit).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}</p></div>` +
     (me ? `<button type="button" class="onmap" id="umine">Mein Konto</button>` : `<button type="button" class="primary ufollow" id="ufollow" aria-pressed="${!!status}">${label()}</button>`) + `</div>` +
     `<div class="pstats unums">${nums.map(([l, v], k) => `<div><span class="lab">${l}</span><b id="un${k}">${fmt.format(v)}</b></div>`).join('')}</div><p class="note small" id="umsg" role="status"></p>` +
+    ((u.abzeichen || []).length ? `<section><h3 class="h3">Auszeichnungen <span class="badge">${u.abzeichen.length}</span></h3>${awardsHtml(u.abzeichen.map(awardInfo).filter(Boolean), true)}</section>` : '') +
     (canSee ? `<section><h3 class="h3">Geteilte Touren</h3><ul class="asc posts" id="ulist"><li class="note">Touren werden geladen …</li></ul><div id="umore"></div></section>`
       : `<div class="emptybox lockbox"><h3>🔒 Dieses Profil ist privat</h3><p id="ulock"></p></div>`);
   const lockText = () => { if ($('ulock')) $('ulock').textContent = status === 'angefragt' ? `Deine Anfrage ist gestellt. Sobald ${u.username} sie annimmt, siehst du die geteilten Touren.` : `Folge ${u.username}, um die geteilten Touren zu sehen. ${u.username} muss deine Anfrage erst annehmen.`; };
@@ -997,7 +1029,7 @@ async function renderFeed(more) {
       const q = $('uq').value.trim(), res = $('ures'), my = ++seq; if (q.length < 2) { res.hidden = true; return; }
       const { data, error } = await sb.rpc('nutzer_suchen', { q }); if (my !== seq || !$('ures')) return;
       res.hidden = false;
-      res.innerHTML = error ? '<li class="note small">Die Suche ist gleich verfügbar.</li>' : data.length ? data.map(u => `<li><a class="puser" href="${ROOT}#nutzer/${encodeURIComponent(u.username)}" data-user="${esc(u.username)}"><span class="pav sm" aria-hidden="true">${esc(u.username.slice(0, 1).toUpperCase())}</span><span><b>${esc(u.username)}${u.privat ? ' 🔒' : ''}</b><small>${u.touren == 1 ? '1 geteilte Tour' : fmt.format(u.touren) + ' geteilte Touren'}</small></span></a></li>`).join('') : '<li class="note small">Niemand gefunden.</li>';
+      res.innerHTML = error ? '<li class="note small">Die Suche ist gleich verfügbar.</li>' : data.length ? data.map(u => `<li><a class="puser" href="${ROOT}#nutzer/${encodeURIComponent(u.username)}" data-user="${esc(u.username)}">${av(u.username, 'sm')}<span><b>${esc(u.username)}${u.privat ? ' 🔒' : ''}</b><small>${u.touren == 1 ? '1 geteilte Tour' : fmt.format(u.touren) + ' geteilte Touren'}</small></span></a></li>`).join('') : '<li class="note small">Niemand gefunden.</li>';
       res.querySelectorAll('[data-user]').forEach(b => { b.onclick = ev => { ev.preventDefault(); showUser(b.dataset.user); }; });
     }, 250); }; }
     page.querySelectorAll('[data-fm]').forEach(b => { b.onclick = () => { feedMode = b.dataset.fm; feedFollow = null; renderFeed(); }; });
@@ -1201,6 +1233,25 @@ function startHtml(d) {
     (st.length ? `<div class="kind"><div class="kh"><span class="kb kh2">H</span><small>Nächste Haltestellen</small></div><ul class="rts">${st.map(item).join('')}</ul></div>` : '') +
     `<p class="note">Die nächsten Punkte nach Luftlinie, auf der Karte mit P und H markiert. Der Weg von dort zum Gipfel kann deutlich länger sein oder auf der anderen Talseite beginnen; prüfe ihn auf der Karte.</p></section>`;
 }
+// summit picture from Wikimedia Commons (the Wikidata image of the summit), with author and licence as Commons requires
+const bannerCache = new Map();
+async function loadBanner(i, file) {
+  const fig = $('dbanner'); if (!fig) return;
+  try {
+    let info = bannerCache.get(file);
+    if (!info) {
+      const u = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=960&titles=' + encodeURIComponent('File:' + file);
+      let r = await fetch(u); if (!r.ok) { await new Promise(z => setTimeout(z, 1800)); r = await fetch(u); }   // Commons sometimes asks to slow down
+      const j = await r.json(), pg = Object.values(j.query.pages)[0], ii = pg.imageinfo[0], m = ii.extmetadata || {};
+      const txt = h => { const t = document.createElement('div'); t.innerHTML = h || ''; return t.textContent.replace(/\s+/g, ' ').trim(); };
+      info = { src: ii.thumburl || ii.url, page: ii.descriptionurl, artist: txt(m.Artist && m.Artist.value).slice(0, 60), lic: txt(m.LicenseShortName && m.LicenseShortName.value), licUrl: m.LicenseUrl ? m.LicenseUrl.value : '' };
+      bannerCache.set(file, info);
+    }
+    if (selected !== i || !$('dbanner')) return;
+    const img = $('dbimg'); img.onload = () => fig.classList.add('on'); img.onerror = () => fig.remove(); img.src = info.src;
+    $('dbcap').innerHTML = `Foto: <a href="${esc(info.page)}" target="_blank" rel="noopener">${esc(info.artist || 'Wikimedia Commons')}</a>` + (info.lic ? ` · ${info.licUrl ? `<a href="${esc(info.licUrl)}" target="_blank" rel="noopener">${esc(info.lic)}</a>` : esc(info.lic)}` : '');
+  } catch (err) { if ($('dbanner')) $('dbanner').remove(); }
+}
 function showDetail(i, fromMap, noPush) {
   count('gipfel:' + D.peaks.id[i]);
   if (pageMode) setPage(null);
@@ -1245,6 +1296,7 @@ function renderDetail(i, fromMap, d) {
   const tabs = [['over', 'Übersicht', ''], ['routes', 'Routen', HOSTED ? '' : nR || ''], ['wx', 'Wetter', ''], ['go', 'Anfahrt', nS || '']];
   el.innerHTML =
     `<div class="dtop"><button class="back" id="back" type="button">← Zur Liste</button>${HOSTED ? `<button type="button" class="sharebtn" id="share2" aria-label="${esc(P.n[i])} teilen">${SHARE_ICON}<span>Teilen</span></button>` : ''}</div>` +
+    (d.im && HOSTED ? `<figure class="dbanner" id="dbanner"><img id="dbimg" alt="Foto: ${esc(P.n[i])}"><figcaption id="dbcap"></figcaption></figure>` : '') +
     `<div><h2>${esc(P.n[i])}</h2>${P.an[i] ? `<div class="alt">auch: ${esc(P.an[i])}</div>` : ''}</div>` +
     `<div class="summit"><span class="big">${e == null ? '–' : fmt.format(e)}</span><span class="unit">m Höhe</span>` +
     (e != null ? `<span class="rank">Rang ${fmt.format(rankByEle[i])}<br>von ${fmt.format(N)} Gipfeln</span>` : `<span class="rank">Höhe in OpenStreetMap<br>nicht eingetragen</span>`) + `</div>` +
@@ -1282,6 +1334,7 @@ function renderDetail(i, fromMap, d) {
   loadWeather(i);
   $('back').onclick = () => closeDetail();
   renderBookRow(i);
+  if (d.im && $('dbanner')) loadBanner(i, d.im);
   if ($('show3d')) $('show3d').onclick = () => open3d(i);
   ['share', 'share2'].forEach(id => { if ($(id)) $(id).onclick = () => sharePeak(i); });
   $('zoomto').onclick = () => { close3d(); setView('map'); centerOn(la, lo, Math.max(map.getZoom(), 13)); };
@@ -1655,12 +1708,15 @@ function renderProfile() {
   if (sbUser) {
     const name = (sbUser.user_metadata && sbUser.user_metadata.username) || sbUser.email || '', since = sbUser.created_at ? new Date(sbUser.created_at).toLocaleDateString('de-DE') : '';
     const uname = (sbUser.user_metadata && sbUser.user_metadata.username) || '';
-    headHtml = `<div class="phead"><div class="avatar" aria-hidden="true">${esc(name.slice(0, 1).toUpperCase())}</div><div><h2>${esc(name)}</h2><p class="note">${esc(sbUser.email || '')}${since ? ' · dabei seit ' + since : ''}</p></div>` +
+    headHtml = `<div class="phead">${uname && social ? `<button type="button" class="avbtn" id="avbtn" title="Profilbild ändern">${av(uname, 'avatar')}<span class="avedit" aria-hidden="true">📷</span><span class="sr">Profilbild ändern</span></button><input type="file" id="avfile" accept="image/*" hidden>` : av(name, 'avatar')}<div><h2>${esc(name)}</h2><p class="note">${esc(sbUser.email || '')}${since ? ' · dabei seit ' + since : ''}</p></div>` +
       (uname ? `<button type="button" class="onmap" id="mypublic">Öffentliches Profil</button>` : '') + `</div>`;
   } else headHtml = `<div class="phead"><div class="avatar" aria-hidden="true">?</div><div><h2>Profil</h2><p class="note">${sb ? 'Du bist nicht angemeldet. Dein Gipfelbuch liegt nur in diesem Browser.' : 'Konten gibt es nur auf alpen-gipfel.de. Hier liegt dein Gipfelbuch in diesem Browser.'}</p></div></div>`;
-  page.innerHTML = `<div class="home profile">${headHtml}<section><h3 class="h3">Deine Gipfel</h3>${stats}${actions}</section>${sbUser && social ? '<section id="psocial"></section>' : ''}<section class="pacct">${accountHtml()}</section>${sbUser ? '<section id="pstatsadmin"></section>' : ''}${theme}</div>`;
-  $('pbook').onclick = showBook;
+  const myAw = empty ? [] : computeAwards().got.map(awardInfo).filter(Boolean);
+  page.innerHTML = `<div class="home profile">${headHtml}<section><h3 class="h3">Deine Gipfel</h3>${stats}${actions}</section>` +
+    (myAw.length ? `<section><h3 class="h3">Deine Auszeichnungen <span class="badge">${myAw.length}</span></h3>${awardsHtml(myAw, true)}<div class="links"><button type="button" id="pawall">Alle im Gipfelbuch ansehen</button></div></section>` : '') + `${sbUser && social ? '<section id="psocial"></section>' : ''}<section class="pacct">${accountHtml()}</section>${sbUser ? '<section id="pstatsadmin"></section>' : ''}${theme}</div>`;
+  $('pbook').onclick = showBook; if ($('pawall')) $('pawall').onclick = showBook;
   if ($('mypublic')) $('mypublic').onclick = () => showUser(sbUser.user_metadata.username);
+  if ($('avbtn')) { $('avbtn').onclick = () => $('avfile').click(); $('avfile').onchange = ev => { const f = ev.target.files[0]; ev.target.value = ''; if (f) setAvatar(f); }; }
   if ($('pdone')) { $('pdone').onclick = () => preset({ book: 'done' }); $('pwish').onclick = () => preset({ book: 'wish' }); }
   if ($('pexp')) $('pexp').onclick = () => showHome();
   page.querySelectorAll('.seg3 button').forEach(b => { b.onclick = () => { setTheme(b.dataset.t); page.querySelectorAll('.seg3 button').forEach(x => x.setAttribute('aria-checked', String(x === b))); }; });
@@ -1693,7 +1749,7 @@ const BOOK_KEY = 'alpengipfel.gipfelbuch.v1';
 let book = { done: {}, wish: {} };
 try { const raw = JSON.parse(localStorage.getItem(BOOK_KEY) || 'null'); if (raw && raw.done && raw.wish) book = raw; } catch (err) { /* storage unavailable: the book lasts for this visit only */ }
 function storeBook() { try { localStorage.setItem(BOOK_KEY, JSON.stringify(book)); } catch (err) { /* see above */ } }
-function saveBook() { storeBook(); if (sbUser) { clearTimeout(pushTimer); pushTimer = setTimeout(pushBook, 800); } }
+function saveBook() { storeBook(); if (sbUser) { clearTimeout(pushTimer); pushTimer = setTimeout(pushBook, 800); } if (D) setTimeout(checkNewAwards, 0); }
 // several ascents of one summit: book.visits[id] = all dates (only kept when there is more than one); book.done[id] = the latest date ('' = no date)
 const visitsOf = id => { const v = book.visits && book.visits[id]; return v && v.length ? v : book.done[id] != null ? [book.done[id]] : []; };
 function setVisits(id, list) {
@@ -1848,8 +1904,40 @@ function initAccount() {
     sbUser = user;
     if (event === 'PASSWORD_RECOVERY') { acctMode = 'newpass'; acctMsg = ''; setTimeout(() => showProfile(), 0); }
     if (user && changed) setTimeout(pullBook, 0);
-    if (changed) { refreshAccount(); if (!$('bookpanel').hidden) showBook(); if (pageMode === 'home') renderHome(); }
+    if (changed) { refreshAccount(); if (!$('bookpanel').hidden) showBook(); if (pageMode === 'home') renderHome(); myTours = null; updateBell(); }
   });
+}
+/* ---------- notifications: likes, comments, followers, requests ---------- */
+async function updateBell() {
+  const b = $('openbell'); if (!b) return;
+  if (!sb || !sbUser) { b.hidden = true; return; }
+  const { data, error } = await sb.rpc('benachrichtigungen_neu');
+  if (error) { b.hidden = true; return; }                  // not set up yet
+  b.hidden = false; const c = $('bellcnt'); c.hidden = !data; c.textContent = data > 99 ? '99+' : String(data || '');
+  b.setAttribute('aria-label', data ? `Benachrichtigungen, ${data} neu` : 'Benachrichtigungen');
+}
+async function openBell() {
+  let dlg = $('belldlg');
+  if (!dlg) { dlg = document.createElement('dialog'); dlg.id = 'belldlg'; dlg.className = 'fbdlg belldlg'; document.body.appendChild(dlg); dlg.onclick = ev => { if (ev.target === dlg) dlg.close(); }; }
+  dlg.innerHTML = `<div class="fbhead"><h2>Benachrichtigungen</h2><button type="button" class="fbx" aria-label="Schließen">×</button></div><ul class="bnlist" id="bnlist"><li class="note">Wird geladen …</li></ul>`;
+  dlg.querySelector('.fbx').onclick = () => dlg.close();
+  dlg.showModal();
+  const { data, error } = await sb.rpc('benachrichtigungen_liste');
+  const list = $('bnlist'); if (!list) return;
+  if (error) { list.innerHTML = '<li class="note">Die Benachrichtigungen konnten gerade nicht geladen werden.</li>'; return; }
+  const what = n => {
+    const t = n.text ? `„${esc(n.text.length > 70 ? n.text.slice(0, 70) + '…' : n.text)}“` : '';
+    return n.art === 'like' ? `gefällt deine Tour ${t}` : n.art === 'kommentar' ? `hat deine Tour kommentiert: ${t}` : n.art === 'folgt' ? 'folgt dir jetzt'
+      : n.art === 'anfrage' ? 'möchte dir folgen' : 'hat deine Anfrage angenommen. Du siehst jetzt die Touren.';
+  };
+  const icon = { like: '♥', kommentar: '💬', folgt: '👤', anfrage: '🔒', angenommen: '✓' };
+  list.innerHTML = data.length ? data.map((n, k) => `<li class="${n.gelesen ? '' : 'new'}"><button type="button" class="bnitem" data-k="${k}">${av(n.username || '?', 'sm')}<span class="bntext"><b>${esc(n.username || 'Jemand')}</b> ${what(n)}<small>${icon[n.art] || ''} ${timeDe(n.created_at)}</small></span></button></li>`).join('')
+    : '<li class="emptybox"><h3>Noch nichts Neues</h3><p>Hier siehst du, wenn jemand deine Touren liked oder kommentiert oder dir folgt.</p></li>';
+  list.querySelectorAll('.bnitem').forEach(b => { b.onclick = () => { const n = data[+b.dataset.k]; dlg.close();
+    if (n.art === 'anfrage') { showProfile(); setTimeout(() => { const el = $('psocial'); if (el) el.scrollIntoView({ block: 'start' }); }, 600); }
+    else if ((n.art === 'like' || n.art === 'kommentar') && n.gipfel) { const i = indexOfId(+n.gipfel); if (i >= 0) { pendingPost = n.beitrag_id; detailTab = 'routes'; explore(true); showDetail(i); } }
+    else if (n.username) showUser(n.username); }; });
+  if (data.some(n => !n.gelesen)) { await sb.rpc('benachrichtigungen_gelesen'); updateBell(); }
 }
 function setSync(text) { syncMsg = text; if ($('syncmsg')) $('syncmsg').textContent = text; }
 async function pullBook() {
@@ -1868,6 +1956,8 @@ async function pullBook() {
     await pushBook();
   }
   storeBook(); setSync('Gespeichert im Konto.');
+  awardsKnown = null; awardsSent = ''; checkNewAwards();             // the book from the account is the new baseline (no announcement)
+  loadMyTours().then(() => { awardsKnown = null; checkNewAwards(); if (!$('bookpanel').hidden) showBook(); });
   apply(); if (selected >= 0) renderBookRow(selected); if (!$('bookpanel').hidden) showBook(); refreshAccount(); if (pageMode === 'home') renderHome();
 }
 async function pushBook() {
@@ -1894,16 +1984,13 @@ function accountHtml() {
     `<label>Benutzername<input type="text" id="aname" autocomplete="username" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_.\-]{3,20}" title="3 bis 20 Zeichen: Buchstaben ohne Umlaute, Ziffern, Punkt, Binde- und Unterstrich"></label>${mail}` +
     `<label>Passwort (mindestens 8 Zeichen)<input type="password" id="apass" autocomplete="new-password" required minlength="8"></label>` +
     `<div class="links"><button type="submit" id="asubmit">Konto anlegen</button></div>${msg}<p class="note">Schon ein Konto? ${sw('login', 'Anmelden')}</p></form>`;
-  if (acctMode === 'verify') return `<form class="acct" id="acctform">${head}<p>Wir haben eine E-Mail an <b>${esc(acctMail)}</b> geschickt. Öffne den Bestätigungslink darin auf diesem Gerät, dann bist du angemeldet.</p>` +
-    `<p class="note">Keine E-Mail bekommen? Sieh im Spam-Ordner nach. Der Versand kann ein paar Minuten dauern und ist auf wenige E-Mails pro Stunde begrenzt.</p>` +
-    `<label>Nur falls die E-Mail einen Code enthält<input type="text" id="acode" inputmode="numeric" autocomplete="one-time-code" required pattern="[0-9]{6,8}" maxlength="8"></label>` +
-    `<div class="links"><button type="submit" id="asubmit">Code bestätigen</button><button type="button" id="aresend">E-Mail erneut senden</button></div>${msg}<p class="note">${sw('login', 'Zurück zur Anmeldung')}</p></form>`;
+  const spam = `<div class="mailhint"><b>📬 Keine E-Mail da?</b><ul><li>Sieh im <b>Spam- oder Werbung-Ordner</b> nach. Absender ist Supabase Auth.</li><li>Der Versand kann ein paar Minuten dauern.</li><li>Stimmt die Adresse? <b>${esc(acctMail)}</b></li></ul></div>`;
+  if (acctMode === 'verify') return `<div class="acct">${head}<p class="bigstep"><b>Fast geschafft!</b> Wir haben dir eine E-Mail an <b>${esc(acctMail)}</b> geschickt. Klicke auf den <b>Bestätigungslink</b> darin, dann bist du angemeldet.</p>${spam}` +
+    `<div class="links"><button type="button" id="aresend">E-Mail erneut senden</button><button type="button" data-mode="login" class="linkbtn">Ich habe bestätigt: Anmelden</button></div>${msg}</div>`;
   if (acctMode === 'forgot') return `<form class="acct" id="acctform">${head}<p class="note">Gib deine E-Mail-Adresse ein. Du bekommst eine E-Mail, mit der du ein neues Passwort festlegst.</p>${mail}` +
-    `<div class="links"><button type="submit" id="asubmit">Code senden</button></div>${msg}<p class="note">${sw('login', 'Zurück zur Anmeldung')}</p></form>`;
-  if (acctMode === 'reset') return `<form class="acct" id="acctform">${head}<p>Wir haben eine E-Mail an <b>${esc(acctMail)}</b> geschickt. Öffne den Link darin auf diesem Gerät und lege dann das neue Passwort fest. Die Felder unten brauchst du nur, falls die E-Mail einen Code enthält.</p>` +
-    `<label>Code aus der E-Mail<input type="text" id="acode" inputmode="numeric" autocomplete="one-time-code" required pattern="[0-9]{6,8}" maxlength="8"></label>` +
-    `<label>Neues Passwort (mindestens 8 Zeichen)<input type="password" id="apass" autocomplete="new-password" required minlength="8"></label>` +
-    `<div class="links"><button type="submit" id="asubmit">Passwort ändern</button></div>${msg}<p class="note">${sw('login', 'Zurück zur Anmeldung')}</p></form>`;
+    `<div class="links"><button type="submit" id="asubmit">Link senden</button></div>${msg}<p class="note">${sw('login', 'Zurück zur Anmeldung')}</p></form>`;
+  if (acctMode === 'reset') return `<div class="acct">${head}<p class="bigstep">Wir haben dir eine E-Mail an <b>${esc(acctMail)}</b> geschickt. Klicke auf den <b>Link</b> darin: Du landest wieder hier und kannst sofort ein neues Passwort festlegen.</p>${spam}` +
+    `<div class="links"><button type="button" id="aresetagain">E-Mail erneut senden</button></div>${msg}<p class="note">${sw('login', 'Zurück zur Anmeldung')}</p></div>`;
   return `<form class="acct" id="acctform">${head}<p class="note">Melde dich an, damit dein Gipfelbuch gespeichert bleibt und auf jedem Gerät dasselbe ist.</p>${mail}` +
     `<label>Passwort<input type="password" id="apass" autocomplete="current-password" required></label>` +
     `<div class="links"><button type="submit" id="asubmit">Anmelden</button></div>${msg}<p class="note">Noch kein Konto? ${sw('register', 'Konto anlegen')} · ${sw('forgot', 'Passwort vergessen')}</p></form>`;
@@ -1931,6 +2018,10 @@ function wireAccount() {
   document.querySelectorAll('#page .acct .linkbtn').forEach(btn => { btn.onclick = () => { if ($('amail')) acctMail = $('amail').value.trim(); go(btn.dataset.mode); }; });
   if ($('aresend')) $('aresend').onclick = async () => {
     const { error } = await sb.auth.resend({ type: 'signup', email: acctMail, options: { emailRedirectTo: location.origin + ROOT } });
+    say(error ? tooMany(error) || 'Die E-Mail konnte nicht gesendet werden. Versuch es später noch einmal.' : 'Eine neue E-Mail ist unterwegs.');
+  };
+  if ($('aresetagain')) $('aresetagain').onclick = async () => {
+    const { error } = await sb.auth.resetPasswordForEmail(acctMail, { redirectTo: location.origin + ROOT });
     say(error ? tooMany(error) || 'Die E-Mail konnte nicht gesendet werden. Versuch es später noch einmal.' : 'Eine neue E-Mail ist unterwegs.');
   };
   if (!$('acctform')) return;
@@ -1976,7 +2067,7 @@ function wireAccount() {
         return;
       }
       const { error } = await sb.auth.signInWithPassword({ email: acctMail, password: $('apass').value });
-      if (error && /not confirmed/i.test(error.message)) { await sb.auth.resend({ type: 'signup', email: acctMail }); return go('verify', 'Deine E-Mail-Adresse ist noch nicht bestätigt. Wir haben dir einen neuen Code geschickt.'); }
+      if (error && /not confirmed/i.test(error.message)) { await sb.auth.resend({ type: 'signup', email: acctMail, options: { emailRedirectTo: location.origin + ROOT } }); return go('verify', 'Deine E-Mail-Adresse ist noch nicht bestätigt. Wir haben dir den Bestätigungslink noch einmal geschickt.'); }
       if (error) return say(tooMany(error) || 'E-Mail-Adresse oder Passwort stimmen nicht.');
       acctMsg = '';
     } finally { if ($('asubmit')) $('asubmit').disabled = false; }
@@ -2003,6 +2094,72 @@ function renderBookRow(i) {
   el.querySelectorAll('[data-rmv]').forEach(b => { b.onclick = () => { const k = v.indexOf(b.dataset.rmv); if (k < 0) return; setVisits(id, v.filter((_, j) => j !== k)); bookChanged(i); }; });
 }
 function bookChanged(i) { saveBook(); renderBookRow(i); if ($('book').value) apply(); else { renderList(); if (peakLayer) peakLayer.redraw(); } }
+/* ---------- awards: earned from the Gipfelbuch (and shared tours), shown in the Gipfelbuch and on the profile ---------- */
+const FLAG = { AT: '🇦🇹', DE: '🇩🇪', CH: '🇨🇭', IT: '🇮🇹', FR: '🇫🇷', SI: '🇸🇮', LI: '🇱🇮', MC: '🇲🇨', HU: '🇭🇺' };
+const TIERS = { n: [1, 5, 10, 25, 50, 100, 250, 500, 1000], h2: [1, 10, 50, 100], h3: [1, 10, 25, 50], h4: [1, 5, 10, 25], sum: [8849, 25000, 50000, 100000, 250000, 500000],
+  l: [2, 3, 5], r: [3, 5, 10, 20], g: [5, 10, 25, 50], v: [3, 5, 10], t: [1, 5, 10, 25, 50] };
+const awSlug = t => t.toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 36);
+let topOf = null, myTours = null, awardsSent = '', awardsKnown = null;
+function countryTops() {                             // highest summit of each country in the data
+  if (topOf) return topOf; topOf = {};
+  const P = D.peaks; for (let i = 0; i < N; i++) for (const c of arr(P.c[i])) if (P.e[i] != null && (topOf[c] == null || P.e[i] > P.e[topOf[c]])) topOf[c] = i;
+  return topOf;
+}
+function awardInfo(id) {                             // id -> { icon, name, desc }; also for awards stored on someone's profile
+  const [k, v] = id.split(':'), n = +v, f = x => fmt.format(x);
+  const country = code => (D.countries.find(c => c.c === code) || {}).n;
+  switch (k) {
+    case 'n': return { icon: '🏔️', name: n === 1 ? 'Erster Gipfel' : `${f(n)} Gipfel`, desc: n === 1 ? 'Der erste Eintrag im Gipfelbuch' : `${f(n)} verschiedene Gipfel bestiegen` };
+    case 'h2': return { icon: '⛰️', name: n === 1 ? 'Erster Zweitausender' : `${f(n)} Zweitausender`, desc: 'Gipfel ab 2.000 m' };
+    case 'h3': return { icon: '🗻', name: n === 1 ? 'Erster Dreitausender' : `${f(n)} Dreitausender`, desc: 'Gipfel ab 3.000 m' };
+    case 'h4': return { icon: '❄️', name: n === 1 ? 'Erster Viertausender' : `${f(n)} Viertausender`, desc: 'Gipfel ab 4.000 m' };
+    case 'sum': return { icon: '📈', name: n === 8849 ? 'Mount Everest' : `${f(n)} Höhenmeter`, desc: n === 8849 ? 'Gipfelhöhen zusammen höher als der Everest' : `Gipfelhöhen zusammen über ${f(n)} m` };
+    case 'l': return { icon: '🌍', name: `${n} Länder`, desc: `Gipfel in ${n} Alpenländern` };
+    case 'r': return { icon: '📍', name: `${n} Regionen`, desc: `Gipfel in ${n} Bundesländern, Kantonen oder Regionen` };
+    case 'g': return { icon: '🗺️', name: `${n} Gebirgsgruppen`, desc: `Gipfel in ${n} verschiedenen Gebirgsgruppen` };
+    case 'v': return { icon: '🔁', name: n === 3 ? 'Stammgast' : n === 5 ? 'Hausberg' : 'Wie daheim', desc: `${n}× auf demselben Gipfel` };
+    case 't': return { icon: '📸', name: n === 1 ? 'Erste Tour geteilt' : `${f(n)} Touren geteilt`, desc: 'Touren mit der Community geteilt' };
+    case 'c': return country(v) ? { icon: FLAG[v] || '🏳️', name: country(v), desc: `Gipfel in ${country(v)}` } : null;
+    case 'top': { const ci = D.countries.findIndex(c => c.c === v), i = ci >= 0 ? countryTops()[ci] : -1;
+      return ci >= 0 ? { icon: '👑', name: `Dach von ${D.countries[ci].n}`, desc: i >= 0 ? `${D.peaks.n[i]}, ${f(D.peaks.e[i])} m` : '' } : null; }
+    case 's': { const st = D.states.find(x => awSlug(x.n) === v); return st ? { icon: '📍', name: st.n, desc: `Gipfel in ${st.n}` } : null; }
+  }
+  return null;
+}
+function computeAwards() {                           // -> { got: [ids], next: [{ id, have, need }] }
+  const P = D.peaks, done = [];
+  for (let i = 0; i < N; i++) if (book.done[P.id[i]] != null) done.push(i);
+  const cs = new Set(), ss = new Set(), gs = new Set(); let sum = 0, h2 = 0, h3 = 0, h4 = 0, maxV = 0;
+  for (const i of done) { arr(P.c[i]).forEach(c => cs.add(c)); arr(P.s[i]).forEach(x => ss.add(x)); arr(P.g[i]).forEach(x => gs.add(x));
+    const e = P.e[i]; if (e != null) { sum += e; if (e >= 2000) h2++; if (e >= 3000) h3++; if (e >= 4000) h4++; } maxV = Math.max(maxV, visitsOf(P.id[i]).length); }
+  const val = { n: done.length, h2, h3, h4, sum, l: cs.size, r: ss.size, g: gs.size, v: maxV, t: myTours || 0 };
+  const got = [], next = [];
+  for (const [k, tiers] of Object.entries(TIERS)) {
+    if (k === 't' && myTours == null) continue;
+    for (const t of tiers) if (val[k] >= t) got.push(`${k}:${t}`);
+    const nx = tiers.find(t => val[k] < t); if (nx != null) next.push({ id: `${k}:${nx}`, have: val[k], need: nx });
+  }
+  const tops = countryTops();
+  for (const c of cs) { got.push('c:' + D.countries[c].c); if (book.done[P.id[tops[c]]] != null) got.push('top:' + D.countries[c].c); }
+  for (const x of ss) got.push('s:' + awSlug(D.states[x].n));
+  return { got, next };
+}
+function awardsHtml(list, compact) {                  // list of { icon, name, desc, have?, need? }
+  return `<ul class="awards${compact ? ' compact' : ''}">` + list.map(a => `<li class="aw${a.need ? ' lock' : ''}" title="${esc(a.desc)}"><span class="awi" aria-hidden="true">${a.icon}</span><span class="awt"><b>${esc(a.name)}</b>` +
+    (compact ? '' : `<small>${esc(a.desc)}</small>`) + (a.need ? `<span class="awbar"><i style="width:${Math.min(100, a.have / a.need * 100)}%"></i></span><small>${fmt.format(a.have)} von ${fmt.format(a.need)}</small>` : '') + `</span></li>`).join('') + '</ul>';
+}
+function checkNewAwards() {                          // after a change in the Gipfelbuch: announce new awards, store them on the profile
+  const { got } = computeAwards(), now = new Set(got);
+  if (awardsKnown) { const fresh = got.filter(x => !awardsKnown.has(x)).map(awardInfo).filter(Boolean); if (fresh.length) toast(`🏅 Neue Auszeichnung: ${fresh.map(a => a.name).slice(0, 2).join(', ')}${fresh.length > 2 ? ' …' : ''}`); }
+  awardsKnown = now;
+  const key = got.slice().sort().join(',');
+  if (sb && sbUser && social && key !== awardsSent) { awardsSent = key; sb.rpc('abzeichen_setzen', { liste: got.slice(0, 300) }).then(() => {}, () => {}); }
+}
+async function loadMyTours() {
+  if (!sb || !sbUser || myTours != null) return;
+  const { count } = await sb.from('beitraege').select('id', { count: 'exact', head: true }).eq('user_id', sbUser.id);
+  if (count != null) { myTours = count; }
+}
 let bookSort = 'date';
 function showBook() {
   if (pageMode) explore();
@@ -2028,6 +2185,8 @@ function showBook() {
       `<dt>Gebiete</dt><dd>${countries.size} ${countries.size === 1 ? 'Land' : 'Länder'}, ${groups.size} ${groups.size === 1 ? 'Gebirgsgruppe' : 'Gebirgsgruppen'}</dd></dl>`
       : `<p class="note">Noch kein Eintrag. Öffne einen Gipfel und wähle „Als bestiegen eintragen“ oder „Auf die Wunschliste“.</p>`) +
     `<div class="prog">${BANDS.map((b, k) => `<div><span>${b[3]} m</span><span class="bar"><i style="width:${total[k] ? Math.max(got[k] ? 2 : 0, got[k] / total[k] * 100) : 0}%;background:var(${b[2]})"></i></span><span>${fmt.format(got[k])} von ${fmt.format(total[k])}</span></div>`).join('')}</div>` +
+    (doneIdx.length ? (() => { const a = computeAwards(), got = a.got.map(awardInfo).filter(Boolean), nx = a.next.slice().sort((x, y) => y.have / y.need - x.have / x.need).slice(0, 4).map(x => ({ ...awardInfo(x.id), have: x.have, need: x.need }));
+      return `<section class="awsec"><h3 class="h3">Auszeichnungen <span class="badge">${got.length}</span></h3>${awardsHtml(got, false)}${nx.length ? `<h3 class="h3">Als Nächstes</h3>${awardsHtml(nx, false)}` : ''}</section>`; })() : '') +
     (doneIdx.length ? `<section class="bklist"><div class="bkhead"><h3 class="h3">Deine Gipfel</h3><div class="seg3 bksort" role="tablist" aria-label="Sortierung">${[['date', 'Zuletzt'], ['ele', 'Höchste'], ['count', 'Am häufigsten']].map(([v, t]) => `<button type="button" role="tab" data-bs="${v}" aria-selected="${v === bookSort}">${t}</button>`).join('')}</div></div><ul class="bkcards" id="bkcards"></ul><div id="bkmore"></div></section>` : '')) +
     `<div class="links">${empty ? '' : '<button type="button" id="bshowdone">Bestiegene in der Liste zeigen</button><button type="button" id="bshowwish">Wunschliste zeigen</button>'}` +
     (HOSTED ? `<button type="button" id="bexport">Sichern (Datei)</button><button type="button" id="bimport">Wiederherstellen</button><input type="file" id="bfile" accept="application/json,.json" hidden>` : '') + `</div>` +
@@ -2359,10 +2518,14 @@ async function boot() {
   $('kind').addEventListener('change', () => { apply(); fitToFilter(); });
   $('sort').addEventListener('change', () => { if ($('sort').value === 'near' && !me) locate(); else apply(); });
   $('book').addEventListener('change', () => { apply(); fitToFilter(); });
+  checkNewAwards();                                   // baseline of the awards already earned in this browser
   $('radius').addEventListener('change', () => { apply(); fitToFilter(); });
   $('near').addEventListener('click', locate);
   $('openbook').addEventListener('click', showBook);
   if ($('openfb')) $('openfb').addEventListener('click', () => openFeedback());
+  if ($('openbell')) $('openbell').addEventListener('click', () => openBell());
+  setInterval(() => { if (!document.hidden) updateBell(); }, 90000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) updateBell(); });
   $('navhome').addEventListener('click', () => showHome()); $('navstart').addEventListener('click', () => showHome());
   const closeFilters = () => { $('filters').classList.remove('open'); $('ftoggle').setAttribute('aria-expanded', 'false'); };
   $('fdone').onclick = () => { closeFilters(); $('list').scrollTop = 0; };

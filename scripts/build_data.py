@@ -131,6 +131,18 @@ for row in tsv(f'{RAW}/q/route_names.tsv'):
     label = row['name'] or (f"Route {row['ref']}" if row['ref'] else '')
     if label: rnames[nid(row['rel'])] = label
 peak_routes, peak_ways = {}, {}
+# summit pictures: Wikidata image (a Wikimedia Commons file) of the OSM peak's wikidata item (scripts/fetch_images.py)
+peak_img = {}
+if os.path.exists(f'{RAW}/q/images.tsv') and os.path.exists(f'{RAW}/q/peak_wd.tsv'):
+    import urllib.parse
+    wd_img = {}
+    for row in tsv(f'{RAW}/q/images.tsv'):
+        q = row['item'].rsplit('/', 1)[1].strip('>'); f = urllib.parse.unquote(row['img'].rsplit('/', 1)[1].strip('>'))
+        if q not in wd_img and re.search(r'\.(jpe?g|png|webp|tiff?)$', f, re.I): wd_img[q] = f
+    for row in tsv(f'{RAW}/q/peak_wd.tsv'):
+        q = row['wd'].strip('"')
+        if q in wd_img: peak_img[nid(row['n'])] = wd_img[q]
+    print('summit pictures', len(peak_img))
 for row in tsv(f'{RAW}/q/routes.tsv'): peak_routes.setdefault(nid(row['n']), set()).add(nid(row['rel']))
 # Each path near a summit is classed as 0 = Wandern (T1-T3 or untagged), 1 = Hochalpin (T4-T6), 2 = Klettersteig.
 SAC = {'strolling': 1, 'hiking': 1, 'mountain_hiking': 2, 'demanding_mountain_hiking': 3,
@@ -271,7 +283,7 @@ stops = nearest(load_points(f'{RAW}/q/stops_bus.tsv', 1) + load_points(f'{RAW}/q
 print('summits with a car park within', START_KM, 'km:', sum(1 for p in parkings if p), '; with a stop:', sum(1 for p in stops if p))
 
 country_keys = list(COUNTRIES); state_keys = list(STATES)
-cols = {k: [] for k in ['n', 'an', 'e', 'la', 'lo', 'c', 's', 'g', 'sg', 'p', 'wp', 'id', 'rt', 'ap', 'nr', 'cc', 'cw', 'k', 'pk', 'st', 'fw', 'ar']}
+cols = {k: [] for k in ['n', 'an', 'e', 'la', 'lo', 'c', 's', 'g', 'sg', 'p', 'wp', 'im', 'id', 'rt', 'ap', 'nr', 'cc', 'cw', 'k', 'pk', 'st', 'fw', 'ar']}
 ccount = [0] * len(country_keys); scount = [0] * len(state_keys); gcount = [0] * len(groups); ungrouped = 0
 def compact(lst): return -1 if not lst else (lst[0] if len(lst) == 1 else lst)
 order = sorted(range(len(P)), key=lambda i: -(parse_num(P[i]['t'].get('ele'), 0, 4900) or -1))
@@ -296,6 +308,7 @@ for i in order:
     cols['sg'].append(gs[i][0] if gs[i] else -1)
     cols['p'].append(parse_num(t.get('prominence'), 0, 4900) or 0)
     cols['wp'].append(t.get('wikipedia') or 0)
+    cols['im'].append(peak_img.get(p['id'], 0))
     cols['id'].append(p['id'])
     allw = peak_ways.get(p['id'], {})
     ways = {w: c for w, (d, c) in allw.items() if d <= ROUTE_RADIUS}
