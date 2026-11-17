@@ -475,7 +475,7 @@ function loadAscents(i, d) {
   loadTracks(i);
 }
 const startName = (s, h) => s.name || (s.kind ? START_KIND[s.kind] : 'Parkplatz') + (h ? ' auf ' + fmt.format(Math.round(h / 10) * 10) + ' m' : ' ohne Namen');
-function ascTitle(x) { return x.type === 'normal' ? x.name : x.type === 'rel' ? (x.name || 'Markierte Route ohne Namen') : (x.name || 'Klettersteig ohne Namen'); }
+function ascTitle(x) { return x.type === 'normal' || x.type === 'zu' || x.type === 'hut' ? x.name : x.type === 'rel' ? (x.name || 'Markierte Route ohne Namen') : (x.name || 'Klettersteig ohne Namen'); }
 const factsHtml = x => `<span class="ascfacts"><span>${n1(x.km)} km</span>${x.up != null ? `<span>↑ ${fmt.format(x.up)} Hm</span>` : ''}${x.down > 30 ? `<span>↓ ${fmt.format(x.down)} Hm</span>` : ''}<span>${x.up != null ? hm(x.h) : ''}</span></span>`;
 function renderAscents(i, d, r) {
   const box = $('asclist'); if (!box) return;
@@ -488,11 +488,15 @@ function renderAscents(i, d, r) {
     box.querySelectorAll('.onmap[data-rel]').forEach(b => { b.onclick = () => showRouteOnMap(b.dataset.rel, b); });
     return;
   }
-  box.innerHTML = `<p class="note">Tippe einen Aufstieg an, um nur ihn auf der Karte und sein Höhenprofil zu sehen.</p><ul class="asc">` + r.list.map((x, k) => {
+  const onlyZu = r.list.every(x => x.type === 'zu'), nr = d.nr && d.nr[0];
+  const intro = onlyZu ? (r.why === 'noway' ? 'In OpenStreetMap führt kein Weg bis zum Gipfel. ' : r.why === 'nopark' ? 'In der Nähe ist kein Parkplatz mit Weg zum Gipfel erfasst. ' : 'Die Wege am Gipfel sind in OpenStreetMap nicht durchgehend bis ins Tal eingetragen. ') +
+    'Der letzte Teil geht über Fels, Gletscher oder Kletterei. Hier ist der Zustieg bis zum letzten eingezeichneten Punkt:' : 'Tippe einen Aufstieg an, um nur ihn auf der Karte und sein Höhenprofil zu sehen.';
+  box.innerHTML = `<p class="note">${intro}</p><ul class="asc">` + r.list.map((x, k) => {
     const diff = gradeLabel(x.cat, x.grade, x.vf);
     const sub = [x.type === 'rel' ? 'markierte Route' : '', x.easiest || x.type === 'normal' ? 'leichtester gefundener Weg' : '', x.via.length ? 'über ' + x.via.join(', ') : ''].filter(Boolean).join(' · ');
-    return `<li><button type="button" class="ascpick" data-key="a:${k}" aria-pressed="false"><span class="ascrow"><span class="kb k${x.cat}">${KINDS[x.cat]}</span><b>${esc(ascTitle(x))}</b></span>` +
-      (sub ? `<small>${esc(sub)}</small>` : '') + `<small>ab ${esc(startName(x.res.park, x.start))}${diff ? ' · ' + diff : ''}</small>` + factsHtml(x) + `</button></li>`;
+    const warn = x.type === 'zu' ? `<small class="zuwarn">⚠️ Danach kein eingezeichneter Weg: noch etwa ${fmt.format(x.gapM)} m Luftlinie${x.gapH ? ` und ${fmt.format(x.gapH)} Hm` : ''} bis zum Gipfel über Fels, Gletscher oder Kletterei. Nur mit Erfahrung, Ausrüstung oder Bergführer.</small>` : '';
+    return `<li><button type="button" class="ascpick" data-key="a:${k}" aria-pressed="false"><span class="ascrow"><span class="kb ${x.type === 'zu' ? 'kzu' : 'k' + x.cat}">${x.type === 'zu' ? 'Zustieg' : KINDS[x.cat]}</span><b>${esc(ascTitle(x))}</b></span>` +
+      (sub ? `<small>${esc(sub)}</small>` : '') + `<small>ab ${esc(startName(x.res.park, x.start))}${diff ? ' · ' + diff : ''}</small>` + factsHtml(x) + warn + `</button></li>`;
   }).join('') + `</ul>` + restHtml(r.rest) +
     `<p class="note">Berechnet aus den Wegen in OpenStreetMap vom nächstgelegenen Parkplatz bis zum Gipfel. Gehzeit nur für den Aufstieg, ohne Pausen, nach DIN 33466; Höhenmeter aus einem Geländemodell, auf etwa 10 % genau. ` +
     `Ein Vorschlag, keine geprüfte Tour: Wege können gesperrt, verfallen oder schwieriger sein als angegeben. Prüfe die Tour vor dem Aufbruch auf einer Wanderkarte.</p>`;
@@ -1118,16 +1122,21 @@ async function computeAscents(i, d) {
     prow = prow.concat(await qlever(nearPts(pts, 3500, ...PARK_SEL, parkInner(id, d.ar))).catch(() => []));
     net = buildNet(rows.concat(relRows));
   }
-  const [sv, sd] = nearestVert(net, top);
-  if (sd > 250) return { list: [], why: 'noway' };
+  const [sv, sd] = nearestVert(net, top), noSummit = sd > 250;   // no path reaches the summit: only an approach to the last mapped point
   // starting points: public car parks (centre of the area), else the stored ones, else stops
   let starts = parkRows(prow);
   if (!starts.length) starts = (d.pk || []).map(s => ({ name: s[0], p: [s[2], s[3]], kind: 0 }));
   if (!starts.length) starts = (d.st || []).map(s => ({ name: s[0], p: [s[2], s[3]], kind: s[4] }));
   const parks = [], usedV = new Set();
   for (const s of starts) { const [v, sn] = nearestVert(net, s.p); if (v >= 0 && sn < 250 && !usedV.has(v)) { usedV.add(v); parks.push({ ...s, v, sn }); } }
-  if (!parks.length) return { list: [], why: 'nopark' };
-  const linked = dijkstra(net, sv, () => 1); if (!parks.some(p => linked.dist[p.v] < Infinity)) return { list: [], why: 'island' };
+  const linked = dijkstra(net, sv, () => 1), island = noSummit || !parks.some(p => linked.dist[p.v] < Infinity);
+  const comp = new Int32Array(net.pts.length).fill(-1);  // connected parts of the path network, to know what can be reached from a car park
+  for (let s0 = 0, nc = 0; s0 < net.pts.length; s0++) if (comp[s0] < 0) { const st = [s0]; comp[s0] = nc;
+    while (st.length) { const a = net.adj[st.pop()]; for (let j = 0; j < a.length; j += 3) if (comp[a[j]] < 0) { comp[a[j]] = nc; st.push(a[j]); } } nc++; }
+  // approaches may also start at a stop (cable car, train, bus): many high huts are reached that way (e.g. car-free Zermatt)
+  const zStarts = parks.slice();
+  for (const s of (d.st || []).map(s => ({ name: s[0], p: [s[2], s[3]], kind: s[4] }))) { const [v, sn] = nearestVert(net, s.p); if (v >= 0 && sn < 250 && !zStarts.some(z => z.v === v)) zStarts.push({ ...s, v, sn }); }
+  const parkComps = new Set(zStarts.map(p => comp[p.v]));
   const groups = ferGroups(net), shortFer = new Set();     // a few metres of cable on an ordinary path do not make it a via ferrata
   groups.forEach(g => { if (g.len < 150) g.ways.forEach(wi => shortFer.add(wi)); });
   const base = (w, k) => w.fer ? (shortFer.has(k) ? 2 : Infinity) : (ROADF[w.h] || 1) * (w.grade >= 6 ? 8 : w.grade === 5 ? 4 : w.grade === 4 ? 1.6 : 1);
@@ -1144,9 +1153,9 @@ async function computeAscents(i, d) {
     return { park: b.p, cost: b.c + up.dist[start], verts: a.verts.concat(c.verts.slice(1)), wl: a.wl.concat(c.wl) };
   };
   const usedOf = (res, test) => { let u = 0; res.wl.forEach((wi, k) => { if (test(wi)) u += metres(net.pts[res.verts[k]], net.pts[res.verts[k + 1]]); }); return u; };
-  const out = [], normal = fromBest(base);
+  const out = [], normal = island ? null : fromBest(base);
   if (normal) out.push({ type: 'normal', res: normal });
-  for (const rel of rels) {
+  for (const rel of island ? [] : rels) {
     const set = members.get(+rel); if (!set) continue;
     const f = (w, k) => set.has(w.id) ? (w.fer ? 1 : base(w, k)) * 0.3 : base(w, k);
     const s = relStart(+rel), res = s != null && metres(net.pts[s], top) > 300 ? viaStart(s, f) : fromBest(f);
@@ -1156,7 +1165,7 @@ async function computeAscents(i, d) {
   }
   // via ferratas near the summit: start below the ferrata, climb it, on to the summit
   const free = dijkstra(net, sv, (w, k) => w.fer ? 1 : base(w, k));
-  const cand = groups.filter(g => g.len >= 150).map(g => ({ ...g, near: Math.min(...[...g.verts].map(v => free.dist[v])) }))
+  const cand = island ? [] : groups.filter(g => g.len >= 150).map(g => ({ ...g, near: Math.min(...[...g.verts].map(v => free.dist[v])) }))
     .filter(g => g.near < 6000).sort((a, b) => a.near - b.near).slice(0, 4);
   const pathEdge = v => { const a = net.adj[v]; for (let j = 1; j < a.length; j += 3) if (!net.ways[a[j]].fer) return true; return false; };
   for (const g of cand) {
@@ -1186,10 +1195,40 @@ async function computeAscents(i, d) {
     if (k < 0) list.push(x);
     else if (list[k].type === 'normal' && x.type === 'rel') list[k] = { ...x, easiest: true };
   }
+  // approaches to the last mapped point: where no path reaches the summit from a car park, and to huts right below the summit
+  // that none of the ascents passes (e.g. the Hörnlihütte below the Matterhorn); the rest is climbing, glacier or pathless
+  const zf = (w, k) => w.fer ? (shortFer.has(k) ? 2 : 3) : base(w, k);
+  const approach = (end, name) => { const r = dijkstra(net, end, zf);
+    let b = null; for (const p of zStarts) { const c = r.dist[p.v] + p.sn * 3; if (c < Infinity && (!b || c < b.c)) b = { p, c }; } if (!b) return null;
+    return { type: 'zu', res: { park: b.p, cost: b.c, ...trace(r, b.p.v) }, name, end }; };
+  const viaHut = (hv, name) => {                    // the way up past a hut: from the nearest car park or stop to the hut, then on to the summit
+    const up = dijkstra(net, sv, zf); if (up.dist[hv] === Infinity) return null;
+    const a = approach(hv, name); if (!a) return null; const c = trace(up, hv);
+    return { type: 'hut', name, res: { park: a.res.park, cost: a.res.cost + up.dist[hv], verts: a.res.verts.concat(c.verts.slice(1)), wl: a.res.wl.concat(c.wl) } }; };
+  const hutAt = v => { if (!GEO || !GEO.huts) return null; let best = null, bd = 150; for (const h of GEO.huts) { const dd = metres(net.pts[v], [h[1], h[0]]); if (h[2] && dd < bd) { bd = dd; best = h; } } return best; };
+  const zu = [];
+  if (island || !list.length) {
+    let end = -1, ed = Infinity; for (let v = 0; v < net.pts.length; v++) if (parkComps.has(comp[v])) { const dd = metres(net.pts[v], top); if (dd < ed) { ed = dd; end = v; } }
+    if (end >= 0 && ed < 3000) { const h = hutAt(end), a = approach(end, h ? 'Zustieg bis ' + h[2] : 'Zustieg bis zum Wegende');
+      if (a && ed < 60) { a.type = 'hut'; a.name = ''; }   // the path reaches the summit after all, only not from a car park: a full ascent
+      if (a) zu.push(a); }
+  }
+  if (GEO && GEO.huts) {
+    const onRoute = new Set(list.flatMap(x => hutsAlong([x.res.park.p, ...x.res.verts.map(v => net.pts[v])], top)));
+    const huts = GEO.huts.filter(h => h[2] && !onRoute.has(h[2]) && metres([h[1], h[0]], top) < 2500 && metres([h[1], h[0]], top) > 150).sort((a, b) => metres([a[1], a[0]], top) - metres([b[1], b[0]], top));
+    for (const h of huts) {
+      if (zu.length >= 2) break;
+      const [hv, hd] = nearestVert(net, [h[1], h[0]]);
+      if (hd > 150 || !parkComps.has(comp[hv]) || zu.some(z => z.end != null && hutAt(z.end) === h)) continue;
+      const a = !island && linked.dist[hv] < Infinity ? viaHut(hv, 'Über ' + h[2]) : approach(hv, 'Zustieg bis ' + h[2]);
+      if (a && !list.concat(zu).some(y => same(y.res, a.res))) zu.push(a);
+    }
+  }
+  list.push(...zu);
   // describe each: line, length, difficulty, the longest named paths, height gain and time
   for (const x of list) {
     const r = x.res, ll = [x.res.park.p, ...r.verts.map(v => net.pts[v])];
-    if (sd > 5) ll.push(top);
+    if (sd > 5 && x.type !== 'zu') ll.push(top);
     x.ll = ll; x.km = ll.reduce((s, p, k) => k ? s + metres(ll[k - 1], p) : 0, 0) / 1000;
     let grade = 0, vf = '', fer = false; const names = {};
     x.fer = r.wl.map((wi, k) => net.ways[wi].fer && !shortFer.has(wi) ? [net.pts[r.verts[k]], net.pts[r.verts[k + 1]]] : null).filter(Boolean);
@@ -1200,12 +1239,16 @@ async function computeAscents(i, d) {
     x.via = (x.name.startsWith('Über ') ? (huts.length > 2 ? huts.slice(2) : ways) : huts.length ? huts : ways).filter(n => !x.name.includes(n)).slice(0, 2);
     try { Object.assign(x, await climb(ll)); } catch (err) { x.up = null; x.trk = ll.map(p => [p[0], p[1], null]); }
     x.h = dinHours(x.km, x.up || 0, x.down || 0);
+    if (x.type === 'zu') { const endH = x.trk[x.trk.length - 1][2]; x.gapM = Math.round(metres(ll[ll.length - 1], top) / 10) * 10; x.gapH = endH != null && P.e[i] != null ? Math.max(0, Math.round((P.e[i] - endH) / 10) * 10) : null; }
   }
+  // an approach much longer than the ascents to the summit helps nobody
+  const full = list.filter(x => x.type !== 'zu').map(x => x.km), shortest = full.length ? Math.min(...full) : Infinity;
+  for (let k = list.length - 1; k >= 0; k--) if (list[k].type === 'zu' && (list[k].km > 1.5 * shortest || list[k].km > 16)) list.splice(k, 1);
   // a T6 ridge is no 'easiest way' when there are other ascents (e.g. Jubiläumsgrat at the Zugspitze)
   const k6 = list.findIndex(x => x.type === 'normal' && x.grade >= 6);
-  if (k6 >= 0 && list.length > 1) list.splice(k6, 1);
+  if (k6 >= 0 && list.some(x => x.type !== 'zu' && x !== list[k6] && x.grade < 6)) list.splice(k6, 1);
   const shown = new Set(list.filter(x => x.type === 'rel').map(x => x.rel));
-  return { list, why: list.length ? '' : 'nopark', rest: (d.rt || []).filter(r => !shown.has(r[0])) };
+  return { list, why: noSummit ? 'noway' : !parks.length ? 'nopark' : island ? 'island' : list.length ? '' : 'nopark', rest: (d.rt || []).filter(r => !shown.has(r[0])) };
 }
 /* ---------- details of a summit are loaded in small files when it is opened ---------- */
 const chunkCache = new Map();
@@ -1537,6 +1580,7 @@ function initSheet() {
   setSheet(app.dataset.sheet || 'half');
 }
 function setPage(mode) {
+  if (mode !== 'plan' && typeof planChan !== 'undefined' && planChan) { sb.removeChannel(planChan); planChan = null; }
   pageMode = mode; $('page').hidden = !mode; $('app').dataset.page = mode || '';
   markNav();
   if (mode) { $('page').scrollTop = 0; document.title = mode === 'profile' ? 'Profil – Alpengipfel' : mode === 'user' ? 'Bergfreund – Alpengipfel' : mode === 'plan' ? 'Tour planen – Alpengipfel' : mode === 'feed' ? 'Touren der Community – Alpengipfel' : 'Alpengipfel'; }
@@ -1936,7 +1980,26 @@ function needLogin(page, what) {
     `<div class="emptybox"><h3>Melde dich an</h3><p>Pläne, Gruppen und Packlisten gibt es mit einem kostenlosen Konto.</p><div class="links"><button type="button" class="primary sharetour" id="plogin">Anmelden oder Konto anlegen</button></div></div></div>`;
   $('plogin').onclick = () => showProfile();
 }
-function showPlans(noPush) { if (selected >= 0) closeDetail(true); $('bookpanel').hidden = true; setPage('plan'); clearInterval(planTimer); renderPlans(); if (!noPush) pushUrl(ROOT + '#planen'); }
+let planChan = null;
+function planLive(st) {                              // new chat messages arrive at once (Supabase Realtime); the 20-second refresh is the fallback
+  if (planChan) { sb.removeChannel(planChan); planChan = null; }
+  if (!sb || !st || !st.chatOk || planState !== st) return;
+  planChan = sb.channel('plan-' + st.id).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'plan_nachrichten', filter: 'plan_id=eq.' + st.id }, ev => {
+    const m = ev.new; if (planState !== st || st.msgs.some(x => x.id === m.id)) return; st.msgs.push(m); renderChat(); }).subscribe();
+}
+function renderChat(scroll = true) {
+  const st = planState, box = $('plchatlist'); if (!st || !box) return;
+  const me = sbUser.id, name = uid => (st.group.find(x => x.user_id === uid) || {}).username || 'Ehemaliges Mitglied';
+  let last = '';
+  box.innerHTML = st.msgs.length ? st.msgs.map(m => { const day = new Date(m.created_at).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' }), head = day !== last ? `<li class="chday">${day}</li>` : ''; last = day;
+    const mine = m.user_id === me, t = new Date(m.created_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    return head + `<li class="chmsg${mine ? ' me' : ''}">${mine ? '' : av(name(m.user_id), 'sm')}<div class="chbub">${mine ? '' : `<b>${esc(name(m.user_id))}</b>`}<p>${esc(m.text)}</p><small>${t}${mine ? ` · <button type="button" class="linkbtn chdel" data-mdel="${m.id}">löschen</button>` : ''}</small></div></li>`; }).join('')
+    : '<li class="note chempty">Noch keine Nachrichten. Sprecht hier Treffpunkt, Fahrgemeinschaft oder Plan B ab.</li>';
+  box.querySelectorAll('[data-mdel]').forEach(b => { b.onclick = async () => { if (!confirm('Nachricht löschen?')) return; await sb.from('plan_nachrichten').delete().eq('id', +b.dataset.mdel); st.msgs = st.msgs.filter(x => x.id !== +b.dataset.mdel); renderChat(false); }; });
+  if (scroll) box.scrollTop = box.scrollHeight;
+  if ($('plchatn')) $('plchatn').textContent = st.msgs.length ? `${st.msgs.length} ${st.msgs.length === 1 ? 'Nachricht' : 'Nachrichten'}` : '';
+}
+function showPlans(noPush) { if (planChan) { sb.removeChannel(planChan); planChan = null; } if (selected >= 0) closeDetail(true); $('bookpanel').hidden = true; setPage('plan'); clearInterval(planTimer); renderPlans(); if (!noPush) pushUrl(ROOT + '#planen'); }
 async function renderPlans() {
   const page = $('page');
   if (!sb || !sbUser) return needLogin(page, 'Plane deine nächste Tour mit Freunden: Gipfel und Datum, wer dabei ist, wer was mitbringt und ob alles gecheckt ist.');
@@ -2008,14 +2071,16 @@ function newPlan(i0, edit) {                            // create (or edit) a pl
 function showPlan(id, noPush) {
   if (selected >= 0) closeDetail(true); $('bookpanel').hidden = true; setPage('plan'); clearInterval(planTimer);
   if (!noPush) pushUrl(ROOT + '#plan/' + id);
-  planState = { id, tab: sbUser ? sbUser.id : '' }; loadPlan(true);
+  planState = { id, tab: sbUser ? sbUser.id : '', draft: '' }; loadPlan(true).then(() => planLive(planState));
   planTimer = setInterval(() => { if (!document.hidden && pageMode === 'plan' && planState && planState.id === id && !document.activeElement.closest('#page input, #page select, #page textarea')) loadPlan(false); }, 20000);
 }
 async function loadPlan(first) {
   const page = $('page'), st = planState; if (!st) return;
   if (!sb || !sbUser) return needLogin(page, 'Dieser Plan ist nur für die Gruppe sichtbar.');
   if (first) page.innerHTML = '<div class="home plans"><p class="note">Plan wird geladen …</p></div>';
-  const [p, g, it] = await Promise.all([sb.from('plaene').select('*').eq('id', st.id).maybeSingle(), sb.rpc('plan_gruppe', { p: st.id }), sb.from('plan_eintraege').select('*').eq('plan_id', st.id).order('pos').order('id')]);
+  const [p, g, it, ms] = await Promise.all([sb.from('plaene').select('*').eq('id', st.id).maybeSingle(), sb.rpc('plan_gruppe', { p: st.id }), sb.from('plan_eintraege').select('*').eq('plan_id', st.id).order('pos').order('id'),
+    sb.from('plan_nachrichten').select('id,user_id,text,created_at').eq('plan_id', st.id).order('created_at', { ascending: false }).limit(200)]);
+  st.chatOk = !ms.error; st.msgs = (ms.data || []).reverse();
   if (planState !== st || pageMode !== 'plan') return;
   if (p.error || !p.data) { page.innerHTML = `<div class="home plans"><div class="emptybox"><h3>Plan nicht gefunden</h3><p>Vielleicht wurde er gelöscht, oder du gehörst nicht (mehr) zur Gruppe.</p><div class="links"><button type="button" id="pback">Zu deinen Touren</button></div></div></div>`; $('pback').onclick = () => showPlans(); return; }
   st.plan = p.data; st.group = (g.data || []).filter(x => x.status !== 'abgesagt'); st.items = it.data || [];
@@ -2049,6 +2114,8 @@ function renderPlan(first) {
       return `<li>${av(x.username, 'sm')}<span><b>${esc(x.username)}</b>${x.besitzer ? ' <small class="tag">plant</small>' : ''}<small>${x.status === 'eingeladen' ? '⏳ eingeladen' : l.length ? `🎒 ${d} von ${l.length} gepackt` : '✓ dabei'}</small></span>` +
         (owner && !x.besitzer ? `<button type="button" class="plrm" data-kick="${x.user_id}" aria-label="${esc(x.username)} entfernen">×</button>` : '') + `</li>`; }).join('')}</ul>` +
     (owner ? `<form class="pladd plinvf" id="plinvf"><div class="hsearch"><input id="plinvq" autocomplete="off" maxlength="20" placeholder="Freund per Benutzername einladen" aria-label="Benutzername"><div class="hres" id="plinvres" hidden></div></div><button type="submit" class="primary sharetour">Einladen</button></form><p class="note small" id="plinvmsg" role="status"></p>` : '') + `</section>` +
+    (st.chatOk ? `<section class="plchat" id="plchat"><div class="plsec"><h3 class="h3">Gruppenchat</h3><small id="plchatn"></small></div><ul class="chlist" id="plchatlist"></ul>` +
+      (invited ? '<p class="note small">Sag zu, um mitzuschreiben.</p>' : `<form class="chform" id="plchatf"><textarea id="plchatin" rows="1" maxlength="1000" placeholder="Nachricht an die Gruppe …" aria-label="Nachricht an die Gruppe">${esc(st.draft || '')}</textarea><button type="submit" class="primary" aria-label="Senden">➤</button></form>`) + `</section>` : '') +
     `<section><div class="plsec"><h3 class="h3">Checkliste</h3>${prog(checks)}</div><ul class="plitems">${checks.map(x => row(x, !invited)).join('')}</ul>${invited ? '' : addForm('check', 'Punkt hinzufügen, z. B. Bahn-Tickets gekauft')}</section>` +
     `<section><div class="plsec"><h3 class="h3">Für die ganze Gruppe</h3>${prog(gear)}</div><ul class="plitems">${grouped(gear, x => row(x, !invited,
       `<select class="plwho" data-who="${x.id}"${invited ? ' disabled' : ''} aria-label="Wer bringt es mit?"><option value="">Wer bringt's mit?</option>${st.group.filter(y => y.status !== 'eingeladen').map(y => `<option value="${y.user_id}"${y.user_id === x.user_id ? ' selected' : ''}>${esc(y.username)}</option>`).join('')}</select>`))}</ul>${invited ? '' : addForm('gruppe', 'Gemeinsamer Gegenstand, z. B. Seil', true)}</section>` +
@@ -2086,6 +2153,20 @@ function renderPlan(first) {
       if (!error && data === 'ok') { q.value = ''; loadPlan(false); } };
   }
   if (i >= 0 && $('plwx')) planWeather(i, pl.datum);
+  renderChat();
+  if ($('plchatf')) {
+    const ta = $('plchatin'), grow = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 140) + 'px'; };
+    ta.oninput = () => { st.draft = ta.value; grow(); }; grow();
+    ta.onkeydown = ev => { if (ev.key === 'Enter' && !ev.shiftKey && !MOBILE()) { ev.preventDefault(); $('plchatf').requestSubmit(); } };
+    $('plchatf').onsubmit = async ev => {
+      ev.preventDefault(); const t = ta.value.trim(); if (!t) return;
+      const btn = $('plchatf').querySelector('button'); btn.disabled = true;
+      const { data, error } = await sb.from('plan_nachrichten').insert({ plan_id: pl.id, text: t }).select('id,user_id,text,created_at').single();
+      btn.disabled = false;
+      if (error) { toast(/Zu viele/.test(error.message || '') ? 'Gerade sehr viele Nachrichten. Warte kurz.' : 'Die Nachricht konnte nicht gesendet werden.'); return; }
+      ta.value = ''; st.draft = ''; grow(); if (!st.msgs.some(x => x.id === data.id)) st.msgs.push(data); renderChat(); ta.focus();
+    };
+  }
 }
 async function planWeather(i, datum) {                // the forecast for the tour day at the summit (up to 16 days ahead)
   const box = $('plwx'), P = D.peaks; if (!box) return;
@@ -2121,13 +2202,13 @@ async function openBell() {
   const what = n => {
     const t = n.text ? `„${esc(n.text.length > 70 ? n.text.slice(0, 70) + '…' : n.text)}“` : '';
     return n.art === 'like' ? `gefällt deine Tour ${t}` : n.art === 'kommentar' ? `hat deine Tour kommentiert: ${t}` : n.art === 'folgt' ? 'folgt dir jetzt'
-      : n.art === 'anfrage' ? 'möchte dir folgen' : n.art === 'plan' ? `lädt dich zur Tour ${t} ein` : n.art === 'zusage' ? `ist bei ${t} dabei` : 'hat deine Anfrage angenommen. Du siehst jetzt die Touren.';
+      : n.art === 'anfrage' ? 'möchte dir folgen' : n.art === 'plan' ? `lädt dich zur Tour ${t} ein` : n.art === 'zusage' ? `ist bei ${t} dabei` : n.art === 'nachricht' ? `schreibt in ${t}` : 'hat deine Anfrage angenommen. Du siehst jetzt die Touren.';
   };
-  const icon = { like: '♥', kommentar: '💬', folgt: '👤', anfrage: '🔒', angenommen: '✓', plan: '🎒', zusage: '🎒' };
+  const icon = { like: '♥', kommentar: '💬', folgt: '👤', anfrage: '🔒', angenommen: '✓', plan: '🎒', zusage: '🎒', nachricht: '💬' };
   list.innerHTML = data.length ? data.map((n, k) => `<li class="${n.gelesen ? '' : 'new'}"><button type="button" class="bnitem" data-k="${k}">${av(n.username || '?', 'sm')}<span class="bntext"><b>${esc(n.username || 'Jemand')}</b> ${what(n)}<small>${icon[n.art] || ''} ${timeDe(n.created_at)}</small></span></button></li>`).join('')
     : '<li class="emptybox"><h3>Noch nichts Neues</h3><p>Hier siehst du, wenn jemand deine Touren liked oder kommentiert oder dir folgt.</p></li>';
   list.querySelectorAll('.bnitem').forEach(b => { b.onclick = () => { const n = data[+b.dataset.k]; dlg.close();
-    if ((n.art === 'plan' || n.art === 'zusage') && n.plan_id) showPlan(n.plan_id);
+    if ((n.art === 'plan' || n.art === 'zusage' || n.art === 'nachricht') && n.plan_id) { showPlan(n.plan_id); if (n.art === 'nachricht') setTimeout(() => { const c = $('plchat'); if (c) c.scrollIntoView({ block: 'start' }); }, 1200); }
     else if (n.art === 'anfrage') { showProfile(); setTimeout(() => { const el = $('psocial'); if (el) el.scrollIntoView({ block: 'start' }); }, 600); }
     else if ((n.art === 'like' || n.art === 'kommentar') && n.gipfel) { const i = indexOfId(+n.gipfel); if (i >= 0) { pendingPost = n.beitrag_id; detailTab = 'routes'; explore(true); showDetail(i); } }
     else if (n.username) showUser(n.username); }; });

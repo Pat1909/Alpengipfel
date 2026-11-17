@@ -101,7 +101,7 @@ Rechtsgrundlage ist die Bereitstellung der gewünschten Funktion (Art. 6 Abs. 1 
 <h2>Touren planen</h2>
 <p>Unter „Planen“ können angemeldete Nutzer eine Tour mit Name, Gipfel, Datum, Art, Treffpunkt und Notiz anlegen und andere Nutzer per Benutzername einladen. Gespeichert werden der Plan,
 wer eingeladen ist und zu- oder abgesagt hat, die Packlisten, die Gruppenausrüstung mit der zuständigen Person und die Checkliste, jeweils mit dem Vermerk, wer einen Punkt abgehakt hat.
-Sichtbar ist das nur für die Person, die den Plan angelegt hat, und die Eingeladenen, nicht öffentlich. Eingeladene erhalten eine Benachrichtigung. Für das Wetter am Tourentag fragt Ihr Browser
+Im Gruppenchat eines Plans speichern wir die Nachrichten mit Absender und Zeitpunkt; eigene Nachrichten können Sie löschen. Sichtbar ist das nur für die Person, die den Plan angelegt hat, und die Eingeladenen, nicht öffentlich. Eingeladene erhalten eine Benachrichtigung. Für das Wetter am Tourentag fragt Ihr Browser
 die Vorhersage für die Koordinaten des Gipfels bei Open-Meteo ab (siehe oben). Die Daten liegen bei Supabase (Speicherort {region}), bis der Plan gelöscht wird, Sie ihn verlassen oder Ihr Konto löschen.
 Rechtsgrundlage ist die Bereitstellung der gewünschten Funktion (Art. 6 Abs. 1 lit. b DSGVO).</p>
 <h2>Gipfelfotos von Wikimedia Commons</h2>
