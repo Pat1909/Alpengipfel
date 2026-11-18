@@ -1390,7 +1390,7 @@ function renderDetail(i, fromMap, d) {
   if (peakLayer) peakLayer.redraw();
   renderList();
 }
-/* ---------- weather (Open-Meteo, forecast computed for the summit elevation) ---------- */
+/* ---------- weather (MET Norway, forecast computed for the summit elevation) ---------- */
 const WMO = { 0: 'Klar', 1: 'Überwiegend klar', 2: 'Teils bewölkt', 3: 'Bedeckt', 45: 'Nebel', 48: 'Reifnebel', 51: 'Leichter Niesel', 53: 'Niesel', 55: 'Starker Niesel',
   56: 'Gefrierender Niesel', 57: 'Gefrierender Niesel', 61: 'Leichter Regen', 63: 'Regen', 65: 'Starker Regen', 66: 'Gefrierender Regen', 67: 'Gefrierender Regen',
   71: 'Leichter Schneefall', 73: 'Schneefall', 75: 'Starker Schneefall', 77: 'Schneegriesel', 80: 'Leichte Regenschauer', 81: 'Regenschauer', 82: 'Starke Regenschauer',
@@ -1401,19 +1401,70 @@ const dayFmt = new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: '2-digi
 const n1 = v => v == null ? '–' : (Math.round(v * 10) / 10).toLocaleString('de-DE');
 const n0 = v => v == null ? '–' : fmt.format(Math.round(v));
 const hundred = v => fmt.format(Math.round(v / 100) * 100);
+// MET Norway (api.met.no, free, also commercially, CC BY 4.0) -> the same daily/hourly layout the weather view uses.
+// MET has no gusts, probability, snowfall, sunshine or freezing level: snow is rain below +0.5 °C, the freezing level comes
+// from the summit temperature (6.5 °C per 1000 m), sunrise and sunset are computed, the rest stays empty.
+const MET_SYM = { clearsky: 0, fair: 1, partlycloudy: 2, cloudy: 3, fog: 45, lightrain: 61, rain: 63, heavyrain: 65, lightrainshowers: 80, rainshowers: 81, heavyrainshowers: 82,
+  lightsleet: 66, sleet: 67, heavysleet: 67, lightsleetshowers: 85, sleetshowers: 85, heavysleetshowers: 86, lightsnow: 71, snow: 73, heavysnow: 75, lightsnowshowers: 85, snowshowers: 85, heavysnowshowers: 86 };
+const metCode = s => { if (!s) return null; s = s.replace(/_(day|night|polartwilight)$/, ''); if (/thunder/.test(s)) return /snow|sleet/.test(s) ? 96 : 95; return MET_SYM[s] ?? null; };
+const berlin = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const localIso = t => berlin.format(t).replace(' ', 'T');            // 'YYYY-MM-DDTHH:MM' in German time
+function sunTimes(day, la, lo) {                    // sunrise and sunset in German time ('HH:MM'), NOAA approximation
+  const d0 = new Date(day + 'T12:00:00Z'), n = Math.round((d0 - Date.UTC(d0.getUTCFullYear(), 0, 1)) / 864e5) + 1, R = Math.PI / 180;
+  const g = 2 * Math.PI / 365 * (n - 1), eq = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+  const dec = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
+  const ha = Math.acos(Math.cos(90.833 * R) / (Math.cos(la * R) * Math.cos(dec)) - Math.tan(la * R) * Math.tan(dec)) / R;
+  if (!Number.isFinite(ha)) return [null, null];
+  const at = mins => { const t = new Date(Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth(), d0.getUTCDate()) + mins * 6e4); return localIso(t).slice(11); };
+  return [at(720 - 4 * (lo + ha) - eq), at(720 - 4 * (lo - ha) - eq)];
+}
+async function metWeather(la, lo, e) {
+  const url = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${la.toFixed(4)}&lon=${lo.toFixed(4)}${e != null ? '&altitude=' + Math.round(e) : ''}`;
+  const r = await fetch(url); if (!r.ok) throw new Error(r.status);
+  const ts = (await r.json()).properties.timeseries.map(x => ({ t: new Date(x.time), d: x.data }));
+  // an hourly grid in German time, from midnight today, 7 days; each hour takes the latest forecast step at or before it
+  const start = localIso(new Date()).slice(0, 10), hour = [], H = { time: [], temperature_2m: [], apparent_temperature: [], weather_code: [], precipitation: [], snowfall: [], cloud_cover: [], visibility: [], wind_speed_10m: [], wind_gusts_10m: [], wind_dir: [], freezing_level_height: [] };
+  const first = ts[0].t, lastT = ts[ts.length - 1].t;
+  let k = 0;
+  for (let x = 0; x < 7 * 24; x++) {
+    const iso = localIso(new Date(new Date(start + 'T00:00:00').getTime() + x * 36e5));   // the browser's clock is close enough to German time for the grid
+    const t = new Date(new Date(start + 'T00:00:00').getTime() + x * 36e5);
+    while (k + 1 < ts.length && ts[k + 1].t <= t) k++;
+    const s = ts[k], ok = t >= new Date(first.getTime() - 36e5 + 1) && t <= new Date(lastT.getTime() + 6 * 36e5);
+    const det = s.d.instant.details, n1h = s.d.next_1_hours, n6h = s.d.next_6_hours, T = det.air_temperature, v = det.wind_speed != null ? det.wind_speed * 3.6 : null;
+    const pr = n1h ? n1h.details.precipitation_amount : n6h ? n6h.details.precipitation_amount / 6 : null;
+    H.time.push(iso);
+    H.temperature_2m.push(ok ? T : null);
+    H.apparent_temperature.push(ok && T != null && v != null ? (T <= 10 && v > 4.8 ? 13.12 + 0.6215 * T - 11.37 * Math.pow(v, 0.16) + 0.3965 * T * Math.pow(v, 0.16) : T) : null);
+    H.weather_code.push(ok ? metCode((n1h || n6h || s.d.next_12_hours || {}).summary && (n1h || n6h || s.d.next_12_hours).summary.symbol_code) : null);
+    H.precipitation.push(ok ? pr : null); H.snowfall.push(ok && pr != null && T != null && T <= 0.5 ? pr : 0);
+    H.cloud_cover.push(ok ? det.cloud_area_fraction : null); H.visibility.push(null);
+    H.wind_speed_10m.push(ok ? v : null); H.wind_gusts_10m.push(ok && det.wind_speed_of_gust != null ? det.wind_speed_of_gust * 3.6 : null); H.wind_dir.push(ok ? det.wind_from_direction : null);
+    H.freezing_level_height.push(ok && T != null && e != null ? Math.max(0, e + T / 0.0065) : null);
+  }
+  const Dy = { time: [], weather_code: [], temperature_2m_max: [], temperature_2m_min: [], apparent_temperature_min: [], precipitation_sum: [], precipitation_probability_max: [], snowfall_sum: [],
+    wind_speed_10m_max: [], wind_gusts_10m_max: [], wind_direction_10m_dominant: [], sunshine_duration: [], sunrise: [], sunset: [] };
+  for (let d = 0; d < 7; d++) {
+    const xs = [...Array(24).keys()].map(h => d * 24 + h).filter(x => H.temperature_2m[x] != null), day = H.time[d * 24].slice(0, 10);
+    if (!xs.length) break;
+    const vals = a => xs.map(x => a[x]).filter(v => v != null), mx = a => vals(a).length ? Math.max(...vals(a)) : null, mn = a => vals(a).length ? Math.min(...vals(a)) : null, sum = a => vals(a).reduce((p, q) => p + q, 0);
+    const daytime = xs.filter(x => x % 24 >= 7 && x % 24 <= 19), codes = (daytime.length ? daytime : xs).map(x => H.weather_code[x]).filter(c => c != null);
+    const wi = xs.reduce((b, x) => (H.wind_speed_10m[x] ?? -1) > (H.wind_speed_10m[b] ?? -1) ? x : b, xs[0]), [rise, set] = sunTimes(day, la, lo);
+    Dy.time.push(day); Dy.weather_code.push(codes.length ? Math.max(...codes) : null);
+    Dy.temperature_2m_max.push(mx(H.temperature_2m)); Dy.temperature_2m_min.push(mn(H.temperature_2m)); Dy.apparent_temperature_min.push(mn(H.apparent_temperature));
+    Dy.precipitation_sum.push(Math.round(sum(H.precipitation) * 10) / 10); Dy.precipitation_probability_max.push(null); Dy.snowfall_sum.push(Math.round(sum(H.snowfall) * 10) / 10);
+    Dy.wind_speed_10m_max.push(mx(H.wind_speed_10m)); Dy.wind_gusts_10m_max.push(mx(H.wind_gusts_10m)); Dy.wind_direction_10m_dominant.push(H.wind_dir[wi]);
+    Dy.sunshine_duration.push(null); Dy.sunrise.push(rise ? day + 'T' + rise : null); Dy.sunset.push(set ? day + 'T' + set : null);
+  }
+  return { daily: Dy, hourly: H };
+}
 async function loadWeather(i) {
   const P = D.peaks, la = P.la[i], lo = P.lo[i], e = P.e[i];
   const windy = `<a href="https://www.windy.com/${la}/${lo}?${la},${lo},11" target="_blank" rel="noopener">Wetter für diesen Punkt bei Windy öffnen</a>`;
   let data = wxCache.get(i);
   if (!data) {
     try {
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}${e != null ? '&elevation=' + e : ''}` +
-        '&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_min,precipitation_sum,precipitation_probability_max,snowfall_sum,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant,sunshine_duration,sunrise,sunset' +
-        '&hourly=temperature_2m,apparent_temperature,weather_code,precipitation,snowfall,cloud_cover,visibility,wind_speed_10m,wind_gusts_10m,freezing_level_height' +
-        '&timezone=Europe%2FBerlin&forecast_days=7';
-      const r = await fetch(url);
-      if (!r.ok) throw new Error(r.status);
-      data = await r.json(); wxCache.set(i, data);
+      data = await metWeather(la, lo, e); wxCache.set(i, data);
     } catch (err) {
       if (selected === i && $('wxnowt')) $('wxnowt').textContent = 'Wetter gerade nicht verfügbar';
       if (selected === i && $('wxbody')) $('wxbody').innerHTML = (HOSTED ? 'Der Wetterdienst ist gerade nicht erreichbar. Öffne den Gipfel in ein paar Minuten noch einmal. ' : 'Die Vorhersage konnte nicht geladen werden. Innerhalb von claude.ai darf die Seite keine Wetterdaten abrufen; auf der eigenen Webadresse erscheint sie hier. ') + windy;
@@ -1425,9 +1476,9 @@ async function loadWeather(i) {
   if ($('wxnowt')) {
     const warn = [];
     if (h.weather_code.slice(0, 24).some(c => c >= 95)) warn.push('Gewitter');
-    if (d.wind_gusts_10m_max[0] >= 75) warn.push('Sturmböen');
+    if ((d.wind_gusts_10m_max[0] ?? d.wind_speed_10m_max[0] * 1.5) >= 75) warn.push('Sturm');
     if (d.snowfall_sum[0] >= 10) warn.push('viel Neuschnee');
-    $('wxnowt').innerHTML = `<b>${WMO[d.weather_code[0]] || '–'}</b> · ${n0(d.temperature_2m_min[0])} / ${n0(d.temperature_2m_max[0])} °C · Böen ${n0(d.wind_gusts_10m_max[0])} km/h` +
+    $('wxnowt').innerHTML = `<b>${WMO[d.weather_code[0]] || '–'}</b> · ${n0(d.temperature_2m_min[0])} / ${n0(d.temperature_2m_max[0])} °C · ${d.wind_gusts_10m_max[0] != null ? 'Böen ' + n0(d.wind_gusts_10m_max[0]) : 'Wind bis ' + n0(d.wind_speed_10m_max[0])} km/h` +
       warn.map(w => `<em class="warn">${w}</em>`).join('') + `<span class="more">7 Tage ›</span>`;
   }
   const days = d.time.map((t, k) => {
@@ -1437,29 +1488,29 @@ async function loadWeather(i) {
     const precip = !rain ? 'trocken' : `${n1(rain)} mm${prob != null ? ' · ' + prob + ' %' : ''}`;
     const warn = [];
     if (hs.some(x => h.weather_code[x] >= 95)) warn.push('Gewitter');
-    if (gust >= 75) warn.push('Sturmböen');
+    if ((gust ?? d.wind_speed_10m_max[k] * 1.5) >= 75) warn.push('Sturm');
     if (snow >= 10) warn.push('viel Neuschnee');
     if (d.apparent_temperature_min[k] <= -20) warn.push('strenge Kälte');
     const facts = [
-      fl.length ? `Nullgradgrenze ${hundred(Math.min(...fl))}–${hundred(Math.max(...fl))} m` : '',
+      fl.length ? `Nullgradgrenze etwa ${hundred(Math.min(...fl))}–${hundred(Math.max(...fl))} m` : '',
       d.sunshine_duration[k] != null ? `Sonne ${n1(d.sunshine_duration[k] / 3600)} h` : '',
       d.sunrise[k] ? `Sonnenaufgang ${d.sunrise[k].slice(11)}, Untergang ${d.sunset[k].slice(11)}` : '',
       `gefühlt bis ${n0(d.apparent_temperature_min[k])} °C`,
       `Wind bis ${n0(d.wind_speed_10m_max[k])} km/h aus ${WIND_DIR[Math.round(d.wind_direction_10m_dominant[k] / 45) % 8]}`
     ].filter(Boolean);
-    const rows = hs.filter(x => x % 3 === 2).map(x => `<tr><td>${h.time[x].slice(11)}</td><td>${WMO[h.weather_code[x]] || '–'}</td>` +
+    const rows = hs.filter(x => x % 3 === 2 && h.temperature_2m[x] != null).map(x => `<tr><td>${h.time[x].slice(11)}</td><td>${WMO[h.weather_code[x]] || '–'}</td>` +
       `<td>${n0(h.temperature_2m[x])}°<small>gef. ${n0(h.apparent_temperature[x])}°</small></td>` +
-      `<td>${n0(h.wind_speed_10m[x])}<small>Böen ${n0(h.wind_gusts_10m[x])}</small></td>` +
+      `<td>${n0(h.wind_speed_10m[x])}<small>${h.wind_gusts_10m[x] != null ? 'Böen ' + n0(h.wind_gusts_10m[x]) : ''}</small></td>` +
       `<td>${h.precipitation[x] ? n1(h.precipitation[x]) + ' mm' : '–'}<small>${h.snowfall[x] ? n1(h.snowfall[x]) + ' cm Schnee' : ''}</small></td>` +
       `<td>${n0(h.cloud_cover[x])} %<small>${h.visibility[x] != null ? 'Sicht ' + (h.visibility[x] >= 10000 ? '>10' : n1(h.visibility[x] / 1000)) + ' km' : ''}</small></td></tr>`).join('');
     return `<details class="wxd"${k === 0 ? ' open' : ''}><summary><span class="day">${k === 0 ? 'Heute' : dayFmt.format(new Date(t + 'T12:00'))}</span>` +
       `<span class="wxm">${WMO[d.weather_code[k]] || '–'}${warn.map(w => `<em class="warn">${w}</em>`).join('')}<small>${precip}${snow ? ' · ' + n1(snow) + ' cm Neuschnee' : ''}</small></span>` +
-      `<span class="temp">${n0(d.temperature_2m_min[k])} / ${n0(d.temperature_2m_max[k])} °C<small>Böen ${n0(gust)} km/h</small></span></summary>` +
+      `<span class="temp">${n0(d.temperature_2m_min[k])} / ${n0(d.temperature_2m_max[k])} °C<small>${gust != null ? 'Böen ' + n0(gust) : 'Wind ' + n0(d.wind_speed_10m_max[k])} km/h</small></span></summary>` +
       `<p class="wxf">${facts.join(' · ')}</p>` +
       `<div class="wxscroll"><table class="wxh"><thead><tr><th>Zeit</th><th>Wetter</th><th>Temp.</th><th>Wind km/h</th><th>Niederschlag</th><th>Wolken</th></tr></thead><tbody>${rows}</tbody></table></div></details>`;
   }).join('');
   const body = $('wxbody'); body.className = '';
-  body.innerHTML = days + `<p class="note" style="margin-top:8px">Tippe auf einen Tag für den Verlauf in 3-Stunden-Schritten. Temperatur als Tagestief / Tageshoch${e != null ? `, berechnet für ${fmt.format(e)} m` : ''}. Modellvorhersage von <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>, kein Ersatz für den Bergwetterbericht.</p>`;
+  body.innerHTML = days + `<p class="note" style="margin-top:8px">Tippe auf einen Tag für den Verlauf in 3-Stunden-Schritten. Temperatur als Tagestief / Tageshoch${e != null ? `, berechnet für ${fmt.format(e)} m` : ''}. Neuschnee und Nullgradgrenze sind aus Temperatur und Niederschlag geschätzt. Modellvorhersage: <a href="https://www.met.no/en" target="_blank" rel="noopener">MET Norway</a> (CC BY 4.0), kein Ersatz für den Bergwetterbericht.</p>`;
 }
 /* ---------- 3D view of a summit's surroundings (MapLibre GL with terrain, loaded only when opened) ---------- */
 let gl3d = null, glLib = null;
@@ -1469,6 +1520,18 @@ function loadMaplibre() {
     const s = document.createElement('script'); s.src = ROOT + 'assets/maplibre-gl.js'; s.onload = ok; s.onerror = () => { glLib = null; fail(new Error('load')); }; document.head.appendChild(s);
   });
   return glLib;
+}
+const BASE_STYLE = 'https://tiles.openfreemap.org/styles/liberty';   // free, also for commercial use; data © OpenStreetMap
+const DEM_TILES = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
+let glueLib = null;
+function loadGlue() {                                // the bridge that lets MapLibre draw the background of the Leaflet map
+  if (!glueLib) glueLib = new Promise((ok, fail) => { const s = document.createElement('script'); s.src = ROOT + 'assets/leaflet-maplibre-gl.js'; s.onload = ok; s.onerror = () => { glueLib = null; fail(new Error('load')); }; document.head.appendChild(s); });
+  return glueLib;
+}
+function addHillshade(m, strength) {                 // relief shading from the terrain tiles, below the labels
+  if (!m.getSource('dem')) m.addSource('dem', { type: 'raster-dem', tiles: [DEM_TILES], tileSize: 256, maxzoom: 14, encoding: 'terrarium', attribution: 'Höhendaten: Mapzen Terrain Tiles' });
+  const first = m.getStyle().layers.find(l => l.type === 'symbol');
+  m.addLayer({ id: 'hills', type: 'hillshade', source: 'dem', paint: { 'hillshade-exaggeration': strength, 'hillshade-shadow-color': '#3d3328', 'hillshade-highlight-color': '#ffffff' } }, first && first.id);
 }
 function close3d() { if (gl3d) { gl3d.remove(); gl3d = null; } if ($('view3d')) $('view3d').hidden = true; }
 async function open3d(i) {
@@ -1481,13 +1544,7 @@ async function open3d(i) {
   try {
     gl3d = new maplibregl.Map({
       container: 'v3map', center: [lo, la], zoom: 12.6, pitch: 62, bearing: -20, maxPitch: 80, maxZoom: 16, minZoom: 9,
-      style: { version: 8,
-        sources: {
-          osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 19, attribution: '© OpenStreetMap-Mitwirkende' },
-          dem: { type: 'raster-dem', tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 14, encoding: 'terrarium', attribution: 'Höhendaten: Mapzen Terrain Tiles' } },
-        layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
-        terrain: { source: 'dem', exaggeration: 1.2 },
-        sky: { 'sky-color': '#9cc3e6', 'horizon-color': '#e6eef2', 'fog-color': '#e6eef2', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.6, 'fog-ground-blend': 0.3 } }
+      style: BASE_STYLE
     });
   } catch (err) { return fail(); }
   const m = gl3d;
@@ -1496,6 +1553,10 @@ async function open3d(i) {
   m.on('load', async () => {
     if (gl3d !== m) return;
     msg.hidden = true;
+    try {                                             // terrain, shading and sky on top of the OpenFreeMap style
+      addHillshade(m, 0.45); m.setTerrain({ source: 'dem', exaggeration: 1.2 });
+      m.setSky({ 'sky-color': '#9cc3e6', 'horizon-color': '#e6eef2', 'fog-color': '#e6eef2', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.6, 'fog-ground-blend': 0.3 });
+    } catch (err) { /* flat, but usable */ }
     // neighbouring summits as dots, the open one as a labelled pin
     const near = [];
     for (let k = 0; k < N; k++) if (k !== i && Math.abs(P.la[k] - la) < 0.09 && Math.abs(P.lo[k] - lo) < 0.13) near.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [P.lo[k], P.la[k]] }, properties: { c: colorOf(P.e[k]), n: P.n[k] + (P.e[k] != null ? ', ' + fmt.format(P.e[k]) + ' m' : '') } });
@@ -1714,7 +1775,7 @@ function renderHome() {
         : `<p class="hempty">Noch kein Gipfel eingetragen</p><p class="note">Öffne einen Gipfel und trage ihn als bestiegen ein, zum Beispiel die Zugspitze. Dein Fortschritt erscheint dann hier.</p>`}
         <div class="links"><button type="button" id="hbook">Gipfelbuch öffnen</button>${sb ? `<button type="button" id="hprof">${sbUser ? 'Profil' : 'Anmelden'}</button>` : ''}</div></div></section>
     <section class="fbcard">${svgIcon('msg')}<div><h3>Fehlt etwas oder stimmt etwas nicht?</h3><p>Schreib mir deine Idee, einen Fehler oder eine falsche Route. Jede Nachricht wird gelesen.</p></div><button type="button" class="primary" id="hfb">Feedback geben</button></section>
-    <footer class="hfoot">${window.AG_SUPPORT ? `<a class="support" href="${esc(window.AG_SUPPORT)}" target="_blank" rel="noopener">Unterstützen</a>` : ''}<button type="button" class="linkbtn" id="hfb2">Feedback</button>${HOSTED ? `<a href="${ROOT}gebirge/">Gebirgsgruppen</a><a href="${ROOT}land/">Länder</a><a href="${ROOT}listen/viertausender.html">Viertausender</a>` : ''}${window.AG_LEGAL ? `<a href="${ROOT}impressum.html">Impressum</a><a href="${ROOT}datenschutz.html">Datenschutz</a><a href="${ROOT}nutzungsbedingungen.html">Nutzungsbedingungen</a>` : ''}<span>Daten: © OpenStreetMap-Mitwirkende, Camptocamp, Open-Meteo · Stand ${D.meta.date}</span></footer></div>`;
+    <footer class="hfoot">${window.AG_SUPPORT ? `<a class="support" href="${esc(window.AG_SUPPORT)}" target="_blank" rel="noopener">Unterstützen</a>` : ''}<button type="button" class="linkbtn" id="hfb2">Feedback</button>${HOSTED ? `<a href="${ROOT}gebirge/">Gebirgsgruppen</a><a href="${ROOT}land/">Länder</a><a href="${ROOT}listen/viertausender.html">Viertausender</a>` : ''}${window.AG_LEGAL ? `<a href="${ROOT}impressum.html">Impressum</a><a href="${ROOT}datenschutz.html">Datenschutz</a><a href="${ROOT}nutzungsbedingungen.html">Nutzungsbedingungen</a>` : ''}<span>Daten: © OpenStreetMap-Mitwirkende, Camptocamp, MET Norway · Stand ${D.meta.date}</span></footer></div>`;
   drawHero();
   $('hmap').onclick = () => explore();
   $('hnear').onclick = () => { explore(); locate(); };
@@ -2168,17 +2229,18 @@ function renderPlan(first) {
     };
   }
 }
-async function planWeather(i, datum) {                // the forecast for the tour day at the summit (up to 16 days ahead)
+async function planWeather(i, datum) {                // the forecast for the tour day at the summit (MET Norway, up to about 8 days ahead)
   const box = $('plwx'), P = D.peaks; if (!box) return;
   const days = datum ? Math.round((new Date(datum + 'T12:00:00') - new Date(today() + 'T12:00:00')) / 864e5) : null;
-  if (days == null || days < 0 || days > 15) { box.innerHTML = `<h3 class="h3">Wetter am Gipfel</h3><p class="note">${days == null ? 'Sobald ein Datum feststeht, siehst du hier die Vorhersage für den Tourentag.' : days < 0 ? 'Die Tour liegt in der Vergangenheit.' : 'Die Vorhersage gibt es ab etwa 16 Tagen vor der Tour.'}</p>`; return; }
+  if (days == null || days < 0 || days > 6) { box.innerHTML = `<h3 class="h3">Wetter am Gipfel</h3><p class="note">${days == null ? 'Sobald ein Datum feststeht, siehst du hier die Vorhersage für den Tourentag.' : days < 0 ? 'Die Tour liegt in der Vergangenheit.' : 'Die Vorhersage für den Tourentag gibt es ab einer Woche vorher.'}</p>`; return; }
   try {
-    const u = `https://api.open-meteo.com/v1/forecast?latitude=${P.la[i]}&longitude=${P.lo[i]}${P.e[i] != null ? '&elevation=' + P.e[i] : ''}&daily=weather_code,temperature_2m_min,temperature_2m_max,precipitation_sum,precipitation_probability_max,snowfall_sum,wind_gusts_10m_max&timezone=Europe%2FBerlin&start_date=${datum}&end_date=${datum}`;
-    const d = (await (await fetch(u)).json()).daily, n0 = v => v == null ? '–' : Math.round(v);
-    if (!$('plwx')) return;
-    const warn = [d.wind_gusts_10m_max[0] >= 60 ? 'Sturmböen' : '', d.precipitation_probability_max[0] >= 60 ? 'Niederschlag wahrscheinlich' : '', d.snowfall_sum[0] >= 2 ? 'Neuschnee' : ''].filter(Boolean);
-    box.innerHTML = `<h3 class="h3">Wetter am Gipfel · ${esc(wday(datum))}</h3><div class="plwxrow"><b>${WMO[d.weather_code[0]] || '–'}</b><span>${n0(d.temperature_2m_min[0])} / ${n0(d.temperature_2m_max[0])} °C</span><span>Böen ${n0(d.wind_gusts_10m_max[0])} km/h</span><span>${n0(d.precipitation_probability_max[0])} % Regen · ${String(d.precipitation_sum[0] ?? 0).replace('.', ',')} mm</span></div>` +
-      (warn.length ? `<p class="plwarn">⚠️ ${warn.join(' · ')}</p>` : '') + `<p class="note small">Modellvorhersage von Open-Meteo für ${P.e[i] != null ? fmt.format(P.e[i]) + ' m' : 'den Gipfel'}${days > 3 ? ', so weit voraus noch unsicher' : ''}. Bitte zusätzlich den Bergwetterbericht lesen.</p>`;
+    let w = wxCache.get(i); if (!w) { w = await metWeather(P.la[i], P.lo[i], P.e[i]); wxCache.set(i, w); }
+    const d = w.daily, k = d.time.indexOf(datum); if (!$('plwx')) return; if (k < 0) throw new Error('day');
+    const wind = d.wind_gusts_10m_max[k] ?? d.wind_speed_10m_max[k];
+    const warn = [(d.wind_gusts_10m_max[k] ?? d.wind_speed_10m_max[k] * 1.5) >= 60 ? 'Sturm' : '', d.precipitation_sum[k] >= 5 ? 'Niederschlag' : '', d.snowfall_sum[k] >= 2 ? 'Neuschnee' : '', d.weather_code[k] >= 95 ? 'Gewitter' : ''].filter(Boolean);
+    box.innerHTML = `<h3 class="h3">Wetter am Gipfel · ${esc(wday(datum))}</h3><div class="plwxrow"><b>${WMO[d.weather_code[k]] || '–'}</b><span>${n0(d.temperature_2m_min[k])} / ${n0(d.temperature_2m_max[k])} °C</span>` +
+      `<span>${d.wind_gusts_10m_max[k] != null ? 'Böen' : 'Wind bis'} ${n0(wind)} km/h</span><span>${d.precipitation_sum[k] ? n1(d.precipitation_sum[k]) + ' mm' : 'trocken'}</span></div>` +
+      (warn.length ? `<p class="plwarn">⚠️ ${warn.join(' · ')}</p>` : '') + `<p class="note small">Modellvorhersage von MET Norway für ${P.e[i] != null ? fmt.format(P.e[i]) + ' m' : 'den Gipfel'}${days > 3 ? ', so weit voraus noch unsicher' : ''}. Bitte zusätzlich den Bergwetterbericht lesen.</p>`;
   } catch (err) { if ($('plwx')) $('plwx').innerHTML = '<h3 class="h3">Wetter am Gipfel</h3><p class="note">Die Vorhersage ist gerade nicht erreichbar.</p>'; }
 }
 /* ---------- notifications: likes, comments, followers, requests ---------- */
@@ -2586,15 +2648,18 @@ function initMap() {
     layers.borders = L.polyline(GEO.borders.map(toLL), { ...st.borders, renderer: gr }).addTo(map);
     map.on('zoomend', () => { const s2 = baseStyle(); for (const k of ['rhalo', 'rborders', 'halo', 'borders']) if (layers[k]) layers[k].setStyle(s2[k]); });
   }
-  // Background tiles are an optional extra: only added where the host page is allowed to load them.
-  const probe = new Image();
-  probe.onload = () => {
-    const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: 'Karte © OpenStreetMap' }).addTo(map);
-    tiles.bringToBack();
-    if (layers.alps) { map.removeLayer(layers.alps); map.removeLayer(layers.lakes); }
-    hasTiles = true; if (layers.groups) layers.groups.setStyle(baseStyle().groups); peakLayer.redraw();
-  };
-  probe.src = 'https://tile.openstreetmap.org/6/33/22.png';
+  // Background map: free vector tiles from OpenFreeMap (OpenStreetMap data) with hill shading, drawn by MapLibre inside Leaflet.
+  // An optional extra: without WebGL or without the tiles the own simple base map (Alps, lakes, borders) stays.
+  (async () => {
+    try { await loadMaplibre(); await loadGlue(); } catch (err) { return; }
+    let gl; try { gl = L.maplibreGL({ style: BASE_STYLE, interactive: false, attribution: '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> · © <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a>' }).addTo(map); } catch (err) { return; }
+    const glm = gl.getMaplibreMap(); if (!glm) return;
+    glm.on('load', () => {
+      try { addHillshade(glm, 0.35); } catch (err) { /* without shading */ }
+      if (layers.alps) { map.removeLayer(layers.alps); map.removeLayer(layers.lakes); }
+      hasTiles = true; if (layers.groups) layers.groups.setStyle(baseStyle().groups); peakLayer.redraw();
+    });
+  })();
 
   const PeakLayer = L.Layer.extend({
     onAdd(m) {
@@ -2834,7 +2899,7 @@ async function boot() {
   if (HOSTED) countVisit();
   if (HOSTED) { addEventListener('popstate', route); route(); } else showHome(true);
   if (HOSTED && 'serviceWorker' in navigator) navigator.serviceWorker.register(ROOT + 'sw.js').catch(() => { /* the app works without it */ });
-  if (window.AG_LEGAL) { $('foot').hidden = false; $('foot').innerHTML = `${window.AG_SUPPORT ? `<a class="support" href="${esc(window.AG_SUPPORT)}" target="_blank" rel="noopener">Unterstützen</a>` : ''}<button type="button" class="linkbtn" id="footfb">Feedback</button><a href="${ROOT}impressum.html">Impressum</a><a href="${ROOT}datenschutz.html">Datenschutz</a><a href="${ROOT}nutzungsbedingungen.html">Nutzungsbedingungen</a><span>Daten: © OpenStreetMap-Mitwirkende, Camptocamp, Open-Meteo</span>`; $('footfb').onclick = () => openFeedback(); }
+  if (window.AG_LEGAL) { $('foot').hidden = false; $('foot').innerHTML = `${window.AG_SUPPORT ? `<a class="support" href="${esc(window.AG_SUPPORT)}" target="_blank" rel="noopener">Unterstützen</a>` : ''}<button type="button" class="linkbtn" id="footfb">Feedback</button><a href="${ROOT}impressum.html">Impressum</a><a href="${ROOT}datenschutz.html">Datenschutz</a><a href="${ROOT}nutzungsbedingungen.html">Nutzungsbedingungen</a><span>Daten: © OpenStreetMap-Mitwirkende, Camptocamp, MET Norway</span>`; $('footfb').onclick = () => openFeedback(); }
 }
 boot();
 })();

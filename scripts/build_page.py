@@ -31,7 +31,7 @@ import hashlib
 V = hashlib.sha1((css + js).encode()).hexdigest()[:10]   # changes with every new build, so browsers never keep an old copy
 
 # vendored libraries and fonts
-for f in ('leaflet.js', 'supabase.js', 'maplibre-gl.js', 'maplibre-gl.css'): shutil.copy(f'src/vendor/{f}', f'docs/assets/{f}')
+for f in ('leaflet.js', 'supabase.js', 'maplibre-gl.js', 'maplibre-gl.css', 'leaflet-maplibre-gl.js'): shutil.copy(f'src/vendor/{f}', f'docs/assets/{f}')
 os.makedirs('docs/assets/fonts', exist_ok=True)
 faces = []
 for f in sorted(glob.glob('src/vendor/fonts/*.woff2')):

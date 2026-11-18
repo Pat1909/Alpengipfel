@@ -35,7 +35,8 @@ def impressum(d):
     body += ('<h2>Datenquellen und Lizenzen</h2><ul>'
              '<li>Gipfel, Wege, Hütten, Grenzen: © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende, Open Database License (ODbL)</li>'
              '<li>Hochtouren, Klettereien, Skitouren und weitere Routen: © <a href="https://www.camptocamp.org/">Camptocamp.org</a>-Mitwirkende, CC BY-SA 3.0</li>'
-             '<li>Wettervorhersage: <a href="https://open-meteo.com/">Open-Meteo.com</a>, CC BY 4.0</li>'
+             '<li>Wettervorhersage: Daten des Norwegischen Meteorologischen Instituts (<a href="https://www.met.no/en">MET Norway</a>), CC BY 4.0</li>'
+             '<li>Hintergrundkarte: <a href="https://openfreemap.org/">OpenFreeMap</a>, Kartenstil © <a href="https://www.openmaptiles.org/">OpenMapTiles</a>, Daten © OpenStreetMap-Mitwirkende</li>'
              '<li>Ländergrenzen und Seen der Übersichtskarte: Natural Earth (gemeinfrei)</li>'
              '<li>Höhendaten der 3D-Ansicht: Mapzen Terrain Tiles (u. a. SRTM, EU-DEM, Daten der Alpenländer; Nachweise unter <a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md">Terrain Tiles Attribution</a>)</li>'
              '<li>Schrift Barlow: SIL Open Font License 1.1 · Kartenbibliotheken Leaflet (BSD-2-Clause) und MapLibre GL JS (BSD-3-Clause)</li></ul>'
@@ -102,7 +103,7 @@ Rechtsgrundlage ist die Bereitstellung der gewünschten Funktion (Art. 6 Abs. 1 
 <p>Unter „Planen“ können angemeldete Nutzer eine Tour mit Name, Gipfel, Datum, Art, Treffpunkt und Notiz anlegen und andere Nutzer per Benutzername einladen. Gespeichert werden der Plan,
 wer eingeladen ist und zu- oder abgesagt hat, die Packlisten, die Gruppenausrüstung mit der zuständigen Person und die Checkliste, jeweils mit dem Vermerk, wer einen Punkt abgehakt hat.
 Im Gruppenchat eines Plans speichern wir die Nachrichten mit Absender und Zeitpunkt; eigene Nachrichten können Sie löschen. Sichtbar ist das nur für die Person, die den Plan angelegt hat, und die Eingeladenen, nicht öffentlich. Eingeladene erhalten eine Benachrichtigung. Für das Wetter am Tourentag fragt Ihr Browser
-die Vorhersage für die Koordinaten des Gipfels bei Open-Meteo ab (siehe oben). Die Daten liegen bei Supabase (Speicherort {region}), bis der Plan gelöscht wird, Sie ihn verlassen oder Ihr Konto löschen.
+die Vorhersage für die Koordinaten des Gipfels bei MET Norway ab (siehe oben). Die Daten liegen bei Supabase (Speicherort {region}), bis der Plan gelöscht wird, Sie ihn verlassen oder Ihr Konto löschen.
 Rechtsgrundlage ist die Bereitstellung der gewünschten Funktion (Art. 6 Abs. 1 lit. b DSGVO).</p>
 <h2>Gipfelfotos von Wikimedia Commons</h2>
 <p>Zu vielen Gipfeln zeigt die Gipfelansicht ein frei lizenziertes Foto aus Wikimedia Commons, mit Urheber und Lizenz. Dafür lädt Ihr Browser die Bildangaben und das Bild direkt von Servern der Wikimedia Foundation
@@ -127,9 +128,9 @@ erforderlich, werden nicht zu Werbe- oder Analysezwecken verwendet und lassen si
 <h2>Eingebundene Dienste</h2>
 <p>Die folgenden Inhalte lädt Ihr Browser direkt beim jeweiligen Anbieter. Dabei wird Ihre IP-Adresse an den Anbieter übermittelt, bei Wetter und Wegen außerdem die Koordinaten bzw. die Kennung des geöffneten Gipfels.
 Rechtsgrundlage ist unser berechtigtes Interesse, Karte, Wetter und Wege anzuzeigen (Art. 6 Abs. 1 lit. f DSGVO).</p>
-<ul><li><b>Kartenbilder:</b> OpenStreetMap Foundation, St John’s Innovation Centre, Cowley Road, Cambridge, CB4 0WS, Vereinigtes Königreich (<a href="https://osmfoundation.org/wiki/Privacy_Policy">Datenschutzerklärung</a>)</li>
-<li><b>Höhendaten der 3D-Ansicht und der Aufstiege</b> (nur wenn Sie die 3D-Ansicht oder den Reiter „Routen“ öffnen): Terrain Tiles, bereitgestellt über Amazon Web Services, Inc., 410 Terry Avenue North, Seattle, WA 98109, USA; dabei kann Ihre IP-Adresse in die USA übermittelt werden</li>
-<li><b>Wettervorhersage:</b> Open-Meteo, Bischofszell, Schweiz (<a href="https://open-meteo.com/en/terms">Bedingungen und Datenschutz</a>)</li>
+<ul><li><b>Hintergrundkarte</b> (Kartenkacheln, Schriften und Symbole): OpenFreeMap (<a href="https://openfreemap.org/">openfreemap.org</a>), ein freier Kartendienst auf Basis von OpenStreetMap</li>
+<li><b>Höhendaten für die Reliefschattierung der Karte, die 3D-Ansicht und die Aufstiege</b>: Terrain Tiles, bereitgestellt über Amazon Web Services, Inc., 410 Terry Avenue North, Seattle, WA 98109, USA; dabei kann Ihre IP-Adresse in die USA übermittelt werden</li>
+<li><b>Wettervorhersage:</b> Norwegisches Meteorologisches Institut (MET Norway), Henrik Mohns plass 1, 0371 Oslo, Norwegen (<a href="https://api.met.no/doc/TermsOfService">Nutzungsbedingungen</a>)</li>
 <li><b>Wegverläufe:</b> QLever, Lehrstuhl für Algorithmen und Datenstrukturen der Albert-Ludwigs-Universität Freiburg, Deutschland; ersatzweise die Overpass-Schnittstellen von FOSSGIS e.V., Deutschland (overpass-api.de), und Private.coffee, Österreich</li></ul>
 <p>Schriften und Programmbibliotheken werden von dieser Website selbst ausgeliefert, nicht von Dritten.</p>
 {support}<h2>Links zu anderen Websites</h2>
@@ -148,7 +149,7 @@ def nutzungsbedingungen(d):
 <p>Alpengipfel zeigt Informationen zu Gipfeln der Alpen: Lage, Höhe, Wege und Routen, Hütten, Ausgangspunkte und Wettervorhersagen. Die Nutzung ist kostenlos. Es gibt keine kostenpflichtigen Funktionen, keine Abonnements und keine Käufe in der App.
 Ein Anspruch auf ständige Verfügbarkeit oder auf bestimmte Funktionen besteht nicht.</p>
 <h2>2. Keine Gewähr für die Angaben, Touren auf eigene Gefahr</h2>
-<p>Die Angaben stammen aus frei verfügbaren Quellen (unter anderem OpenStreetMap, Camptocamp und Open-Meteo) und werden von Freiwilligen gepflegt. Sie können unvollständig, veraltet oder falsch sein.
+<p>Die Angaben stammen aus frei verfügbaren Quellen (unter anderem OpenStreetMap, Camptocamp und MET Norway) und werden von Freiwilligen gepflegt. Sie können unvollständig, veraltet oder falsch sein.
 Das gilt besonders für Wegverläufe, Schwierigkeitsangaben und Wetter. Alpengipfel ersetzt keine Tourenplanung mit aktuellen Karten, Führerliteratur, Lawinen- und Wetterbericht und keine eigene Beurteilung vor Ort.
 Bergtouren unternehmen Sie auf eigene Gefahr.</p>
 <h2>3. Konto</h2>
