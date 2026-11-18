@@ -298,7 +298,7 @@ json.dump({'name': 'Alpengipfel', 'short_name': 'Alpengipfel', 'description': 'A
            'icons': [{'src': 'assets/icon-192.png', 'sizes': '192x192', 'type': 'image/png'}, {'src': 'assets/icon-512.png', 'sizes': '512x512', 'type': 'image/png'},
                      {'src': 'assets/icon-512.png', 'sizes': '512x512', 'type': 'image/png', 'purpose': 'maskable'}]},
           open('docs/manifest.webmanifest', 'w'), ensure_ascii=False, indent=1)
-shell_files = ['./', 'manifest.webmanifest', 'data/peaks.json', 'data/geo.json'] + sorted('assets/' + os.path.relpath(f, 'docs/assets') for f in glob.glob('docs/assets/**/*', recursive=True) if os.path.isfile(f) and 'maplibre' not in f)
+shell_files = ['./', 'manifest.webmanifest', 'data/peaks.json', 'data/geo.json'] + sorted('assets/' + os.path.relpath(f, 'docs/assets') for f in glob.glob('docs/assets/**/*', recursive=True) if os.path.isfile(f))
 import hashlib
 version = hashlib.sha1(b''.join(open('docs/' + (f if f != './' else 'index.html'), 'rb').read() for f in shell_files)).hexdigest()[:12]
 open('docs/sw.js', 'w').write(open('src/sw.js').read().replace('__VERSION__', version).replace('__FILES__', json.dumps(shell_files)))

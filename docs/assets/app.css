@@ -1460,3 +1460,14 @@ ul.plans.past { opacity: .75; }
 .chform textarea { flex: 1; min-width: 0; resize: none; font: inherit; font-size: 15px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); color: var(--ink); min-height: 40px; }
 .chform .primary { flex: none; width: 42px; height: 42px; border-radius: 50%; border: 0; background: var(--accent); color: var(--accent-ink); font-size: 17px; cursor: pointer; }
 .chform .primary:disabled { opacity: .5; }
+
+/* offline */
+.offrow { display: flex; flex-direction: column; gap: 4px; }
+.offrow:empty { display: none; }
+.offbtn { align-self: flex-start; border: 1px solid var(--ink); background: var(--ink); color: var(--surface); border-radius: 999px; padding: 8px 16px; font: inherit; font-weight: 600; cursor: pointer; }
+.offrow .note { color: var(--muted); }
+.offok { margin: 0; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--h0) 14%, var(--surface)); border: 1px solid color-mix(in srgb, var(--h0) 40%, var(--line)); font-size: 14px; }
+.offlist li { align-items: center; }
+.locbtn { width: 34px; height: 34px; border-radius: 6px; border: 2px solid rgba(0,0,0,.2); background: var(--surface); color: var(--ink); display: grid; place-items: center; cursor: pointer; padding: 0; background-clip: padding-box; }
+.locbtn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.locbtn[aria-pressed="true"] { color: #1a73e8; }

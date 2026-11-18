@@ -317,7 +317,11 @@ async function loadTrails(i) {
   let data = trailCache.get(i);
   if (!data) {
     try { data = await fetchTrails(i); trailCache.set(i, data); }
-    catch (err) { if (trailsFor === i) { trailsFor = -1; trailMsg('Die Wege um den Gipfel konnten gerade nicht geladen werden.'); } return; }
+    catch (err) {
+      const rec = await offGet(D.peaks.id[i]);        // no network: the paths saved with the summit
+      if (rec && rec.trails) { data = { ways: rec.trails.ways, marked: rec.trails.marked ? new Set(rec.trails.marked) : new Set() }; trailCache.set(i, data); }
+      else { if (trailsFor === i) { trailsFor = -1; trailMsg('Die Wege um den Gipfel konnten gerade nicht geladen werden.'); } return; }
+    }
   }
   const current = () => trailsFor === i && selected === i;
   if (!current()) return;
@@ -471,7 +475,10 @@ function loadAscents(i, d) {
   if (!$('asclist')) return;
   let p = ascents.get(i);
   if (!p) { p = computeAscents(i, d); ascents.set(i, p); p.catch(() => ascents.delete(i)); }
-  p.then(r => { if (selected === i) renderAscents(i, d, r); }, () => { if (selected === i) renderAscError(i, d); });
+  p.then(r => { if (selected === i) renderAscents(i, d, r); }, async () => {
+    const rec = await offGet(D.peaks.id[i]);          // no network: the ascents saved with the summit
+    if (selected !== i) return;
+    if (rec && rec.asc) { ascents.set(i, Promise.resolve(rec.asc)); renderAscents(i, d, rec.asc); } else renderAscError(i, d); });
   loadTracks(i);
 }
 const startName = (s, h) => s.name || (s.kind ? START_KIND[s.kind] : 'Parkplatz') + (h ? ' auf ' + fmt.format(Math.round(h / 10) * 10) + ' m' : ' ohne Namen');
@@ -1356,7 +1363,7 @@ function renderDetail(i, fromMap, d) {
     (d.p ? `<dt>Schartenhöhe</dt><dd>${fmt.format(d.p)} m</dd>` : '') +
     `<dt>Wege und Routen</dt><dd>${nR ? `${nR} erfasst · <button type="button" class="linkbtn" data-goto="routes">ansehen</button>` : 'keine erfasst'}</dd>` +
     `</dl>` +
-    `<div class="links"><button type="button" id="zoomto">Auf Karte zeigen</button>${HOSTED ? '<button type="button" id="show3d">3D-Ansicht</button><button type="button" id="planit">Tour planen</button><button type="button" id="share">Teilen</button>' : ''}` +
+    `<div class="offrow" id="offrow"></div><div class="links"><button type="button" id="zoomto">Auf Karte zeigen</button>${HOSTED ? '<button type="button" id="show3d">3D-Ansicht</button><button type="button" id="planit">Tour planen</button><button type="button" id="share">Teilen</button>' : ''}` +
     `<a href="https://www.openstreetmap.org/node/${P.id[i]}" target="_blank" rel="noopener">OpenStreetMap</a>${wpLink}` +
     `<a href="https://www.opentopomap.org/#marker=15/${la}/${lo}" target="_blank" rel="noopener">Topokarte</a></div>` +
     (SEO_TEXT && SEO_TEXT.id === P.id[i] ? `<section class="about">${SEO_TEXT.html}</section>` : '') + `</section>` +
@@ -1378,6 +1385,7 @@ function renderDetail(i, fromMap, d) {
   $('back').onclick = () => closeDetail();
   renderBookRow(i);
   if (d.im && $('dbimg')) loadBanner(i, d.im);
+  if (HOSTED) renderOfflineRow(i);
   if ($('show3d')) $('show3d').onclick = () => open3d(i);
   if ($('planit')) $('planit').onclick = () => newPlan(i);
   ['share', 'share2'].forEach(id => { if ($(id)) $(id).onclick = () => sharePeak(i); });
@@ -1466,6 +1474,10 @@ async function loadWeather(i) {
     try {
       data = await metWeather(la, lo, e); wxCache.set(i, data);
     } catch (err) {
+      const rec = await offGet(P.id[i]);              // no network: the forecast saved with the summit
+      if (rec && rec.weather) { data = rec.weather; data.saved = rec.at; wxCache.set(i, data); }
+    }
+    if (!data) {
       if (selected === i && $('wxnowt')) $('wxnowt').textContent = 'Wetter gerade nicht verfügbar';
       if (selected === i && $('wxbody')) $('wxbody').innerHTML = (HOSTED ? 'Der Wetterdienst ist gerade nicht erreichbar. Öffne den Gipfel in ein paar Minuten noch einmal. ' : 'Die Vorhersage konnte nicht geladen werden. Innerhalb von claude.ai darf die Seite keine Wetterdaten abrufen; auf der eigenen Webadresse erscheint sie hier. ') + windy;
       return;
@@ -1510,7 +1522,8 @@ async function loadWeather(i) {
       `<div class="wxscroll"><table class="wxh"><thead><tr><th>Zeit</th><th>Wetter</th><th>Temp.</th><th>Wind km/h</th><th>Niederschlag</th><th>Wolken</th></tr></thead><tbody>${rows}</tbody></table></div></details>`;
   }).join('');
   const body = $('wxbody'); body.className = '';
-  body.innerHTML = days + `<p class="note" style="margin-top:8px">Tippe auf einen Tag für den Verlauf in 3-Stunden-Schritten. Temperatur als Tagestief / Tageshoch${e != null ? `, berechnet für ${fmt.format(e)} m` : ''}. Neuschnee und Nullgradgrenze sind aus Temperatur und Niederschlag geschätzt. Modellvorhersage: <a href="https://www.met.no/en" target="_blank" rel="noopener">MET Norway</a> (CC BY 4.0), kein Ersatz für den Bergwetterbericht.</p>`;
+  const savedNote = data.saved ? `<p class="offok">📴 Offline: gespeicherte Vorhersage vom ${new Date(data.saved).toLocaleString('de-DE', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })} Uhr</p>` : '';
+  body.innerHTML = savedNote + days + `<p class="note" style="margin-top:8px">Tippe auf einen Tag für den Verlauf in 3-Stunden-Schritten. Temperatur als Tagestief / Tageshoch${e != null ? `, berechnet für ${fmt.format(e)} m` : ''}. Neuschnee und Nullgradgrenze sind aus Temperatur und Niederschlag geschätzt. Modellvorhersage: <a href="https://www.met.no/en" target="_blank" rel="noopener">MET Norway</a> (CC BY 4.0), kein Ersatz für den Bergwetterbericht.</p>`;
 }
 /* ---------- 3D view of a summit's surroundings (MapLibre GL with terrain, loaded only when opened) ---------- */
 let gl3d = null, glLib = null;
@@ -1821,8 +1834,8 @@ function renderProfile() {
   } else headHtml = `<div class="phead"><div class="avatar" aria-hidden="true">?</div><div><h2>Profil</h2><p class="note">${sb ? 'Du bist nicht angemeldet. Dein Gipfelbuch liegt nur in diesem Browser.' : 'Konten gibt es nur auf alpen-gipfel.de. Hier liegt dein Gipfelbuch in diesem Browser.'}</p></div></div>`;
   const myAw = empty ? [] : computeAwards().got.map(awardInfo).filter(Boolean);
   page.innerHTML = `<div class="home profile">${headHtml}<section><h3 class="h3">Deine Gipfel</h3>${stats}${actions}</section>` +
-    (myAw.length ? awardsFold('profile', 'Deine Auszeichnungen', myAw, awardsHtml(myAw, true) + `<div class="links"><button type="button" id="pawall">Alle im Gipfelbuch ansehen</button></div>`) : '') + `${sbUser && social ? '<section id="psocial"></section>' : ''}<section class="pacct">${accountHtml()}</section>${sbUser ? '<section id="pstatsadmin"></section>' : ''}${theme}</div>`;
-  $('pbook').onclick = showBook; if ($('pawall')) $('pawall').onclick = showBook;
+    (myAw.length ? awardsFold('profile', 'Deine Auszeichnungen', myAw, awardsHtml(myAw, true) + `<div class="links"><button type="button" id="pawall">Alle im Gipfelbuch ansehen</button></div>`) : '') + `${HOSTED && 'caches' in window ? `<section id="poffline"><h3 class="h3">Offline gespeichert</h3>${offlineListHtml()}</section>` : ''}${sbUser && social ? '<section id="psocial"></section>' : ''}<section class="pacct">${accountHtml()}</section>${sbUser ? '<section id="pstatsadmin"></section>' : ''}${theme}</div>`;
+  $('pbook').onclick = showBook; if ($('pawall')) $('pawall').onclick = showBook; if ($('poffline')) wireOfflineList($('poffline'));
   if ($('mypublic')) $('mypublic').onclick = () => showUser(sbUser.user_metadata.username);
   if ($('avbtn')) { $('avbtn').onclick = () => $('avfile').click(); $('avfile').onchange = ev => { const f = ev.target.files[0]; ev.target.value = ''; if (f) setAvatar(f); }; }
   if ($('pdone')) { $('pdone').onclick = () => preset({ book: 'done' }); $('pwish').onclick = () => preset({ book: 'wish' }); }
@@ -2067,8 +2080,10 @@ async function renderPlans() {
   page.innerHTML = `<div class="home plans"><section class="feedhead"><div><p class="eyebrow">Planen</p><h2>Deine Touren</h2><p class="lede">Gipfel und Datum, die Gruppe, Packlisten für jeden und eine Checkliste, damit nichts vergessen wird.</p></div>` +
     `<button type="button" class="primary sharetour" id="newplan">＋ Neue Tour planen</button></section><div id="plist"><p class="note">Wird geladen …</p></div></div>`;
   $('newplan').onclick = () => newPlan(-1);
-  const { data, error } = await sb.rpc('meine_plaene');
+  let { data, error } = await sb.rpc('meine_plaene');
   if (pageMode !== 'plan' || !$('plist')) return;
+  if (!error) idb.set('plans', data).catch(() => {});
+  else { const snap = await idb.get('plans').catch(() => null); if (snap) { data = snap; error = null; $('plist').insertAdjacentHTML('beforebegin', '<p class="offok">📴 Offline: deine zuletzt geladenen Pläne</p>'); } }
   if (error) { $('plist').innerHTML = '<p class="note">Das Planen wird gerade eingerichtet. Schau gleich noch einmal vorbei.</p>'; return; }
   const today0 = today(), inv = data.filter(p => p.mein_status === 'eingeladen'), rest = data.filter(p => p.mein_status !== 'eingeladen');
   const soon = rest.filter(p => !p.datum || p.datum >= today0), past = rest.filter(p => p.datum && p.datum < today0).reverse();
@@ -2143,15 +2158,20 @@ async function loadPlan(first) {
     sb.from('plan_nachrichten').select('id,user_id,text,created_at').eq('plan_id', st.id).order('created_at', { ascending: false }).limit(200)]);
   st.chatOk = !ms.error; st.msgs = (ms.data || []).reverse();
   if (planState !== st || pageMode !== 'plan') return;
+  if (p.error || !p.data) {                           // no network: the copy saved when the plan was last opened
+    const snap = await idb.get('plan:' + st.id).catch(() => null);
+    if (snap && planState === st) { st.plan = snap.plan; st.group = snap.group; st.items = snap.items; st.msgs = snap.msgs || []; st.chatOk = true; st.offline = snap.at; renderPlan(first); return; }
+  }
   if (p.error || !p.data) { page.innerHTML = `<div class="home plans"><div class="emptybox"><h3>Plan nicht gefunden</h3><p>Vielleicht wurde er gelöscht, oder du gehörst nicht (mehr) zur Gruppe.</p><div class="links"><button type="button" id="pback">Zu deinen Touren</button></div></div></div>`; $('pback').onclick = () => showPlans(); return; }
-  st.plan = p.data; st.group = (g.data || []).filter(x => x.status !== 'abgesagt'); st.items = it.data || [];
+  st.plan = p.data; st.group = (g.data || []).filter(x => x.status !== 'abgesagt'); st.items = it.data || []; st.offline = null;
+  idb.set('plan:' + st.id, { plan: st.plan, group: st.group, items: st.items, msgs: st.msgs, at: new Date().toISOString() }).catch(() => {});   // kept for use without a network
   st.group.forEach(x => { if (x.bild !== undefined) avatars.set(x.username.toLowerCase(), x.bild || ''); });
   if (!st.group.some(x => x.user_id === st.tab)) st.tab = sbUser.id;
   renderPlan(first);
 }
 function renderPlan(first) {
-  const st = planState, pl = st.plan, page = $('page'), me = sbUser.id, owner = pl.owner === me, i = pl.gipfel ? indexOfId(+pl.gipfel) : -1;
-  const myRow = st.group.find(x => x.user_id === me), invited = myRow && myRow.status === 'eingeladen';
+  const st = planState, pl = st.plan, page = $('page'), me = sbUser.id, owner = pl.owner === me && !st.offline, i = pl.gipfel ? indexOfId(+pl.gipfel) : -1;
+  const myRow = st.group.find(x => x.user_id === me), isInv = myRow && myRow.status === 'eingeladen' && !st.offline, invited = isInv || !!st.offline;   // offline: read only
   const name = uid => (st.group.find(x => x.user_id === uid) || {}).username || '?';
   const items = a => st.items.filter(x => x.art === a), pers = uid => st.items.filter(x => x.art === 'persoenlich' && x.user_id === uid);
   const prog = list => list.length ? `<span class="plprog"><i style="width:${Math.round(list.filter(x => x.erledigt).length / list.length * 100)}%"></i></span><small>${list.filter(x => x.erledigt).length} von ${list.length}</small>` : '';
@@ -2165,11 +2185,12 @@ function renderPlan(first) {
   const tab = st.tab, tabList = pers(tab), mine = tab === me;
   const gear = items('gruppe'), checks = items('check');
   const body = `<div class="home plans plan">` +
-    `<div class="dtop"><button class="back" id="plback" type="button">← Deine Touren</button>${owner ? `<span class="ascbtns"><button type="button" class="onmap" id="pledit">Bearbeiten</button><button type="button" class="onmap pmore" id="pldel">Löschen</button></span>` : `<button type="button" class="onmap pmore" id="plleave">Plan verlassen</button>`}</div>` +
+    `<div class="dtop"><button class="back" id="plback" type="button">← Deine Touren</button>${owner ? `<span class="ascbtns"><button type="button" class="onmap" id="pledit">Bearbeiten</button><button type="button" class="onmap pmore" id="pldel">Löschen</button></span>` : st.offline ? '' : `<button type="button" class="onmap pmore" id="plleave">Plan verlassen</button>`}</div>` +
     `<section class="plhead"><p class="eyebrow">${esc(KINDS[pl.art])}</p><h2>${esc(pl.titel)}</h2><p class="pldt">📅 ${esc(wday(pl.datum))}</p>` +
     (i >= 0 ? `<button type="button" class="ppeak" id="plpeak">🏔️ ${esc(D.peaks.n[i])}${D.peaks.e[i] != null ? ` · ${fmt.format(D.peaks.e[i])} m` : ''}</button>` : '') +
     (pl.treffpunkt ? `<p>📍 ${esc(pl.treffpunkt)}</p>` : '') + (pl.notiz ? `<p class="plnote">${esc(pl.notiz)}</p>` : '') + `</section>` +
-    (invited ? `<div class="plinvite"><b>${esc(name(pl.owner))} hat dich eingeladen.</b><span class="ascbtns"><button type="button" class="primary sharetour" id="plyes">Zusagen</button><button type="button" class="onmap" id="plno">Absagen</button></span></div>` : '') +
+    (st.offline ? `<p class="offok">📴 Offline: Stand vom ${new Date(st.offline).toLocaleString('de-DE', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })} Uhr. Abhaken und Schreiben geht wieder mit Internet.</p>` : '') +
+    (isInv ? `<div class="plinvite"><b>${esc(name(pl.owner))} hat dich eingeladen.</b><span class="ascbtns"><button type="button" class="primary sharetour" id="plyes">Zusagen</button><button type="button" class="onmap" id="plno">Absagen</button></span></div>` : '') +
     (i >= 0 ? `<section class="plwx" id="plwx"><h3 class="h3">Wetter am Gipfel</h3><p class="note">Wird geladen …</p></section>` : '') +
     `<section><h3 class="h3">Gruppe <span class="badge">${st.group.length}</span></h3><ul class="plgroup">${st.group.map(x => { const l = pers(x.user_id), d = l.filter(y => y.erledigt).length;
       return `<li>${av(x.username, 'sm')}<span><b>${esc(x.username)}</b>${x.besitzer ? ' <small class="tag">plant</small>' : ''}<small>${x.status === 'eingeladen' ? '⏳ eingeladen' : l.length ? `🎒 ${d} von ${l.length} gepackt` : '✓ dabei'}</small></span>` +
@@ -2243,6 +2264,113 @@ async function planWeather(i, datum) {                // the forecast for the to
       (warn.length ? `<p class="plwarn">⚠️ ${warn.join(' · ')}</p>` : '') + `<p class="note small">Modellvorhersage von MET Norway für ${P.e[i] != null ? fmt.format(P.e[i]) + ' m' : 'den Gipfel'}${days > 3 ? ', so weit voraus noch unsicher' : ''}. Bitte zusätzlich den Bergwetterbericht lesen.</p>`;
   } catch (err) { if ($('plwx')) $('plwx').innerHTML = '<h3 class="h3">Wetter am Gipfel</h3><p class="note">Die Vorhersage ist gerade nicht erreichbar.</p>'; }
 }
+/* ---------- offline: a summit saved with its map, terrain, ascents, paths, weather and details, for the mountain without a network ---------- */
+const OFF_CACHE = 'ag-offline-v1', OFF_INDEX = 'alpengipfel.offline.v1';
+const idb = (() => {                                 // a tiny IndexedDB store for the larger saved data
+  let p = null;
+  const open = () => p || (p = new Promise((ok, no) => { const r = indexedDB.open('alpengipfel', 1); r.onupgradeneeded = () => r.result.createObjectStore('offline'); r.onsuccess = () => ok(r.result); r.onerror = () => { p = null; no(r.error); }; }));
+  const run = async (mode, fn) => { const db = await open(); return new Promise((ok, no) => { const t = db.transaction('offline', mode), r = fn(t.objectStore('offline')); t.oncomplete = () => ok(r && r.result); t.onerror = () => no(t.error); }); };
+  return { get: k => run('readonly', s => s.get(k)), set: (k, v) => run('readwrite', s => s.put(v, k)), del: k => run('readwrite', s => s.delete(k)) };
+})();
+const offIndex = () => { try { return JSON.parse(localStorage.getItem(OFF_INDEX) || '{}'); } catch (err) { return {}; } };   // peak id -> { n, at, mb }
+const offSetIndex = x => { try { localStorage.setItem(OFF_INDEX, JSON.stringify(x)); } catch (err) { /* list not kept */ } };
+const offGet = id => idb.get('peak:' + id).catch(() => null);
+const tileXY = (la, lo, z) => { const n = 2 ** z, r = la * Math.PI / 180; return [Math.floor((lo + 180) / 360 * n), Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n)]; };
+function tilesIn(tpl, b, z0, z1) {                  // all tile URLs of a template covering the box [south, west, north, east]
+  const out = [];
+  for (let z = z0; z <= z1; z++) { const [x0, y0] = tileXY(b[2], b[1], z), [x1, y1] = tileXY(b[0], b[3], z);
+    for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) out.push(tpl.replace('{z}', z).replace('{x}', x).replace('{y}', y)); }
+  return out;
+}
+const slimAscent = x => ({ type: x.type, name: x.name, rel: x.rel, easiest: x.easiest, via: x.via || [], km: x.km, up: x.up, down: x.down, h: x.h, grade: x.grade, vf: x.vf, cat: x.cat,
+  ll: x.ll, trk: x.trk, fer: x.fer, start: x.start, gapM: x.gapM, gapH: x.gapH, res: { park: { name: x.res.park.name, p: x.res.park.p, kind: x.res.park.kind } } });
+async function offlineSave(i, status) {               // status(text): progress for the button area
+  const P = D.peaks, id = P.id[i], la = P.la[i], lo = P.lo[i];
+  status('Gipfeldaten und Aufstiege werden vorbereitet …');
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  const d = await detailOf(i);
+  let asc = null; try { let p = ascents.get(i); if (!p) { p = computeAscents(i, d); ascents.set(i, p); } asc = await p; } catch (err) { asc = null; }
+  let trails = trailCache.get(i); if (!trails) { try { trails = await fetchTrails(i); trailCache.set(i, trails); } catch (err) { trails = null; } }
+  let weather = wxCache.get(i); if (!weather) { try { weather = await metWeather(la, lo, P.e[i]); wxCache.set(i, weather); } catch (err) { weather = null; } }
+  // the area: about 7 km around the summit, widened to the start of every ascent
+  let b = [la - 0.065, lo - 0.09, la + 0.065, lo + 0.09];
+  for (const x of (asc && asc.list) || []) for (const p of x.ll) b = [Math.min(b[0], p[0] - 0.01), Math.min(b[1], p[1] - 0.014), Math.max(b[2], p[0] + 0.01), Math.max(b[3], p[1] + 0.014)];
+  const inner = [la - 0.03, lo - 0.042, la + 0.03, lo + 0.042];
+  const style = await (await fetch(BASE_STYLE)).json(), src = style.sources.openmaptiles.url, tj = await (await fetch(src)).json();
+  const urls = [BASE_STYLE, src, style.sprite + '.json', style.sprite + '.png', style.sprite + '@2x.json', style.sprite + '@2x.png',
+    ...['Noto Sans Regular', 'Noto Sans Bold', 'Noto Sans Italic'].flatMap(f => ['0-255', '256-511', '8192-8447'].map(r => style.glyphs.replace('{fontstack}', encodeURIComponent(f)).replace('{range}', r))),
+    ...tilesIn(style.sources.ne2_shaded.tiles[0], b, 5, 6), ...tilesIn(tj.tiles[0], b, 6, 14),
+    ...tilesIn(DEM_TILES, b, 8, 13), ...tilesIn(DEM_TILES, inner, 14, 14),
+    location.origin + peakUrl(i), location.origin + ROOT + 'data/d/' + Math.floor(i / D.meta.chunk) + '.json'];
+  const cache = await caches.open(OFF_CACHE);
+  let done = 0, bytes = 0, failed = 0, k = 0;
+  const worker = async () => { while (k < urls.length) { const u = urls[k++];
+    try { const have = await cache.match(u); if (have) { bytes += +(have.headers.get('content-length') || 0); } else { const r = await fetch(u); if (!r.ok) throw new Error(r.status); const blob = await r.clone().blob(); bytes += blob.size; await cache.put(u, r); } }
+    catch (err) { failed++; }
+    done++; if (done % 8 === 0 || done === urls.length) status(`Karte wird gespeichert … ${Math.round(done / urls.length * 100)} %`); } };
+  await Promise.all([...Array(6)].map(worker));
+  const rec = { id, n: P.n[i], at: new Date().toISOString(), d, asc: asc ? { list: asc.list.map(slimAscent), why: asc.why, rest: asc.rest } : null,
+    trails: trails ? { ways: trails.ways, marked: trails.marked ? [...trails.marked] : null } : null, weather, urls };
+  await idb.set('peak:' + id, rec);
+  const ix = offIndex(); ix[id] = { n: P.n[i], at: rec.at, mb: Math.round(bytes / 1e5) / 10 }; offSetIndex(ix);
+  return { failed, total: urls.length, mb: ix[id].mb };
+}
+async function offlineDelete(id) {
+  const rec = await offGet(id), ix = offIndex(); delete ix[id]; offSetIndex(ix);
+  if (rec && rec.urls) {                              // keep what another saved summit still needs
+    const keep = new Set(); for (const other of Object.keys(ix)) { const r = await offGet(other); (r && r.urls || []).forEach(u => keep.add(u)); }
+    const cache = await caches.open(OFF_CACHE); await Promise.all(rec.urls.filter(u => !keep.has(u)).map(u => cache.delete(u)));
+  }
+  await idb.del('peak:' + id).catch(() => {});
+}
+const iosNoApp = () => /iPhone|iPad|iPod/.test(navigator.userAgent) && !(navigator.standalone || matchMedia('(display-mode: standalone)').matches);
+function renderOfflineRow(i) {                       // on the summit page: save, saved, update, delete
+  const el = $('offrow'); if (!el) return;
+  if (!('caches' in window) || !window.indexedDB) { el.innerHTML = ''; return; }
+  const id = D.peaks.id[i], info = offIndex()[id];
+  el.innerHTML = info ? `<p class="offok">✓ <b>Offline verfügbar</b> · gespeichert ${new Date(info.at).toLocaleDateString('de-DE')} · ${String(info.mb).replace('.', ',')} MB` +
+      ` <button type="button" class="linkbtn" id="offupd">aktualisieren</button> · <button type="button" class="linkbtn" id="offdel">löschen</button></p>`
+    : `<button type="button" class="offbtn" id="offsave">⬇ Offline speichern</button><small class="note">Karte, Aufstiege, Wege und Wetter fürs Handy ohne Empfang</small>`;
+  const save = async () => {
+    const st = t => { if ($('offrow') && selected === i) $('offrow').innerHTML = `<p class="offok">${esc(t)}</p>`; };
+    if (!navigator.onLine) { st('Zum Speichern brauchst du eine Internetverbindung.'); return; }
+    try { const r = await offlineSave(i, st); count('offline-gespeichert');
+      if (selected !== i) return; renderOfflineRow(i);
+      const note = (r.failed ? ` ${r.failed} von ${r.total} Teilen fehlen, die Karte kann an manchen Stellen lückenhaft sein.` : '') + (iosNoApp() ? ' Tipp fürs iPhone: Alpengipfel über „Teilen“ → „Zum Home-Bildschirm“ installieren, sonst kann Safari gespeicherte Touren nach einigen Tagen ohne Nutzung löschen.' : '');
+      if (note) $('offrow').insertAdjacentHTML('beforeend', `<p class="note small">${esc(note.trim())}</p>`);
+      toast(`${D.peaks.n[i]} ist offline gespeichert ✓`);
+    } catch (err) { st('Das Speichern hat nicht geklappt. Prüfe die Verbindung und versuch es noch einmal.'); }
+  };
+  if ($('offsave')) $('offsave').onclick = save;
+  if ($('offupd')) $('offupd').onclick = save;
+  if ($('offdel')) $('offdel').onclick = async () => { await offlineDelete(id); renderOfflineRow(i); toast('Offline-Daten gelöscht'); };
+}
+function offlineListHtml() {                          // for the profile page
+  const ix = offIndex(), ids = Object.keys(ix).sort((a, b) => ix[b].at.localeCompare(ix[a].at));
+  if (!ids.length) return `<p class="note">Noch keine Tour offline gespeichert. Öffne einen Gipfel und tippe auf „Offline speichern“: Karte, Aufstiege, Wege und Wetter sind dann auch ohne Empfang da.</p>`;
+  const total = ids.reduce((s, k) => s + (ix[k].mb || 0), 0);
+  return `<ul class="slist offlist">${ids.map(k => { const i = indexOfId(+k); return `<li><span><button type="button" class="linkbtn" data-offopen="${i}">${esc(ix[k].n)}</button><small class="note"> · ${new Date(ix[k].at).toLocaleDateString('de-DE')} · ${String(ix[k].mb).replace('.', ',')} MB</small></span>` +
+    `<button type="button" class="onmap" data-offdel="${k}">Löschen</button></li>`; }).join('')}</ul><p class="note small">Zusammen etwa ${String(Math.round(total * 10) / 10).replace('.', ',')} MB auf diesem Gerät.${iosNoApp() ? ' Auf dem iPhone bleibt alles zuverlässig gespeichert, wenn Alpengipfel über „Teilen“ → „Zum Home-Bildschirm“ installiert ist.' : ''}</p>`;
+}
+function wireOfflineList(box) {
+  box.querySelectorAll('[data-offopen]').forEach(b => { b.onclick = () => { const i = +b.dataset.offopen; if (i >= 0) { explore(true); showDetail(i); } }; });
+  box.querySelectorAll('[data-offdel]').forEach(b => { b.onclick = async () => { await offlineDelete(b.dataset.offdel); box.innerHTML = `<h3 class="h3">Offline gespeichert</h3>${offlineListHtml()}`; wireOfflineList(box); }; });
+}
+// my position on the map, following it (works without a network: the phone's GPS)
+let followId = null, followLayer = null, followFirst = true;
+function toggleFollow(btn) {
+  if (followId != null) { navigator.geolocation.clearWatch(followId); followId = null; if (followLayer) followLayer.clearLayers(); btn.setAttribute('aria-pressed', 'false'); return; }
+  if (!navigator.geolocation) { toast('Dein Gerät gibt keinen Standort heraus.'); return; }
+  if (!followLayer) followLayer = L.layerGroup().addTo(map);
+  btn.setAttribute('aria-pressed', 'true'); followFirst = true;
+  followId = navigator.geolocation.watchPosition(pos => {
+    const ll = [pos.coords.latitude, pos.coords.longitude]; followLayer.clearLayers();
+    L.circle(ll, { radius: pos.coords.accuracy, color: '#1a73e8', weight: 1, fillOpacity: .12, interactive: false }).addTo(followLayer);
+    L.circleMarker(ll, { radius: 7, color: '#ffffff', weight: 3, fillColor: '#1a73e8', fillOpacity: 1, interactive: false }).addTo(followLayer);
+    if (followFirst) { followFirst = false; map.setView(ll, Math.max(map.getZoom(), 14)); }
+  }, () => { toast('Der Standort ist nicht verfügbar. Erlaube den Zugriff in den Einstellungen.'); btn.setAttribute('aria-pressed', 'false'); followId = null; }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 });
+}
+addEventListener('offline', () => toast('Offline · gespeicherte Touren funktionieren weiter'));
 /* ---------- notifications: likes, comments, followers, requests ---------- */
 async function updateBell() {
   const b = $('openbell'); if (!b) return;
@@ -2618,6 +2746,11 @@ function initMap() {
   $('map').setAttribute('role', 'application'); $('map').setAttribute('aria-label', 'Karte der Gipfel, Hütten und Wege. Alle Gipfel sind auch über die Liste erreichbar.');
   map = L.map('map', { preferCanvas: true, zoomSnap: 0.5, minZoom: 5, maxZoom: 17, maxBounds: [[35, -4], [52, 26]] }).fitBounds(ALPS_BOUNDS);
   mapShown = $('map').clientWidth > 0;
+  const Locate = L.Control.extend({ options: { position: 'topleft' }, onAdd() {      // follow my position (the phone's GPS works without a network)
+    const b = L.DomUtil.create('button', 'locbtn'); b.type = 'button'; b.title = 'Mein Standort'; b.setAttribute('aria-label', 'Meinen Standort auf der Karte zeigen'); b.setAttribute('aria-pressed', 'false');
+    b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/><circle cx="12" cy="12" r="7"/></svg>';
+    L.DomEvent.disableClickPropagation(b); b.onclick = () => toggleFollow(b); return b; } });
+  new Locate().addTo(map);
   map.attributionControl.setPrefix(false).addAttribution('Daten © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende (ODbL)');
   let hasTiles = false;
   const bw = () => { const z = map.getZoom(); return z >= 10 ? 1 : z <= 7 ? .45 : .45 + (z - 7) * .55 / 3; };   // thinner borders when zoomed out
